@@ -3,18 +3,14 @@
 #error "need at leats BOOST version 1.36"
 #endif
 
+// fixes build problems with g++
+#define __STDC_CONSTANT_MACROS
 
 #include <algorithm>
 
-
-
 #include <boost/filesystem.hpp>
-
 #include <boost/algorithm/string.hpp>
-
 #include <boost/numeric/conversion/cast.hpp>
-
-
 
 #include "logror.h"
 #include "convert.h"

@@ -1,9 +1,9 @@
 #include <boost/version.hpp>
 #if (BOOST_VERSION / 100) < 1036
-#error "need at leats BOOST version 1.36"
+#error "need at least BOOST version 1.36"
 #endif
 
-// fixes build problems with g++
+// fixes build problems with ffmpeg and g++
 #define __STDC_CONSTANT_MACROS
 
 #include <algorithm>
@@ -21,8 +21,6 @@ extern "C"
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
 }
-
-#include <iostream>
 
 using namespace std;
 using boost::numeric_cast;
@@ -67,10 +65,18 @@ bool AvSource::Load(string fileName)
 {
 	pimpl->Free();
 	pimpl->fileName = fileName;
-
+	
 	Log(info, "avsource loading %1%"), fileName;
+	
+	AVProbeData probeData = {fileName.c_str(), NULL, 0};
+	AVInputFormat* inputFormat = av_probe_input_format(&probeData, 0);
+	if (inputFormat == NULL)
+	{
+		Log(warning, "unknown format %1%"), fileName;
+		return false;
+	}
 
-	if (av_open_input_file(&pimpl->formatContext, fileName.c_str(), NULL, 0, NULL) != 0)
+	if (av_open_input_file(&pimpl->formatContext, fileName.c_str(), inputFormat, 0, NULL) != 0)
 	{
 		Log(warning, "can't open file %1%"), fileName;
 		return false;

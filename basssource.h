@@ -6,31 +6,40 @@
 #include <boost/cstdint.hpp>
 #include <boost/scoped_ptr.hpp>
 
-#include "dsp.h"
+#include "abstractplugin.h"
 
-class BassSource : public Machine
+class BassSource : public AbstractSource
 {
 public:
 	BassSource();
 	virtual ~BassSource();
-	bool Load(std::string fileName, bool prescan = false);
-	static bool CheckExtension(std::string fileName);
+	static bool probe_name(std::string file_name);
+
+	// manipulators
+	// only applies to modules
+	void set_samplerate(uint32_t samplerate); 
+	// only applies to modules
+	void set_loop_duration(double duration); 
+	bool load(std::string fileName, bool prescan);
+
+	// manipulators from AbstractSource
+	bool load(std::string file_name);
+	void process(AudioStream& stream, uint32_t const frames);
+	void seek(uint64_t frame);
 	
-	//overwrite
-	void Process(AudioStream & stream, uint32_t const frames);
-	std::string Name() const {return "Bass Source"; }
+	// observers
+	bool is_module() const;
+	bool is_amiga_module() const;
+	float loopiness() const;
 	
-	void SetSamplerate(uint32_t moduleSamplerate); // only applies to modules
-	void SetLoopDuration(double duration); // only applies to modules
-	
-	bool IsModule() const;
-	bool IsAmigaModule() const;
-	float Loopiness() const;
-	uint32_t Channels() const;
-	uint32_t Samplerate() const;
-	uint32_t Bitrate() const;
-	double Duration() const;
-	std::string CodecType() const;
+	// observers from AbstractSource
+	std::string name() const;
+	uint32_t channels() const;
+	uint32_t samplerate() const;
+	uint64_t length() const;
+	float bitrate() const;
+	bool seekable() const;
+	std::string metadata(std::string key) const;
 	
 private: 
 	struct Pimpl;

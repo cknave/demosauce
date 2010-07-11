@@ -11,25 +11,19 @@ replaygain_a='libreplaygain/libreplaygain.a'
 samplerate_a='libsamplerate/libsamplerate.a'
 avcodec_so='ffmpeg/libavcodec.so'
 
-src_common='avsource.cpp convert.cpp basscast.cpp dsp.cpp basssource.cpp sockets.cpp logror.cpp'
+src_common='avsource.cpp convert.cpp basscast.cpp effects.cpp basssource.cpp sockets.cpp logror.cpp'
 
 src_scan='scan.cpp'
-input_scan="avsource.o dsp.o logror.o basssource.o $replaygain_a"
+input_scan="avsource.o effects.o logror.o basssource.o $replaygain_a"
 libs_scan="$libs_ffmpeg -lbass -lbass_aac -lbassflac -lboost_system-mt -lboost_date_time-mt"
 
 src_demosauce='settings.cpp  demosauce.cpp'
-input_demosauce="avsource.o convert.o dsp.o logror.o basssource.o sockets.o basscast.o $samplerate_a"
+input_demosauce="avsource.o convert.o effects.o logror.o basssource.o sockets.o basscast.o $samplerate_a"
 libs_demosauce="$libs_ffmpeg -lbass -lbassenc -lbass_aac -lbassflac -lboost_system-mt -lboost_thread-mt -lboost_filesystem-mt -lboost_program_options-mt -lboost_date_time-mt"
-
-src_applejuice='applejuice.cpp'
-input_applejuice="avsource.o dsp.o convert.o logror.o basssource.o $replaygain_a $samplerate_a"
-libs_applejuice="$libs_ffmpeg -lSDL -lSDL_image -lbass -lbass_aac -lbassflac -lboost_system-mt -lboost_date_time-mt"
-res_applejuice='res/background.png res/buttons.png res/icon.png res/font_synd.png'
 
 build_debug=
 build_rebuild=
 build_lazy=
-build_applejuice=
 
 for var in "$@"
 do
@@ -37,7 +31,6 @@ do
 	'debug') build_debug=1;;
 	'rebuild') build_rebuild=1;;
 	'lazy') build_lazy=1;;
-	'aj') build_applejuice=1;;
 	'clean') rm -f *.o; exit 0;;
 	esac
 done
@@ -95,21 +88,12 @@ done
 
 flags_bass="-L$dir_bass -Wl,-rpath=$dir_bass"
 
-if test $build_applejuice; then
-	echo 'building applejuice'
-	ld -r -b binary -o res.o $res_applejuice
-	g++ -o applejuice -Wl,-rpath=. $src_applejuice $flags $flags_bass $libs_applejuice $input_applejuice res.o
-	if test $? -ne 0; then exit 1; fi
+echo 'building scan'
+g++ -o scan $src_scan $flags $flags_bass $libs_scan $input_scan
+if test $? -ne 0; then exit 1; fi
 
-else
-	echo 'building scan'
-	g++ -o scan $src_scan $flags $flags_bass $libs_scan $input_scan
-	if test $? -ne 0; then exit 1; fi
-
-	echo 'building demosauce'
-	g++ -o demosauce $src_demosauce $flags $flags_bass $libs_demosauce `icu-config --ldflags` $input_demosauce
-	if test $? -ne 0; then exit 1; fi
-
-fi
+echo 'building demosauce'
+g++ -o demosauce $src_demosauce $flags $flags_bass $libs_demosauce `icu-config --ldflags` $input_demosauce
+if test $? -ne 0; then exit 1; fi
 
 if test ! $build_lazy; then rm -f *.o; fi

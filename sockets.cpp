@@ -9,7 +9,6 @@
 using namespace std;
 using namespace boost;
 using namespace boost::asio;
-using namespace logror;
 using boost::asio::ip::tcp;
 
 struct Sockets::Pimpl
@@ -63,11 +62,11 @@ Sockets::Pimpl::SendCommand(string const & command, string & result)
 				throw boost::system::system_error(error); // Some other error.
 			result.append(buf.data(), len);
 		}
-		LogDebug("socket command=%1% result=%2%"), command, result;
+		LOG_DEBUG("socket command=%1% result=%2%"), command, result;
 	}
 	catch (std::exception & e)
 	{
-		Log(warning ,"%1%"), e.what();
+		LOG_WARNING("%1%"), e.what();
 		return false;
 	}
 	return true;
@@ -83,17 +82,17 @@ Sockets::GetSong(SongInfo& songInfo)
 	songInfo.loopDuration = 0;
 	
 	if (!pimpl->SendCommand("GETSONG", songInfo.fileName))
-		Error("socket command GETSONG failed");
+		ERROR("socket command GETSONG failed");
 
 	if (!pimpl->SendCommand("GETARTIST", songInfo.artist))
-		Log(warning, "socket command GETARTIST failed");
+		LOG_WARNING("socket command GETARTIST failed");
 
 	if (!pimpl->SendCommand("GETTITLE", songInfo.title))
-		Log(warning, "socket command GETTITLE failed");
+		LOG_WARNING("socket command GETTITLE failed");
 		
 	string gain = "0";
 	if (!pimpl->SendCommand("GETGAIN", gain))
-		Log(warning, "socket command GETGAIN failed");
+		LOG_WARNING("socket command GETGAIN failed");
 	try 
 	{
 		songInfo.gain = lexical_cast<float>(gain);
@@ -102,7 +101,7 @@ Sockets::GetSong(SongInfo& songInfo)
 	
 	string loopDuration = "0";
 	if (!pimpl->SendCommand("GETLOOP", loopDuration))
-		Log(warning, "socket command GETLOOP failed");
+		LOG_WARNING("socket command GETLOOP failed");
 	try 
 	{
 		songInfo.loopDuration = lexical_cast<float>(loopDuration); 
@@ -126,7 +125,7 @@ bool ResolveIp(string host, std::string &ipAddress)
 	}
 	catch (std::exception & e)
 	{
-		Error("%1%"), e.what();
+		ERROR("%1%"), e.what();
 		return false;
 	}
 	return true;

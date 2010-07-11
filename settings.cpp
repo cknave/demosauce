@@ -133,9 +133,9 @@ void InitSettings(int argc, char* argv[])
 	
 	if (optionsMap.count("cast_password")) 
 		cast_password = castForcePassword;
-	if (settingsMap.count("log_file_level") && !StringToLevel(logFileLevel, log_file_level))
+	if (settingsMap.count("log_file_level") && !log_string_to_level(logFileLevel, log_file_level))
 		std::cout << "setting log_file_level: unknown level\n";
-	if (settingsMap.count("log_console_level") && !StringToLevel(logConsoleLevel, log_console_level))
+	if (settingsMap.count("log_console_level") && !log_string_to_level(logConsoleLevel, log_console_level))
 		std::cout << "setting log_console_level: unknown level\n";
 	
 	CheckSanity();

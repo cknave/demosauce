@@ -19,7 +19,9 @@ cast_description 	= this is a nice online radio, also maep is a ruler
 error_tune			= error.tune
 error_title			= error 
 error_fallback_dir	= /dir/to/songs
-log_file			= demosauce.log
+
+# a %1% in fog file name will be replace by the current date-time
+log_file			= demosauce_	%1%.log
 
 # level can be debug, info, warn, error, fatal, nothing
 log_file_level		= info

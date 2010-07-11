@@ -18,7 +18,7 @@
 
 #include "globals.h"
 #include "sockets.h"
-#include "dsp.h"
+#include "effects.h"
 #include "convert.h"
 #include "basssource.h"
 #include "avsource.h"
@@ -26,7 +26,6 @@
 
 using namespace std;
 using namespace boost;
-using namespace logror;
 using namespace boost::filesystem;
 
 /*	current processing stack layout
@@ -38,10 +37,10 @@ typedef int16_t sample_t; // output sample type
 
 struct BassCastPimpl
 {
-	void Start();
-	void ChangeSong();
-	void GetNextSong(SongInfo& songInfo);
-	void InitMachines();
+	void start();
+	void change_song();
+	void get_next_song(SongInfo& songInfo);
+	void init_machines();
 	//-----------------
 	Sockets sockets;
 	ConvertToInterleaved converter;
@@ -66,10 +65,10 @@ struct BassCastPimpl
 			BASS_SetConfig(BASS_CONFIG_UPDATEPERIOD, 0);
 			if (!BASS_Init(0, setting::encoder_samplerate, 0, 0, NULL) &&
 				BASS_ErrorGetCode() != BASS_ERROR_ALREADY)
-				Fatal("BASS init failed (%1%)"), BASS_ErrorGetCode();
-			InitMachines();
-			ChangeSong();
-			Start();
+				FATAL("BASS init failed (%1%)"), BASS_ErrorGetCode();
+			init_machines();
+			change_song();
+			start();
 		}
 };
 
@@ -80,7 +79,7 @@ template <typename T> shared_ptr<T> new_shared()
 	return shared_ptr<T>(new T);
 }
 
-void BassCastPimpl::InitMachines()
+void BassCastPimpl::init_machines()
 {
 	machineStack = new_shared<MachineStack>();
 	noiseSource = new_shared<NoiseSource>();
@@ -92,19 +91,19 @@ void BassCastPimpl::InitMachines()
 	linearFade = new_shared<LinearFade>();
 	gain = new_shared<Gain>();
 
-	noiseSource->SetChannels(setting::encoder_channels);
+	noiseSource->set_channels(setting::encoder_channels);
 	float ratio = setting::amiga_channel_ratio;
-	mixChannels->Set(1 - ratio, ratio, 1 - ratio, ratio);
-	mapChannels->SetOutChannels(setting::encoder_channels);
+	mixChannels->set_mix(1 - ratio, ratio, 1 - ratio, ratio);
+	mapChannels->set_channels(setting::encoder_channels);
 
-	machineStack->AddMachine(noiseSource);
-	machineStack->AddMachine(resample);
-	machineStack->AddMachine(mixChannels);
-	machineStack->AddMachine(mapChannels);
-	machineStack->AddMachine(linearFade);
-	machineStack->AddMachine(gain);
+	machineStack->add(noiseSource);
+	machineStack->add(resample);
+	machineStack->add(mixChannels);
+	machineStack->add(mapChannels);
+	machineStack->add(linearFade);
+	machineStack->add(gain);
 
-	converter.SetSource(machineStack);
+	converter.set_source(machineStack);
 }
 
 void BassCast::Run()
@@ -112,9 +111,9 @@ void BassCast::Run()
 	AlignedBuffer<char> buff(setting::encoder_samplerate * 2);
 	for (;;)
 	{
-		DWORD bytesRead = BASS_ChannelGetData(pimpl->sink, buff.Get(), buff.Size());
+		DWORD bytesRead = BASS_ChannelGetData(pimpl->sink, buff.get(), buff.size());
 		if (bytesRead == static_cast<DWORD>(-1))
-			Fatal("lost sink channel (%1%)"), BASS_ErrorGetCode();
+			FATAL("lost sink channel (%1%)"), BASS_ErrorGetCode();
 	}
 }
 
@@ -129,7 +128,7 @@ string utf8_to_ascii(string const & utf8_str)
 
 	if (U_FAILURE(status))
 	{
-		Log(warning, "utf8 conversion failed (%1%)"), u_errorName(status);
+		LOG_WARNING("utf8 conversion failed (%1%)"), u_errorName(status);
 		return "";
 	}
 
@@ -139,7 +138,7 @@ string utf8_to_ascii(string const & utf8_str)
 
 	if (U_FAILURE(status))
 	{
-		Log(warning, "unicode decomposition failed (%1%)"), u_errorName(status);
+		LOG_WARNING("unicode decomposition failed (%1%)"), u_errorName(status);
 		return "";
 	}
 
@@ -164,7 +163,7 @@ string create_cast_title(string const & artist, string const & title)
 	if (cast_title.size() > 0)
         cast_title.append(" - ");
 	cast_title.append(utf8_to_ascii(title));
-	LogDebug("unicode decomposition: %1%, %2% -> %3%"), artist, title, cast_title; 
+	LOG_DEBUG("unicode decomposition: %1%, %2% -> %3%"), artist, title, cast_title; 
 	return cast_title;
 }
 
@@ -180,7 +179,7 @@ string get_random_file(string directoryName)
 	return it->path().string();
 }
 
-void BassCastPimpl::GetNextSong(SongInfo& songInfo)
+void BassCastPimpl::get_next_song(SongInfo& songInfo)
 {
 	if (setting::debug_file.size() > 0)
 		songInfo.fileName = setting::debug_file;
@@ -189,7 +188,7 @@ void BassCastPimpl::GetNextSong(SongInfo& songInfo)
 	
 	if (songInfo.fileName.size() == 0)
     {
-        Log(info, "loading random file");
+        LOG_INFO("loading random file");
 		songInfo.fileName = get_random_file(setting::error_fallback_dir);
     }
 	if (songInfo.fileName.size() == 0)
@@ -199,85 +198,81 @@ void BassCastPimpl::GetNextSong(SongInfo& songInfo)
 }
 
 // this is called whenever the song is changed
-void BassCastPimpl::ChangeSong()
+void BassCastPimpl::change_song()
 {
 	// reset routing
-	resample->SetEnabled(false);
-	mixChannels->SetEnabled(false);
-	linearFade->SetEnabled(false);
+	resample->set_enabled(false);
+	mixChannels->set_enabled(false);
+	linearFade->set_enabled(false);
 
 	SongInfo songInfo;
 	uint32_t samplerate = setting::encoder_samplerate;
-	double duration = 0;
 
 	for (bool loadSuccess = false; !loadSuccess;)
 	{
 		bool bassLoaded = false;
 		bool avLoaded = false;
-		GetNextSong(songInfo);
+		get_next_song(songInfo);
 		
 		if (exists(songInfo.fileName))
 		{
 		// try loading by extension
-			if (BassSource::CheckExtension(songInfo.fileName))
-				bassLoaded = bassSource->Load(songInfo.fileName);
-			else if (AvSource::CheckExtension(songInfo.fileName))
-				avLoaded = avSource->Load(songInfo.fileName);
+			if (BassSource::probe_name(songInfo.fileName))
+				bassLoaded = bassSource->load(songInfo.fileName);
+			else if (AvSource::probe_name(songInfo.fileName))
+				avLoaded = avSource->load(songInfo.fileName);
 
 		// if above failed
 			if (!bassLoaded && !avLoaded)
-				bassLoaded = bassSource->Load(songInfo.fileName);
+				bassLoaded = bassSource->load(songInfo.fileName);
 			if (!bassLoaded && !avLoaded)
-				avLoaded = avSource->Load(songInfo.fileName);
+				avLoaded = avSource->load(songInfo.fileName);
 		}
 		else
-			Error("file doesn't exist: %1%"), songInfo.fileName;
+			ERROR("file doesn't exist: %1%"), songInfo.fileName;
 
 		if (bassLoaded)
 		{
-			machineStack->AddMachine(bassSource, 0);
-			samplerate = bassSource->Samplerate();
-			duration = bassSource->Duration();
-			if (bassSource->IsAmigaModule() && setting::encoder_channels == 2)
-				mixChannels->SetEnabled(true);
+			machineStack->add(bassSource, 0);
+			samplerate = bassSource->samplerate();
+			if (bassSource->is_amiga_module() && setting::encoder_channels == 2)
+				mixChannels->set_enabled(true);
 			if (songInfo.loopDuration > 0)
 			{
-				bassSource->SetLoopDuration(songInfo.loopDuration);
+				bassSource->set_loop_duration(songInfo.loopDuration);
 				uint64_t const start = (songInfo.loopDuration - 5) * setting::encoder_samplerate;
 				uint64_t const end = songInfo.loopDuration * setting::encoder_samplerate;
-				linearFade->Set(start, end, 1, 0);
-				linearFade->SetEnabled(true);
+				linearFade->set_fade(start, end, 1, 0);
+				linearFade->set_enabled(true);
 			}
 			loadSuccess = true;
 		}
 
  		if (avLoaded)
  		{
- 			machineStack->AddMachine(avSource, 0);
- 			samplerate = avSource->Samplerate();
+ 			machineStack->add(avSource, 0);
+ 			samplerate = avSource->samplerate();
  			loadSuccess = true;
  		}
 
 		if (!loadSuccess && songInfo.fileName == setting::error_tune)
 		{
-			Log(warning, "no error tune, playing some glorious noise"), songInfo.fileName;
-			noiseSource->SetDuration(120 * setting::encoder_samplerate);
-			machineStack->AddMachine(noiseSource, 0);
-			gain->SetAmp(DbToAmp(-24));
+			LOG_WARNING("no error tune, playing some glorious noise"), songInfo.fileName;
+			noiseSource->set_duration(120 * setting::encoder_samplerate);
+			machineStack->add(noiseSource, 0);
+			gain->set_amp(db_to_amp(-36));
 			loadSuccess = true;
 		}
 	}
 
-	Log(info, "duration %1% seconds"), duration;
-
 	if (samplerate != setting::encoder_samplerate)
 	{
-		resample->Set(samplerate, setting::encoder_samplerate);
-		resample->SetEnabled(true);
+		resample->set_rates(samplerate, setting::encoder_samplerate);
+		resample->set_enabled(true);
 	}
 	// once clipping is working also apply positive gain
-	gain->SetAmp(DbToAmp(songInfo.gain));
-	machineStack->UpdateRouting();
+	gain->set_amp(db_to_amp(songInfo.gain));
+	machineStack->update_routing();
 
 	string title = create_cast_title(songInfo.artist, songInfo.title);
 	BASS_Encode_CastSetTitle(encoder, title.c_str(), NULL);
@@ -288,17 +283,17 @@ DWORD FillBuffer(HSTREAM handle, void * buffer, DWORD length, void * user)
 {
 	BassCastPimpl& pimpl = *reinterpret_cast<BassCastPimpl*>(user);
 	uint32_t const channels = setting::encoder_channels;
-	uint32_t const frames = BytesInFrames<uint32_t, sample_t>(length, channels);
+	uint32_t const frames = bytes_in_frames<uint32_t, sample_t>(length, channels);
 	sample_t* const outBuffer = reinterpret_cast<sample_t*>(buffer);
 
-	uint32_t const procFrames = pimpl.converter.Process(outBuffer, frames, channels);
+	uint32_t const procFrames = pimpl.converter.process(outBuffer, frames, channels);
 
 	if (procFrames != frames) // implicates end of stream
 	{
-		Log(info, "end of stream");
-		size_t bytesRead = FramesInBytes<sample_t>(procFrames, channels);
+		LOG_INFO("end of stream");
+		size_t bytesRead = frames_in_bytes<sample_t>(procFrames, channels);
 		memset(reinterpret_cast<char*>(buffer) + bytesRead, 0, length - bytesRead);
-		pimpl.ChangeSong();
+		pimpl.change_song();
 	}
 	return length;
 }
@@ -310,30 +305,30 @@ void EncoderNotify(HENCODE handle, DWORD status, void * user)
 	if (status >= 0x10000)
 		return;
 	if (!BASS_Encode_Stop(pimpl.encoder))
-		Log(warning, "failed to stop old encoder %1%"), BASS_ErrorGetCode();
+		LOG_WARNING("failed to stop old encoder %1%"), BASS_ErrorGetCode();
 	bool deadUplink = status == BASS_ENCODE_NOTIFY_CAST;
 	if (deadUplink)
-		Error("the server connection died");
+		ERROR("the server connection died");
 	else
-		Error("the encoder died");
+		ERROR("the encoder died");
 	this_thread::sleep(deadUplink ? posix_time::seconds(60) : posix_time::seconds(1));
-	pimpl.Start();
+	pimpl.start();
 }
 
 void
-BassCastPimpl::Start()
+BassCastPimpl::start()
 {
 	// set up source stream -- samplerate, number channels, flags, callback, user data
 	sink = BASS_StreamCreate(setting::encoder_samplerate, setting::encoder_channels,
 		BASS_STREAM_DECODE, &FillBuffer, this);
 	if (!sink)
-		Fatal("couldn't create sink (%1%)"), BASS_ErrorGetCode();
+		FATAL("couldn't create sink (%1%)"), BASS_ErrorGetCode();
 	// setup encoder
 	string command = str(format("lame -r -s %1% -b %2% -") % setting::encoder_samplerate % setting::encoder_bitrate);
-	Log(info, "starting encoder %1%"), command;
+	LOG_INFO("starting encoder %1%"), command;
 	encoder = BASS_Encode_Start(sink, command.c_str(), BASS_ENCODE_NOHEAD | BASS_ENCODE_AUTOFREE, NULL, 0);
 	if (!encoder)
-		Fatal("couldn't start encoder (%1%)"), BASS_ErrorGetCode();
+		FATAL("couldn't start encoder (%1%)"), BASS_ErrorGetCode();
 	// setup casting
 	string host = setting::cast_host;
 	ResolveIp(setting::cast_host, host); // if resolve fails, host will retain it's original value
@@ -347,12 +342,12 @@ BassCastPimpl::Start()
 	const DWORD bitrate = setting::encoder_bitrate;
 	//NULL = no additional headers, TRUE = make public ok(list at shoutcast?)
 	if (!BASS_Encode_CastInit(encoder, server.c_str(), pass, content, name, url, genre, desc, NULL, bitrate, TRUE))
-		Fatal("couldn't set up connection with icecast (%1%)\n\tserver=%2%\n\tpass=%3%\n\tcontent=%4%\n\tname=%5%\n" \
+		FATAL("couldn't set up connection with icecast (%1%)\n\tserver=%2%\n\tpass=%3%\n\tcontent=%4%\n\tname=%5%\n" \
 			"\turl=%6%\n\tgenre=%7%\n\tdesc=%8%\n\tbitrate=%9%"), BASS_ErrorGetCode(), server, pass, content, name,
 			url,genre,desc, bitrate;
-	Log(info, "connected to icecast %1%"), server;
+	LOG_INFO("connected to icecast %1%"), server;
 	if (!BASS_Encode_SetNotify(encoder, EncoderNotify, 0)) // notify of dead encoder/connection
-		Fatal("couldn't set callback cunction (%1%)"), BASS_ErrorGetCode();
+		FATAL("couldn't set callback cunction (%1%)"), BASS_ErrorGetCode();
 }
 
 BassCast::~BassCast() {} // this HAS to be here, or scoped_ptr will poop in it's pants, header won't work.

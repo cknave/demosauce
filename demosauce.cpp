@@ -45,24 +45,22 @@
 #define STR(arg) #arg
 #define EXPAND(arg) STR(arg)
 
-using namespace logror;
-
 int main(int argc, char* argv[])
 {
-	std::cout << "demosauce 0.2.2" EXPAND(REVISION) " - Now with TWICE the BITS!\n";
+	std::cout << "demosauce 0.2.3" EXPAND(REVISION) " - Now with TWICE the BITS!\n";
 	srand(time(0));
 	try
 	{
         InitSettings(argc, argv);
-		LogSetConsoleLevel(setting::log_console_level);
-		LogSetFile(setting::log_file, setting::log_file_level);
+		log_set_console_level(setting::log_console_level);
+		log_set_file(setting::log_file, setting::log_file_level);
 		BassCast cast;
 		std::cout << "streamin'\n";
 		cast.Run();
 	} 
-	catch (std::exception & e)
+	catch (std::exception& e)
 	{
-		Fatal("%1%"), e.what();
+		FATAL("%1%"), e.what();
 	}
 	return EXIT_SUCCESS;
 }

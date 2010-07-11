@@ -1,3 +1,13 @@
+// build_lflags -lboost_date_time-mt
+
+/*
+*	applejuice music player
+*	this is beerware! you are strongly encouraged to invite the authors of 
+*	this software to a beer if you happen to run into them.
+*	also, this code is licensed under teh GPL, i guess. whatever.
+*	copyright 'n shit: year MMX by maep
+*/
+
 #include <cstdlib>
 #include <queue>
 #include <fstream>
@@ -8,43 +18,48 @@
 
 #include "logror.h"
 
-using std::string;
 using namespace boost::posix_time;
+
+logror::Level console_level = logror::warning;
+logror::Level file_level = logror::nothing;
+std::ofstream log_stream;
+std::queue<ptime> error_times;
+
+void log_set_console_level(logror::Level level)
+{
+	console_level = level;
+}
+
+void log_set_file_level(logror::Level level)
+{
+	if (log_stream.is_open() && !log_stream.fail())
+		file_level = level;
+}
+		
+void log_set_file(std::string file_name, logror::Level level)
+{
+	// don't throw exception if something fails
+	log_stream.exceptions(std::ifstream::goodbit);
+	
+	std::string time = to_simple_string(second_clock::local_time());
+	boost::format formater(file_name);
+	formater.exceptions(boost::io::no_error_bits);
+	std::string formatted_name = str(formater % time);
+	
+	log_stream.open(formatted_name.c_str());
+	if (log_stream.fail())
+		std::cout << "WARNING: could not open log file\n";
+	else
+		file_level = level;
+}
 
 namespace logror
 {
-
-Level consoleLevel = warning;
-Level fileLevel = nothing;
-std::ofstream log;
-std::queue<ptime> errorTimes;
-
-void LogSetConsoleLevel(Level level)
+LogBlob log_action(Level level, bool take_action, std::string message)
 {
-	consoleLevel = level;
-}
-
-void LogSetFileLevel(Level level)
-{
-	if (log.is_open() && !log.fail())
-		fileLevel = level;
-}
-		
-void LogSetFile(string fileName, Level level)
-{
-	log.exceptions(std::ifstream::goodbit); // don't throw exception if something fails
-	log.open(fileName.c_str());
-	if (log.fail())
-		std::cout << "WARNING: could not open log file\n";
-	else
-		fileLevel = level;
-}
-
-LogBlob LogAction(Level level, bool takeAction, string message)
-{
-	if (level != nothing && (level >= fileLevel || level >= consoleLevel))
+	if (level != nothing && (level >= file_level || level >= console_level))
 	{
-		string msg;
+		std::string msg;
 		msg.reserve(160); // should be enough for most
 		switch (level)
 		{
@@ -58,14 +73,14 @@ LogBlob LogAction(Level level, bool takeAction, string message)
 		msg.append(to_simple_string(second_clock::local_time()));
 		msg.append("\t");
 		msg.append(message);
-		return LogBlob(level, takeAction, msg);
+		return LogBlob(level, take_action, msg);
 	}
-	return LogBlob(nothing, takeAction, "");
+	return LogBlob(nothing, take_action, "");
 }
 
-LogBlob::LogBlob (Level level, bool takeAction, string message):
+LogBlob::LogBlob (Level level, bool take_action, std::string message):
 	level(level),
-	takeAction(takeAction),
+	take_action(take_action),
 	formater(message)
 {
 	formater.exceptions(boost::io::no_error_bits);
@@ -73,51 +88,51 @@ LogBlob::LogBlob (Level level, bool takeAction, string message):
 
 LogBlob::~LogBlob()
 {
-	const bool fatalQuit = takeAction && (level == fatal);
+	const bool fatalQuit = take_action && (level == fatal);
 	bool errorQuit = false;
 	if (level == error)
 	{
 		ptime const now = second_clock::local_time();
-		errorTimes.push(now);
-		if (errorTimes.size() > 10)
-			errorTimes.pop();
-		errorQuit = takeAction && (errorTimes.size() > 9) && (errorTimes.front() > (now - minutes(10)));
+		error_times.push(now);
+		if (error_times.size() > 10)
+			error_times.pop();
+		errorQuit = take_action && (error_times.size() > 9) && (error_times.front() > (now - minutes(10)));
 	}
 	if (level != nothing)
 	{
-		string msg = str(formater);
+		std::string msg = str(formater);
 		if (fatalQuit)
 			msg.append("\nterminated (fatal error)");
 		if (errorQuit)
 			msg.append("\nterminated (too many errors)");
-		if (level >= consoleLevel)
+		if (level >= console_level)
 			std::cout <<  msg << std::endl;
-		if (level >= fileLevel)
-			log << msg << std::endl;
+		if (level >= file_level)
+			log_stream << msg << std::endl;
 	}
 	if (fatalQuit || errorQuit)
 		exit(EXIT_FAILURE);
 }
 
-bool StringToLevel(const string & levelString, Level & level)
+}
+
+bool log_string_to_level(std::string level_string, logror::Level& level)
 {
-	string str = levelString;
+	std::string str = level_string;
 	boost::to_lower(str);
 	if (str == "debug")
-		level = debug;
+		level = logror::debug;
 	else if (str == "info")
-		level = info;
+		level = logror::info;
 	else if (str == "warn")
-		level = warning;
+		level = logror::warning;
 	else if (str == "error")
-		level = error;
+		level = logror::error;
 	else if (str =="fatal")
-		level = fatal;
+		level = logror::fatal;
 	else if (str =="nothing")
-		level = nothing;
+		level = logror::nothing;
 	else 
 		return false;
 	return true;
-}
-
 }

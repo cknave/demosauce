@@ -1,22 +1,39 @@
 /*
+*	applejuice music player
+*	this is beerware! you are strongly encouraged to invite the authors of 
+*	this software to a beer if you happen to run into them.
+*	also, this code is licensed under teh GPL, i guess. whatever.
+*	copyright 'n shit: year MMX by maep
+*/
+
+/*
 	logging and "error handling" stuff
-	to log use (everything is in logror namespace):
-	Log(level, "message %1% foo %2%"), param1, param2;
+	to log, use
+	LOG_DEBUG, LOG_INFO, LOG_WARNING, LOG_ERROR, LOG_FATAL
+	LOG_DEBUG will only be compiled with DEBUG macro
 	
-	if 'level' is debug, feel encouraged to use the macro, define DEBUG to enable/disable it
-	LogDebug("message %1% foo %2%"), param1, param2;
+	example:
+	LOG_INFO("something unimportant happend");
+	int foo = 10;
+	string bar = monogo-moose
+	LOG_DEBUG("i see %1% %2%!"), foo, bar; // prints "i see 10 mongo-moose!"
+
 	
-	Error keeps track of the last error and exits the application if too many errors apper
-	(currently 10 in less than den minutes). Log(error, "foo") does not expose this behaviour
-	Error("message %1% foo %2%"), param1, param2;
+	for error handling, use
+	ERROR, FATAL
+	example:
+	ERROR("DOOOOOM!! /o\ message: %1%"), error_message;
+	FATAL("FFFFFFFFUUUUUUUUUUUUUUUUUUUU %1%"), reason;
 	
-	Fatal logs the message and the exits the application. Log(fatal, "foo") does not expose this behaviour.
-	Fatal("message %1% foo %2%"), param1, param2;
+	ERROR keeps track of the last errors and calls exit(1) if too many errors appear
+	(currently 10 errors in less than 10 minutes)
+	FATAL logs the message and then calls exit(1). 
 	
 	other functions you might need:
-	void LogSetConsoleLevel(Level level);
-	void LogSetFileLevel(Level level);
-	void LogSetFile(string fileName, Level level = info);
+	void log_set_console_level(Level level);
+	void log_set_file_level(Level level);
+	void log_set_file(string file_name, Level level);
+	bool log_string_to_level(string level_string, Level& level);
 */
 
 #ifndef _H_LOGROR_
@@ -44,38 +61,43 @@ class LogBlob
 public:
 	LogBlob (Level level, bool takeAction, std::string message);
 	virtual ~LogBlob();
-	template<typename T> LogBlob & operator, (T right);
+	template<typename T> LogBlob & operator , (T right);
 private:
 	Level const level;
-	bool takeAction;
+	bool take_action;
 	boost::format formater;
 };
 
-LogBlob LogAction(Level level, bool takeAction, std::string message);
-inline LogBlob Log(Level level, std::string message) { return LogAction(level, false, message);  }
-inline LogBlob Error(std::string message) { return LogAction(error, true, message); }
-inline LogBlob Fatal(std::string message) { return LogAction(fatal, true, message); }
-
-#ifdef DEBUG
-	#define LogDebug(message) logror::LogAction(logror::debug, false, message)
-#else
-	// got this idea from http://www.ddj.com/developement-tools/184401612
-	// optimizing compiler should remove dead code
-	#define LogDebug(message) if(false) logror::LogAction(logror::nothing, false, "")
-#endif
-
-void LogSetConsoleLevel(Level level);
-void LogSetFileLevel(Level level);
-void LogSetFile(std::string fileName, Level level = info);
-bool StringToLevel(const std::string & levelString, Level & level);
-
 template <typename T>
-LogBlob & LogBlob::operator, (T right)
+LogBlob& LogBlob::operator , (T right)
 {
-	if (level != nothing) formater % right;
+	if (level != nothing) 
+		formater % right;
 	return *this;
 }
 
+LogBlob log_action(Level level, bool take_action, std::string message);
+
 }
+
+#ifdef DEBUG
+	#define LOG_DEBUG(message) logror::log_action(logror::debug, false, message)
+#else
+	// got this idea from http://www.ddj.com/developement-tools/184401612
+	// optimizing compiler should remove dead code
+	#define LOG_DEBUG(message) if(false) logror::log_action(logror::nothing, false, "")
+#endif
+
+#define LOG_INFO(message) logror::log_action(logror::info, false, message)
+#define LOG_WARNING(message) logror::log_action(logror::warning, false, message)
+#define LOG_ERROR(message) logror::log_action(logror::error, false, message)
+#define LOG_FATAL(message) logror::log_action(logror::fatal, false, message)
+#define ERROR(message) logror::log_action(logror::error, true, message)
+#define FATAL(message) logror::log_action(logror::fatal, true, message)
+
+void log_set_console_level(logror::Level level);
+void log_set_file_level(logror::Level level);
+void log_set_file(std::string fileName, logror::Level level = logror::info);
+bool log_string_to_level(std::string levelString, logror::Level& level);
 
 #endif

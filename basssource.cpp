@@ -22,7 +22,6 @@
 using namespace std;
 using namespace boost;
 using namespace boost::filesystem;
-using namespace logror;
 
 #ifdef BASSSOURCE_16BIT_DECODING
 	typedef int16_t sample_t;
@@ -34,15 +33,16 @@ using namespace logror;
 
 struct BassSource::Pimpl
 {
-	void Free();
+	void free();
+	std::string codec_type() const;
 	ConvertFromInterleaved<sample_t> converter;
-	string fileName;
+	string file_name;
 	DWORD channel;
 	BASS_CHANNELINFO channelInfo;
-	double duration;
 	uint32_t samplerate;
 	uint64_t currentFrame;
 	uint64_t lastFrame;
+	uint64_t length;
 };
 
 BassSource::BassSource():
@@ -50,57 +50,61 @@ BassSource::BassSource():
 {
 	pimpl->samplerate = 44100;
 	pimpl->channel = 0;
-	pimpl->Free();
+	pimpl->free();
 	BASS_SetConfig(BASS_CONFIG_UPDATEPERIOD, 0);
-	if (!BASS_Init(0, 44100, 0, 0, NULL) &&
-		BASS_ErrorGetCode() != BASS_ERROR_ALREADY)
-		Fatal("BASS init failed (%1%)"), BASS_ErrorGetCode();
+	if (!BASS_Init(0, 44100, 0, 0, NULL) && BASS_ErrorGetCode() != BASS_ERROR_ALREADY)
+		FATAL("BASS init failed (%1%)"), BASS_ErrorGetCode();
 }
 
 BassSource::~BassSource()
 {
-	pimpl->Free();
+	pimpl->free();
 }
 
-bool BassSource::Load(string fileName, bool prescan)
+bool BassSource::load(std::string file_name)
 {
-	pimpl->Free();
-	pimpl->fileName = fileName;
-	DWORD & channel = pimpl->channel;
+	return load(file_name, false);
+}
+
+bool BassSource::load(string file_name, bool prescan)
+{
+	pimpl->free();
+	pimpl->file_name = file_name;
+	DWORD& channel = pimpl->channel;
 	DWORD stream_flags = BASS_STREAM_DECODE | (prescan ? BASS_STREAM_PRESCAN : 0) | FLOAT_FLAG;
 	DWORD music_flags = BASS_MUSIC_DECODE | BASS_MUSIC_PRESCAN | FLOAT_FLAG;
 
-	Log(info, "basssource loading %1%"), fileName;
+	LOG_INFO("basssource loading %1%"), file_name;
 
 	// brute force attempt, don't rely on extensions
-	channel = BASS_StreamCreateFile(FALSE, fileName.c_str(), 0, 0, stream_flags);
+	channel = BASS_StreamCreateFile(FALSE, file_name.c_str(), 0, 0, stream_flags);
 	if (!channel)
-		channel = BASS_MusicLoad(FALSE, fileName.c_str(), 0, 0 , music_flags, pimpl->samplerate);
+		channel = BASS_MusicLoad(FALSE, file_name.c_str(), 0, 0 , music_flags, pimpl->samplerate);
 	if (!channel)
-		channel = BASS_AAC_StreamCreateFile(FALSE, fileName.c_str(), 0, 0, stream_flags);
+		channel = BASS_AAC_StreamCreateFile(FALSE, file_name.c_str(), 0, 0, stream_flags);
 	if (!channel)
-		channel = BASS_MP4_StreamCreateFile(FALSE, fileName.c_str(), 0, 0, stream_flags);
+		channel = BASS_MP4_StreamCreateFile(FALSE, file_name.c_str(), 0, 0, stream_flags);
 	if (!channel)
-		channel = BASS_FLAC_StreamCreateFile(FALSE, fileName.c_str(), 0, 0, stream_flags);
+		channel = BASS_FLAC_StreamCreateFile(FALSE, file_name.c_str(), 0, 0, stream_flags);
 	if (!channel)
 	{
-		Error("failed to load %1%"), fileName;
+		ERROR("failed to load %1%"), file_name;
 		return false;
 	}
 
 	BASS_ChannelGetInfo(channel, &pimpl->channelInfo);
 	const QWORD length = BASS_ChannelGetLength(channel, BASS_POS_BYTE);
-	pimpl->duration = BASS_ChannelBytes2Seconds(channel, length);
+	pimpl->length = length / (sizeof(sample_t) *  channels());
 
 	if (length == static_cast<QWORD>(-1))
 	{
-		Error("failed to determine duration of %1%"), fileName;
-		pimpl->Free();
+		ERROR("failed to determine duration of %1%"), file_name;
+		pimpl->free();
 		return false;
 	}
 
 	static DWORD const amiga_flags = BASS_MUSIC_NONINTER | BASS_MUSIC_PT1MOD;
-	if (IsAmigaModule())
+	if (is_amiga_module())
 		BASS_ChannelFlags(pimpl->channel, amiga_flags, amiga_flags);
 	else
 		BASS_ChannelFlags(pimpl->channel, BASS_MUSIC_RAMP, BASS_MUSIC_RAMP);
@@ -108,7 +112,7 @@ bool BassSource::Load(string fileName, bool prescan)
 	return true;
 }
 
-void BassSource::Pimpl::Free()
+void BassSource::Pimpl::free()
 {
 	if (channel != 0)
 	{
@@ -117,148 +121,117 @@ void BassSource::Pimpl::Free()
 		else
 			BASS_StreamFree(channel);
 		if (BASS_ErrorGetCode() != BASS_OK)
-			Log(warning, "failed to free BASS channel (%1%)"), BASS_ErrorGetCode();
+			LOG_WARNING("failed to free BASS channel (%1%)"), BASS_ErrorGetCode();
 		channel = 0;
 	}
-	fileName.clear();
-	duration = 0;
+	file_name.clear();
+	length = 0;
 	currentFrame = 0;
  	lastFrame = numeric_limits<uint64_t>::max();
 	memset(&channelInfo, 0, sizeof(BASS_CHANNELINFO));
 }
 
-void BassSource::Process(AudioStream& stream, uint32_t const frames)
+void BassSource::process(AudioStream& stream, uint32_t const frames)
 {
-	uint32_t const channels = Channels();
-	if (channels != 2 && channels != 1)
+	uint32_t const chan = channels();
+	if (chan != 2 && chan != 1)
 	{
-		Error("usupported number of channels");
-		stream.endOfStream = true;
-		stream.SetFrames(0);
+		ERROR("usupported number of channels");
+		stream.end_of_stream = true;
+		stream.set_frames(0);
 		return;
 	}
 
 	uint32_t const framesToRead = unsigned_min<uint32_t>(frames, pimpl->lastFrame - pimpl->currentFrame);
 	if (framesToRead == 0)
 	{
-		stream.endOfStream = true;
-		stream.SetFrames(0);
+		stream.end_of_stream = true;
+		stream.set_frames(0);
 		return;
 	}
 
-	DWORD const bytesToRead = FramesInBytes<sample_t>(framesToRead, channels);
-	sample_t* const readBuffer = pimpl->converter.Buffer(frames, channels);
+	DWORD const bytesToRead = frames_in_bytes<sample_t>(framesToRead, chan);
+	sample_t* const readBuffer = pimpl->converter.input_buffer(frames, chan);
 	DWORD const bytesRead = BASS_ChannelGetData(pimpl->channel, readBuffer, bytesToRead);
 
 	if (bytesRead == static_cast<DWORD>(-1) && BASS_ErrorGetCode() != BASS_ERROR_ENDED)
-		Error("failed to read from channel (%1%)"), BASS_ErrorGetCode();
+		ERROR("failed to read from channel (%1%)"), BASS_ErrorGetCode();
 
 	uint32_t framesRead = 0;
 	if (bytesRead != static_cast<DWORD>(-1))
-		framesRead = BytesInFrames<uint32_t, sample_t>(bytesRead, channels);
+		framesRead = bytes_in_frames<uint32_t, sample_t>(bytesRead, chan);
 
 	// converter will set stream size
-	pimpl->converter.Process(stream, framesRead);
+	pimpl->converter.process(stream, framesRead);
 	pimpl->currentFrame += framesRead;
-	stream.endOfStream = framesRead != framesToRead || pimpl->currentFrame >= pimpl->lastFrame;
-	if(stream.endOfStream) LogDebug("eos bass %1% frames left"), stream.Frames();
+	stream.end_of_stream = framesRead != framesToRead || pimpl->currentFrame >= pimpl->lastFrame;
+	if(stream.end_of_stream) 
+		LOG_DEBUG("eos bass %1% frames left"), stream.frames();
 }
 
-void BassSource::SetSamplerate(uint32_t moduleSamplerate)
+void BassSource::seek(uint64_t position)
 {
-	pimpl->samplerate = moduleSamplerate;
 }
 
-void BassSource::SetLoopDuration(double duration)
+void BassSource::set_samplerate(uint32_t samplerate)
 {
-	if (pimpl->channel == 0 || duration < 0)
+	pimpl->samplerate = samplerate;
+}
+
+void BassSource::set_loop_duration(double duration)
+{
+	if (pimpl->channel == 0)
 		return;
-	pimpl->duration = duration;
-	pimpl->lastFrame = numeric_cast<uint64_t>(duration * Samplerate());
+	pimpl->length = numeric_cast<uint64_t>(duration * samplerate());
+	pimpl->lastFrame = pimpl->length;
 	BASS_ChannelFlags(pimpl->channel, BASS_SAMPLE_LOOP, BASS_SAMPLE_LOOP);
 }
 
-float BassSource::Loopiness() const
-{
-	if (!IsModule() || pimpl->fileName.size() == 0)
-		return 0;
-	// what I'm doing here is find the last 50 ms of a track and return the average positive value
-	// i got a bit lazy here, but this part isn't so crucial anyways
-	// flags to make decoding as fast as possible. still use 44100 hz, because lower setting might
-	// remove upper frequencies that could indicate a loop
-	DWORD const flags = BASS_MUSIC_DECODE | BASS_SAMPLE_MONO | BASS_MUSIC_NONINTER;
-	static DWORD const sampleRate = 44100;
-	static size_t const checkFrames = sampleRate / 20;
-	HMUSIC channel = BASS_MusicLoad(FALSE, pimpl->fileName.c_str(), 0, 0 , flags, sampleRate);
-	static size_t const buffSize = 44100;
-	int16_t* buff = new int16_t[buffSize * 2]; // replace with aligned buffer class
-	memset(buff, 0, sizeof(buff)); // just to be save
-	int16_t* bufA = buff;
-	int16_t* bufB = buff + buffSize;
-	DWORD bytes = buffSize * sizeof(int16_t);
-	while (bytes == buffSize * sizeof(int16_t)) // um seeking, anyone?
-	{
-		bytes = BASS_ChannelGetData(channel, bufB, buffSize * sizeof(int16_t));
-		if (bytes == static_cast<DWORD>(-1) && BASS_ErrorGetCode() != BASS_ERROR_ENDED)
-		{
-			Log(warning, "error on loop scan (%1%)"), BASS_ErrorGetCode();
-			return 0;
-		}
-		if (BASS_ErrorGetCode() == BASS_ERROR_ENDED)
-			bytes = 0;
-		swap(bufA, bufB);
-	}
-	DWORD const frames = bytes / sizeof(int16_t);
-	size_t bufAOffset = frames < checkFrames ? buffSize + frames - checkFrames : buffSize;
-	size_t bufBOffset = frames < checkFrames ? 0 : frames - checkFrames;
-	uint32_t accu = 0;
-	bufA += bufAOffset;
-	for (size_t i = bufAOffset; i < buffSize; ++i)
-		accu += fabs(*bufA++);
-	bufB += bufBOffset;
-	for (size_t i = bufBOffset; i < frames; ++i)
-		accu += fabs(*bufB++);
-	delete[] buff;
-	BASS_MusicFree(channel);
-	return static_cast<float>(accu) / checkFrames / -numeric_limits<int16_t>::min();
-}
-
-bool BassSource::IsModule() const
+bool BassSource::is_module() const
 {
 	return pimpl->channelInfo.ctype & BASS_CTYPE_MUSIC_MOD;
 }
 
-bool BassSource::IsAmigaModule() const
+bool BassSource::is_amiga_module() const
 {
 	return pimpl->channelInfo.ctype == BASS_CTYPE_MUSIC_MOD;
 }
 
-uint32_t BassSource::Channels() const
+uint32_t BassSource::channels() const
 {
 	return static_cast<uint32_t>(pimpl->channelInfo.chans);
 }
 
-uint32_t BassSource::Samplerate() const
+uint32_t BassSource::samplerate() const
 {
 	return static_cast<uint32_t>(pimpl->channelInfo.freq);
 }
 
-uint32_t BassSource::Bitrate() const
+float BassSource::bitrate() const
 {
-	DWORD const fileLength = BASS_StreamGetFilePosition(pimpl->channel, BASS_FILEPOS_END);
- 	uint32_t const bitrate = static_cast<uint32_t>(fileLength / (125 * Duration()) + 0.5);
-	bool gah = IsModule();
-	return gah ? 0 : bitrate;
+	if (is_module())
+		return 0;
+	double size = BASS_StreamGetFilePosition(pimpl->channel, BASS_FILEPOS_END);
+	double duration = static_cast<double>(length()) / samplerate();
+ 	//double bitrate = size / (125 * duration) + 0.5;
+	double bitrate = size / (125 * duration);
+	return bitrate;
 }
 
-double BassSource::Duration() const
+uint64_t BassSource::length() const
 {
-	return pimpl->duration;
+	return pimpl->length;
+	//return BASS_ChannelGetLength(pimpl->channel, BASS_POS_BYTE) / sizeof(sample_t);
 }
 
-bool BassSource::CheckExtension(string const fileName)
+bool BassSource::seekable() const
 {
-	path file(fileName);
+	return false;
+}
+
+bool BassSource::probe_name(string const file_name)
+{
+	path file(file_name);
 	string name = file.filename();
 
 	static size_t const elements = 18;
@@ -278,9 +251,9 @@ bool BassSource::CheckExtension(string const fileName)
 	return false;
 }
 
-string BassSource::CodecType() const
+std::string BassSource::Pimpl::codec_type() const
 {
-	switch (pimpl->channelInfo.ctype)
+	switch (channelInfo.ctype)
 	{
 		case BASS_CTYPE_STREAM_OGG: return "vorbis";
 		case BASS_CTYPE_STREAM_MP1: return "mp1";
@@ -304,4 +277,62 @@ string BassSource::CodecType() const
 		default:;
 	}
 	return "-";
+}
+
+std::string BassSource::metadata(std::string key) const 
+{
+	if (key == "codec_type")
+		return pimpl->codec_type();
+	// todo: artist / title
+	return "";
+}
+
+std::string  BassSource::name() const 
+{
+	return "Bass Source";
+}
+
+float BassSource::loopiness() const
+{
+	if (!is_module() || pimpl->file_name.size() == 0)
+		return 0;
+	// what I'm doing here is find the last 50 ms of a track and return the average positive value
+	// i got a bit lazy here, but this part isn't so crucial anyways
+	// flags to make decoding as fast as possible. still use 44100 hz, because lower setting might
+	// remove upper frequencies that could indicate a loop
+	DWORD const flags = BASS_MUSIC_DECODE | BASS_SAMPLE_MONO | BASS_MUSIC_NONINTER;
+	static DWORD const sampleRate = 44100;
+	static size_t const checkFrames = sampleRate / 20;
+	HMUSIC channel = BASS_MusicLoad(FALSE, pimpl->file_name.c_str(), 0, 0 , flags, sampleRate);
+	static size_t const buffSize = 44100;
+	int16_t* buff = new int16_t[buffSize * 2]; // replace with aligned buffer class
+	memset(buff, 0, sizeof(buff)); // just to be save
+	int16_t* bufA = buff;
+	int16_t* bufB = buff + buffSize;
+	DWORD bytes = buffSize * sizeof(int16_t);
+	while (bytes == buffSize * sizeof(int16_t)) // um seeking, anyone?
+	{
+		bytes = BASS_ChannelGetData(channel, bufB, buffSize * sizeof(int16_t));
+		if (bytes == static_cast<DWORD>(-1) && BASS_ErrorGetCode() != BASS_ERROR_ENDED)
+		{
+			LOG_WARNING("error on loop scan (%1%)"), BASS_ErrorGetCode();
+			return 0;
+		}
+		if (BASS_ErrorGetCode() == BASS_ERROR_ENDED)
+			bytes = 0;
+		swap(bufA, bufB);
+	}
+	DWORD const frames = bytes / sizeof(int16_t);
+	size_t bufAOffset = frames < checkFrames ? buffSize + frames - checkFrames : buffSize;
+	size_t bufBOffset = frames < checkFrames ? 0 : frames - checkFrames;
+	uint32_t accu = 0;
+	bufA += bufAOffset;
+	for (size_t i = bufAOffset; i < buffSize; ++i)
+		accu += fabs(*bufA++);
+	bufB += bufBOffset;
+	for (size_t i = bufBOffset; i < frames; ++i)
+		accu += fabs(*bufB++);
+	delete[] buff;
+	BASS_MusicFree(channel);
+	return static_cast<float>(accu) / checkFrames / -numeric_limits<int16_t>::min();
 }

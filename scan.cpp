@@ -1,4 +1,4 @@
-	#include <cstdlib>
+#include <cstdlib>
 #include <string>
 #include <iostream>
 
@@ -8,90 +8,76 @@
 #include "basssource.h"
 #include "avsource.h"
 
-
-std::string ScanSong(std::string fileName, bool doReplayGain)
+std::string scan_song(std::string file_name, bool do_scan)
 {
-	BassSource bassSource;
-	AvSource avSource;
-	bool bassLoaded = bassSource.Load(fileName, true);
-	bool avLoaded = bassLoaded ? false : avSource.Load(fileName);
+	BassSource bass_source;
+	AvSource av_source;
+	bool bass_loaded = bass_source.load(file_name, true);
+	bool av_loaded = bass_loaded ? false : av_source.load(file_name);
 
-	uint32_t channels = 0;
-	std::string type;
-	double length = 0;
-	uint32_t samplerate = 0;
-	uint32_t bitrate = 0;
-	Machine* decoder = 0;
+	AbstractSource* source = 0;
+	if (bass_loaded)
+		source = static_cast<AbstractSource*>(&bass_source);
+	if (av_loaded)
+		source = static_cast<AbstractSource*>(&av_source);
 
-	if (bassLoaded)
-	{
-		channels = bassSource.Channels();
-		type = bassSource.CodecType();
-		length = bassSource.Duration();
-		samplerate = bassSource.Samplerate();
-		bitrate = bassSource.Bitrate();
-		decoder = static_cast<Machine*>(&bassSource);
-	}
-
-	if (avLoaded)
-	{
-		channels = avSource.Channels();
-		type = avSource.CodecType();
-		samplerate = avSource.Samplerate();
-		bitrate = avSource.Bitrate();
-		decoder = static_cast<Machine*>(&avSource);
-	}
-
-	if (!avLoaded && !bassLoaded)
-		logror::Fatal("unknown format");
+	uint32_t chan = source->channels();
+	uint32_t samplerate = source->samplerate();
+	
+	if (!av_loaded && !bass_loaded)
+		FATAL("unknown format");
 	if (samplerate == 0)
-		logror::Fatal("samplerate is zero");
-	if (channels < 1 || channels > 2)
-		logror::Fatal("unsupported number of channels");
+		FATAL("samplerate is zero");
+	if (chan < 1 || chan > 2)
+		FATAL("unsupported number of channels");
 
-	uint64_t frameCounter = 0;
-	RG_SampleFormat format = {samplerate, RG_FLOAT_32_BIT, channels, FALSE};
-	RG_Context* context = RG_NewContext(&format);
+	uint64_t frames = 0;
 	AudioStream stream;
+	RG_SampleFormat format = {samplerate, RG_FLOAT_32_BIT, chan, FALSE};
+	RG_Context* context = RG_NewContext(&format);
 
-	if (doReplayGain || avLoaded)
-		while (!stream.endOfStream)
+	if (do_scan || av_loaded)
+		while (!stream.end_of_stream)
 		{
-			decoder->Process(stream, 48000);
-			float* buffers[2] = {stream.Buffer(0), channels == 2 ? stream.Buffer(1) : NULL};
-			if (doReplayGain)
-				RG_Analyze(context, buffers, stream.Frames());
-			frameCounter += stream.Frames();
+			source->process(stream, 48000);
+			float* buffers[2] = {stream.buffer(0), chan == 2 ? stream.buffer(1) : 0};
+			if (do_scan)
+				RG_Analyze(context, buffers, stream.frames());
+			frames += stream.frames();
 		}
 
-	double replayGain = RG_GetTitleGain(context);
+	double replay_gain = RG_GetTitleGain(context);
 	RG_FreeContext(context);
 		
-	if (avLoaded)
-		length = static_cast<double>(frameCounter) / samplerate;
 	std::string msg = "type:%1%\nlength:%2%\n";
-	if (doReplayGain)
-		msg.append("replay gain:%3%\n");
-	if (bassSource.IsModule())
+	if (do_scan)
+		msg.append("replaygain:%3%\n");
+	if (bass_source.is_module())
 		msg.append("loopiness:%6%");
 	else
 		msg.append("bitrate:%4%\nsamplerate:%5%");
-
+	
+	double duration = static_cast<double>(av_loaded ? frames : source->length()) / samplerate; 
+	float bitrate = av_loaded ? av_source.bitrate() : bass_source.bitrate();
+	
 	boost::format formater(msg);
 	formater.exceptions(boost::io::no_error_bits);
-	return str(formater % type % length % replayGain % bitrate
-		% samplerate % bassSource.Loopiness());
+	return str(formater % source->metadata("codec_type") % duration % replay_gain 
+		% bitrate % samplerate % bass_source.loopiness());
 }
 
 int main(int argc, char* argv[])
 {
-	logror::LogSetConsoleLevel(logror::fatal);
+	log_set_console_level(logror::fatal);
 	if (argc < 2 || (*argv[1] == '-' && argc < 3))
-		logror::Fatal("not enough arguments");
+	{
+		std::cout << "demosauce scan tool 0.2\nsyntax: scan [--no-replaygain] file\n";
+		return EXIT_FAILURE;
+	}
 
-	std::string fileName = argv[argc - 1];
-	bool doReplayGain = strcmp(argv[1], "--no-replaygain");
-	std::cout << ScanSong(fileName, doReplayGain) << std::endl;
+	std::string file_name = argv[argc - 1];
+	bool do_replay_gain = strcmp(argv[1], "--no-replaygain");
+	std::cout << scan_song(file_name, do_replay_gain) << std::endl;
 
 	return EXIT_SUCCESS;
 }

@@ -8,18 +8,17 @@ flags_release='-s -O3 -mtune=native -msse2 -mfpmath=sse'
 libs_ffmpeg='-Lffmpeg -Wl,-rpath=ffmpeg -lavcodec -lavformat'
 
 replaygain_a='libreplaygain/libreplaygain.a'
-samplerate_a='libsamplerate/libsamplerate.a'
 avcodec_so='ffmpeg/libavcodec.so'
 
 src_common='avsource.cpp convert.cpp basscast.cpp effects.cpp basssource.cpp sockets.cpp logror.cpp'
 
 src_scan='scan.cpp'
 input_scan="avsource.o effects.o logror.o basssource.o $replaygain_a"
-libs_scan="$libs_ffmpeg -lbass -lbass_aac -lbassflac -lboost_system-mt -lboost_date_time-mt"
+libs_scan="$libs_ffmpeg -lbass -lbass_aac -lbassflac -lsamplerate -lboost_system-mt -lboost_date_time-mt"
 
 src_demosauce='settings.cpp  demosauce.cpp'
 input_demosauce="avsource.o convert.o effects.o logror.o basssource.o sockets.o basscast.o $samplerate_a"
-libs_demosauce="$libs_ffmpeg -lbass -lbassenc -lbass_aac -lbassflac -lboost_system-mt -lboost_thread-mt -lboost_filesystem-mt -lboost_program_options-mt -lboost_date_time-mt"
+libs_demosauce="$libs_ffmpeg -lbass -lbassenc -lbass_aac -lbassflac -lsamplerate -lboost_system-mt -lboost_thread-mt -lboost_filesystem-mt -lboost_program_options-mt -lboost_date_time-mt"
 
 build_debug=
 build_rebuild=
@@ -56,14 +55,6 @@ fi
 if test ! -f "$replaygain_a" -o "$build_rebuild"; then
 	cd libreplaygain
 	./build.sh ${build_debug:+debug}
-	if test $? -ne 0; then exit 1; fi
-	cd ..
-fi
-
-# libsamplerate
-if test ! -f "$samplerate_a" -o "$build_rebuild"; then
-	cd libsamplerate
-	./build.sh
 	if test $? -ne 0; then exit 1; fi
 	cd ..
 fi

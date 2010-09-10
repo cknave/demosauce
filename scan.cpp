@@ -8,6 +8,9 @@
 #include "basssource.h"
 #include "avsource.h"
 
+// abort scan if track is too long, in seconds
+#define MAX_LENGTH 3600
+
 std::string scan_song(std::string file_name, bool do_scan)
 {
 	BassSource bass_source;
@@ -30,7 +33,8 @@ std::string scan_song(std::string file_name, bool do_scan)
 		FATAL("samplerate is zero");
 	if (chan < 1 || chan > 2)
 		FATAL("unsupported number of channels");
-
+    
+    uint64_t const max_frames = MAX_LENGTH * samplerate;
 	uint64_t frames = 0;
 	AudioStream stream;
 	RG_SampleFormat format = {samplerate, RG_FLOAT_32_BIT, chan, FALSE};
@@ -44,6 +48,8 @@ std::string scan_song(std::string file_name, bool do_scan)
 			if (do_scan)
 				RG_Analyze(context, buffers, stream.frames());
 			frames += stream.frames();
+            if (frames > max_frames)
+                FATAL("too long (more than %1% seconds)"), MAX_LENGTH;
 		}
 
 	double replay_gain = RG_GetTitleGain(context);

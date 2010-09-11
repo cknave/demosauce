@@ -42,27 +42,21 @@ Resample::~Resample()
 
 void Resample::Pimpl::update_channels(uint32_t channels)
 {
-	if (states.size() > channels)
-	{
-		for (size_t i = channels; i < states.size(); ++i)
-			src_delete(states[i]);
-		states.resize(channels);
-	}
+    if (states.size() == channels)
+        return;
+    
+    free();
 
-	if (states.size() < channels)
-	{
-		for (size_t i = states.size(); i < channels; ++i)
-		{
-			LOG_DEBUG("new resampler %1%"), i;
-			int err = 0;
-			SRC_STATE* state = src_new(SRC_SINC_FASTEST, 1, &err);
-			if (err)
-				LOG_WARNING("src_new error: %1%"), src_strerror(err);
-			else
-				states.push_back(state);
-		}
-		reset();
-	}
+    for (size_t i = states.size(); i < channels; ++i)
+    {
+        LOG_DEBUG("new resampler %1%"), i;
+        int err = 0;
+        SRC_STATE* state = src_new(SRC_SINC_FASTEST, 1, &err);
+        if (err)
+            LOG_WARNING("src_new error: %1%"), src_strerror(err);
+        else
+            states.push_back(state);
+    }
 }
 
 void Resample::process(AudioStream& stream, uint32_t const frames)
@@ -103,20 +97,10 @@ void Resample::process(AudioStream& stream, uint32_t const frames)
 		LOG_DEBUG("eos resample %1% frames left"), stream.frames();
 }
 
-void Resample::Pimpl::reset()
-{
-	for (size_t i = 0; i < states.size(); ++i)
-	{
-		int err = src_reset(states[i]);
-		if (err)
-			LOG_WARNING("src_reset error: %1%"), src_strerror(err);
-	}
-}
-
 void Resample::set_rates(uint32_t sourceRate, uint32_t outRate)
 {
+    pimpl->free();
 	pimpl->ratio = static_cast<double>(outRate) / sourceRate;
-	pimpl->reset();
 }
 
 void Resample::Pimpl::free()
@@ -133,7 +117,7 @@ std::string Resample::name() const
 
 // src wrappers
 
-void float_to_int16(float const * in, int16_t * out, uint32_t len)
+void float_to_int16(float const* in, int16_t* out, uint32_t len)
 {
 	src_float_to_short_array(in, out, boost::numeric_cast<int>(len));
 }

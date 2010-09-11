@@ -12,8 +12,12 @@ avcodec_so='ffmpeg/libavcodec.so'
 
 src_common='avsource.cpp convert.cpp basscast.cpp effects.cpp basssource.cpp sockets.cpp logror.cpp'
 
+src_preview='preview.cpp'
+input_preview="avsource.o effects.o logror.o basssource.o"
+libs_preview="$libs_ffmpeg -lbass -lbass_aac -lbassflac -lsamplerate -lboost_system-mt -lboost_date_time-mt"
+
 src_scan='scan.cpp'
-input_scan="avsource.o effects.o logror.o basssource.o $replaygain_a"
+input_scan="avsource.o effects.o logror.o convert.o basssource.o $replaygain_a"
 libs_scan="$libs_ffmpeg -lbass -lbass_aac -lbassflac -lsamplerate -lboost_system-mt -lboost_date_time-mt"
 
 src_demosauce='settings.cpp  demosauce.cpp'
@@ -78,6 +82,10 @@ do
 done
 
 flags_bass="-L$dir_bass -Wl,-rpath=$dir_bass"
+
+#~ echo 'building preview'
+#~ g++ -o preview $src_preview $flags $flags_bass $libs_preview $input_preview
+#~ if test $? -ne 0; then exit 1; fi
 
 echo 'building scan'
 g++ -o scan $src_scan $flags $flags_bass $libs_scan $input_scan

@@ -87,7 +87,7 @@ void Resample::process(AudioStream& stream, uint32_t const frames)
 		if (err)
 			ERROR("src_process error: %1%"), src_strerror(err);
 	}
-	
+    
 	// if output contins wanted frames there might be more
 	stream.end_of_stream = in_stream.end_of_stream
 		&& data.output_frames_gen != data.output_frames;

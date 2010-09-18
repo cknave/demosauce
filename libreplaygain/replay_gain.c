@@ -16,7 +16,7 @@ RG_Context* RG_NewContext(RG_SampleFormat* format)
 {
 	if (format->numberChannels != 1 && format->numberChannels != 2)
 		return NULL;
-	Context_t * cxt = NewAnalyzeContext();
+	Context_t* cxt = NewAnalyzeContext();
 	int val = InitGainAnalysis(cxt, format->sampleRate);
 	if (val == INIT_GAIN_ANALYSIS_ERROR)
 	{
@@ -42,17 +42,22 @@ size_t RG_FormatSize(uint32_t sampleFormat)
 {
 	switch (sampleFormat) 
 	{
-		case RG_SIGNED_16_BIT: return sizeof(int16_t);
-		case RG_SIGNED_32_BIT: return sizeof(int32_t);
-		case RG_FLOAT_32_BIT: return sizeof(float);
-		case RG_FLOAT_64_BIT: return sizeof(double);
-		default: return 0; // hmm what is good value here?
+		case RG_SIGNED_16_BIT: 
+            return sizeof(int16_t);
+		case RG_SIGNED_32_BIT: 
+            return sizeof(int32_t);
+		case RG_FLOAT_32_BIT: 
+            return sizeof(float);
+		case RG_FLOAT_64_BIT: 
+            return sizeof(double);
+		default: 
+            return 0;
 	}
 }
 
 void UpdateBuffer(RG_Context* context, uint32_t frames)
 {
-	const size_t requiredSize = frames * sizeof(Float_t) * context->format.numberChannels;
+	size_t requiredSize = frames * sizeof(Float_t) * context->format.numberChannels;
 	if (context->bufferSize < requiredSize)
 		context->buffer = realloc(context->buffer, requiredSize);
 }
@@ -63,7 +68,7 @@ void ConvertF64(RG_Context* context, void* data, uint32_t length)
 	double** buffer = (double**) data;
 	if (context->format.numberChannels == 2 && context->format.interleaved)
 	{
-		double const * in = buffer[0];
+		double const* in = buffer[0];
 		Float_t* outl = (Float_t*) context->buffer;
 		Float_t* outr = (Float_t*) context->buffer + context->bufferSize / 2;
 		for (size_t i = 0; i < length; i++)
@@ -77,7 +82,7 @@ void ConvertF64(RG_Context* context, void* data, uint32_t length)
 		Float_t* out = (Float_t*) context->buffer;
 		for (uint32_t iChan = 0; iChan < context->format.numberChannels; ++iChan)		
 		{
-			double const * in = buffer[iChan];
+			double const* in = buffer[iChan];
 			for (size_t i = 0; i < length; i++)
 				*out++ = (Float_t) *in++ * buttScratcher;
 		}
@@ -104,7 +109,7 @@ void ConvertF32(RG_Context* context, void* data, uint32_t length)
 		Float_t* out = (Float_t*) context->buffer;
 		for (uint32_t iChan = 0; iChan < context->format.numberChannels; ++iChan)		
 		{
-			float const * in = buffer[iChan];
+			float const* in = buffer[iChan];
 			for (size_t i = 0; i < length; i++)
 				*out++ = (Float_t) *in++ * buttScratcher;
 		}
@@ -168,15 +173,26 @@ void RG_Analyze(RG_Context* context, void* data, uint32_t frames)
 {
 	assert(context);
 	assert(data);
+
 	UpdateBuffer(context, frames);
 	switch (context->format.sampleType) 
 	{
-		case RG_SIGNED_16_BIT: ConvertS16(context, data, frames); break;
-		case RG_SIGNED_32_BIT: ConvertS32(context, data, frames); break;
-		case RG_FLOAT_32_BIT: ConvertF32(context, data, frames); break;
-		case RG_FLOAT_64_BIT: ConvertF64(context, data, frames); break;
-		default: return;
+		case RG_SIGNED_16_BIT: 
+            ConvertS16(context, data, frames); 
+            break;
+		case RG_SIGNED_32_BIT: 
+            ConvertS32(context, data, frames); 
+            break;
+		case RG_FLOAT_32_BIT: 
+            ConvertF32(context, data, frames); 
+            break;
+		case RG_FLOAT_64_BIT: 
+            ConvertF64(context, data, frames); 
+            break;
+		default: 
+            return;
 	}
+
 	if (context->format.numberChannels == 2)
 	{
 		void* leftBuffer = context->buffer;
@@ -187,7 +203,7 @@ void RG_Analyze(RG_Context* context, void* data, uint32_t frames)
 		AnalyzeSamples(context->cxt, context->buffer, NULL, frames, 1);
 }
 
-double RG_GetTitleGain(RG_Context * context)
+double RG_GetTitleGain(RG_Context* context)
 {
 	double gain = GetTitleGain(context->cxt);
 	if (gain == GAIN_NOT_ENOUGH_SAMPLES)
@@ -195,7 +211,7 @@ double RG_GetTitleGain(RG_Context * context)
 	return gain;
 }
 
-double RG_GetAlbumGain(RG_Context * context)
+double RG_GetAlbumGain(RG_Context* context)
 {
 	double gain = GetAlbumGain(context->cxt);
 	if (gain == GAIN_NOT_ENOUGH_SAMPLES)

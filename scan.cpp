@@ -16,6 +16,21 @@
 // samplerate shouldn't matter, but fish had some problems with short samples
 #define SAMPLERATE 44100
 
+void fill_buffer(boost::shared_ptr<Machine>& machine, AudioStream& stream, uint32_t const frames)
+{
+    machine->process(stream, frames);
+    if (stream.frames() < frames && !stream.end_of_stream)
+    {
+        AudioStream helper;
+        while (stream.frames() < frames && !stream.end_of_stream)
+        {
+            machine->process(helper, frames - stream.frames());
+            stream.append(helper);
+            stream.end_of_stream = helper.end_of_stream;
+        }
+    }
+}
+
 std::string scan_song(std::string file_name, bool do_scan)
 {
     boost::shared_ptr<AbstractSource> source;
@@ -36,18 +51,19 @@ std::string scan_song(std::string file_name, bool do_scan)
         FATAL("unknown format");
 
     uint32_t chan = source->channels();
-    uint32_t samplerate = source->samplerate();
+    uint32_t srate = source->samplerate();
 
-    if (samplerate == 0)
+    if (srate == 0)
         FATAL("samplerate is zero");
     if (chan < 1 || chan > 2)
         FATAL("unsupported number of channels");
 
     boost::shared_ptr<Machine> decoder = boost::static_pointer_cast<Machine>(source);
-    if (samplerate != SAMPLERATE)
+    if (srate != SAMPLERATE)
     {
+        LOG_DEBUG("resampling from %1% to %2%"), srate, SAMPLERATE;
         boost::shared_ptr<Resample> resample = boost::make_shared<Resample>();
-        resample->set_rates(samplerate, SAMPLERATE);
+        resample->set_rates(srate, SAMPLERATE);
         resample->set_source(decoder);
         decoder = boost::static_pointer_cast<Machine>(resample);
     }
@@ -55,16 +71,20 @@ std::string scan_song(std::string file_name, bool do_scan)
     uint64_t const max_frames = MAX_LENGTH * SAMPLERATE;
     uint64_t frames = 0;
     AudioStream stream;
-    RG_SampleFormat format = {samplerate, RG_FLOAT_32_BIT, chan, FALSE};
+    RG_SampleFormat format = {SAMPLERATE, RG_FLOAT_32_BIT, chan, FALSE};
     RG_Context* context = RG_NewContext(&format);
-
+    
     if (do_scan || av_loaded)
         while (!stream.end_of_stream)
         {
-            decoder->process(stream, 48000);
+            fill_buffer(decoder, stream, 48000);
             float* buffers[2] = {stream.buffer(0), chan == 2 ? stream.buffer(1) : 0};
+            // there is some bug in the replaygain code that causes it to report the wrong
+            // value if the buffer has an odd lengh, until the root of the cause is found,
+            // this will have to do :(
+            uint32_t analyze_frames = stream.frames() - stream.frames() % 2;
             if (do_scan)
-                RG_Analyze(context, buffers, stream.frames());
+                RG_Analyze(context, buffers, analyze_frames);
             frames += stream.frames();
             if (frames > max_frames)
                 FATAL("too long (more than %1% seconds)"), MAX_LENGTH;
@@ -81,13 +101,14 @@ std::string scan_song(std::string file_name, bool do_scan)
     else
         msg.append("bitrate:%4%\nsamplerate:%5%");
 
-    double duration = static_cast<double>(av_loaded ? frames : source->length()) / samplerate; 
+    double duration = av_loaded ? static_cast<double>(frames) / SAMPLERATE :
+        static_cast<double>(source->length()) / srate;
     float bitrate = av_loaded ? av_source->bitrate() : bass_source->bitrate();
 
     boost::format formater(msg);
     formater.exceptions(boost::io::no_error_bits);
     return str(formater % source->metadata("codec_type") % duration % replay_gain 
-        % bitrate % samplerate % bass_source->loopiness());
+        % bitrate % srate % bass_source->loopiness());
 }
 
 int main(int argc, char* argv[])

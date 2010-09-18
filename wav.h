@@ -30,7 +30,7 @@ struct WavHeader
 	uint32_t Format; // "WAVE"
 	uint32_t Subchunk1ID; // "fmt "
 	uint32_t SubChunk1Size; // 16 for pcm
-	uint16_t AudioFormat; // 1 for pcm
+	uint16_t AudioFormat; // 1 for pcm, 3 float
 	uint16_t NumChannels; // 2
 	uint32_t SampleRate; // 44100
 	uint32_t ByteRate; //  samplerate * numchannels * sizeof(sample)
@@ -61,7 +61,7 @@ public:
 		header.Format = to_big(0x57415645);
 		header.Subchunk1ID = to_big(0x666d7420);
 		header.SubChunk1Size = to_little(16);
-		header.AudioFormat = to_little(1);
+		header.AudioFormat = to_little(sample_size == sizeof(float) ? 3 : 1);
 		header.NumChannels = to_little(channels);
 		header.SampleRate = to_little(samplerate);
 		header.ByteRate = to_little(samplerate * channels * sample_size);

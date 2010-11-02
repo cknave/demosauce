@@ -1,6 +1,6 @@
 #include <boost/version.hpp>
 #if (BOOST_VERSION / 100) < 1036
-	#error "need at leats BOOST version 1.36"
+	#error "need at least BOOST version 1.36"
 #endif
 
 #include <cstring>
@@ -117,7 +117,7 @@ void BassCast::Run()
 	}
 }
 
-string utf8_to_ascii(string const & utf8_str)
+string utf8_to_ascii(string const& utf8_str)
 {
 	// BLAST! fromUTF8 requires ics 4.2
 	// UnicodeString in_str = UnicodeString::fromUTF8(utf8_str);
@@ -150,7 +150,7 @@ string utf8_to_ascii(string const & utf8_str)
 	return out_str;
 }
 
-string create_cast_title(string const & artist, string const & title)
+string create_cast_title(string const& artist, string const& title)
 {
 	// can't use utf-8 metadata in the stream, at least not with bass
 	// so unicode decomposition is as a workaround
@@ -279,7 +279,7 @@ void BassCastPimpl::change_song()
 }
 
 // this is where most of the shit happens
-DWORD FillBuffer(HSTREAM handle, void * buffer, DWORD length, void * user)
+DWORD FillBuffer(HSTREAM handle, void* buffer, DWORD length, void* user)
 {
 	BassCastPimpl& pimpl = *reinterpret_cast<BassCastPimpl*>(user);
 	uint32_t const channels = setting::encoder_channels;
@@ -299,20 +299,20 @@ DWORD FillBuffer(HSTREAM handle, void * buffer, DWORD length, void * user)
 }
 
 // encoder death notification
-void EncoderNotify(HENCODE handle, DWORD status, void * user)
+void EncoderNotify(HENCODE handle, DWORD status, void* user)
 {
-	BassCastPimpl & pimpl = * reinterpret_cast<BassCastPimpl*>(user);
-	if (status >= 0x10000)
+	BassCastPimpl* pimpl = reinterpret_cast<BassCastPimpl*>(user);
+	if (status == BASS_ENCODE_NOTIFY_CAST_TIMEOUT) // maybe just a hickup
 		return;
-	if (!BASS_Encode_Stop(pimpl.encoder))
+	if (!BASS_Encode_Stop(pimpl->encoder))
 		LOG_WARNING("failed to stop old encoder %1%"), BASS_ErrorGetCode();
-	bool deadUplink = status == BASS_ENCODE_NOTIFY_CAST;
-	if (deadUplink)
+	bool dead_uplink = status == BASS_ENCODE_NOTIFY_CAST;
+	if (dead_uplink)
 		ERROR("the server connection died");
 	else
 		ERROR("the encoder died");
-	this_thread::sleep(deadUplink ? posix_time::seconds(60) : posix_time::seconds(1));
-	pimpl.start();
+	this_thread::sleep(dead_uplink ? posix_time::seconds(60) : posix_time::seconds(1));
+	pimpl->start(); // try restart
 }
 
 void
@@ -346,8 +346,8 @@ BassCastPimpl::start()
 			"\turl=%6%\n\tgenre=%7%\n\tdesc=%8%\n\tbitrate=%9%"), BASS_ErrorGetCode(), server, pass, content, name,
 			url,genre,desc, bitrate;
 	LOG_INFO("connected to icecast %1%"), server;
-	if (!BASS_Encode_SetNotify(encoder, EncoderNotify, 0)) // notify of dead encoder/connection
-		FATAL("couldn't set callback cunction (%1%)"), BASS_ErrorGetCode();
+	if (!BASS_Encode_SetNotify(encoder, EncoderNotify, this)) // notify of dead encoder/connection
+		FATAL("couldn't set callback function (%1%)"), BASS_ErrorGetCode();
 }
 
 BassCast::~BassCast() {} // this HAS to be here, or scoped_ptr will poop in it's pants, header won't work.

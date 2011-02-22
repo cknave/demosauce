@@ -1,6 +1,10 @@
 #!/bin/bash
 #builds the backend
 
+# Installation of dependencies
+echo "Please log as root to install some packages (check installDependencies.sh)"
+su -c ./installDependencies.sh root
+
 svn_revision=`svnversion .`
 flags="-Wall -Wfatal-errors -Iffmpeg -DREVISION_NR=$svn_revision"
 flags_debug='-g -DDEBUG'

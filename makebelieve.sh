@@ -1,10 +1,6 @@
 #!/bin/bash
 #builds the backend
 
-# Installation of dependencies
-echo "Please log as root to install some packages (check installDependencies.sh)"
-su -c ./installDependencies.sh root
-
 svn_revision=`svnversion .`
 flags="-Wall -Wfatal-errors -Iffmpeg -DREVISION_NR=$svn_revision"
 flags_debug='-g -DDEBUG'
@@ -28,61 +24,74 @@ src_demosauce='settings.cpp  demosauce.cpp'
 input_demosauce="avsource.o convert.o effects.o logror.o basssource.o sockets.o basscast.o $samplerate_a"
 libs_demosauce="$libs_ffmpeg -lbass -lbassenc -lbass_aac -lbassflac -lsamplerate -lboost_system-mt -lboost_thread-mt -lboost_filesystem-mt -lboost_program_options-mt -lboost_date_time-mt"
 
+build_deps=
 build_debug=
 build_rebuild=
 build_lazy=
 
 for var in "$@"
 do
-	case "$var" in
-	'debug') build_debug=1;;
-	'rebuild') build_rebuild=1;;
-	'lazy') build_lazy=1;;
-	'clean') rm -f *.o; exit 0;;
-	esac
+    case "$var" in
+    'deps') build_deps=1;;
+    'debug') build_debug=1;;
+    'rebuild') build_rebuild=1;;
+    'lazy') build_lazy=1;;
+    'clean') rm -f *.o; exit 0;;
+    esac
 done
+
+if test $build_deps; then
+    # Installation of dependencies
+    echo "Please log as root to install some packages (check installDependencies.sh)"
+    # We have to check for ubuntu system ... to use sudo (because su not working by default)
+    if [ -a /etc/lsb-release ] ; then
+        sudo ./installDependencies.sh
+    else
+        su -c ./installDependencies.sh root
+    fi
+fi
 
 echo -n "configuration: "
 if test $build_debug; then
-	echo -n 'debug'
-	flags="$flags $flags_debug" #-pedantic
+    echo -n 'debug'
+    flags="$flags $flags_debug" #-pedantic
 else
-	echo -n 'release'
-	flags="$flags $flags_release"
+    echo -n 'release'
+    flags="$flags $flags_release"
 fi
 
 if test `uname -m` = 'x86_64'; then
-	echo ' 64 bit'
-	dir_bass='bass/bin_linux64'
+    echo ' 64 bit'
+    dir_bass='bass/bin_linux64'
 else
-	echo ' 32 bit'
-	dir_bass='bass/bin_linux'
+    echo ' 32 bit'
+    dir_bass='bass/bin_linux'
 fi
 
 # libreplaygain
 if test ! -f "$replaygain_a" -o "$build_rebuild"; then
-	cd libreplaygain
-	./build.sh ${build_debug:+debug}
-	if test $? -ne 0; then exit 1; fi
-	cd ..
+    cd libreplaygain
+    ./build.sh ${build_debug:+debug}
+    if test $? -ne 0; then exit 1; fi
+    cd ..
 fi
 
 # ffmpeg
 if test ! -f "$avcodec_so" -o "$build_rebuild"; then
-	cd ffmpeg
-	./build.sh
-	if test $? -ne 0; then exit 1; fi
-	cd ..
+    cd ffmpeg
+    ./build.sh
+    if test $? -ne 0; then exit 1; fi
+    cd ..
 fi
 
 echo "building common"
 for input in $src_common
 do
-	output=${input/%.cpp/.o}
-	if test "$input" -nt "$output" -o ! "$build_lazy"; then
-		g++ $flags -c $input -o $output
-		if test $? -ne 0; then exit 1; fi
-	fi
+    output=${input/%.cpp/.o}
+    if test "$input" -nt "$output" -o ! "$build_lazy"; then
+        g++ $flags -c $input -o $output
+        if test $? -ne 0; then exit 1; fi
+    fi
 done
 
 flags_bass="-L$dir_bass -Wl,-rpath=$dir_bass"

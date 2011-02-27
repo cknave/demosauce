@@ -25,7 +25,7 @@ fi
 # Gentoo
 # G++ is assumed already installed
 if [ -a /etc/gentoo-release ] ; then
-	emerge boost libsamplerate icu lame
+	emerge -avuDN boost libsamplerate icu lame
 	exit
 fi
 

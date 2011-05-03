@@ -1,33 +1,42 @@
-# comment
+# example demosauce configuration file
+# lines starting with # are comments
 
+# location of the demovibes server
 demovibes_host		= localhost
 demovibes_port		= 32167
+
+# encoder settings
+# the encoder command is a regular excecutable that reads raw 16 bit stereo interleaved
+# audio from stdin and writes the encoded stream to stdout
+# you must make sure that the bitrate and samplerate settings in the encoder command
+# match the settings provided in the other encoder_ settings
+# only mp3 encoder type is supported currentls; ogg and aac may be future options
+encoder_command     = lame -r -s 44.1 -b 192 -
+encoder_type        = mp3
 encoder_samplerate	= 44100
 encoder_bitrate		= 192
 encoder_channels	= 2
+
+# connection to icecast server
 cast_host			= localhost
 cast_port			= 8000
-cast_mount			= ices
+cast_mount			= stream
 cast_password		= password
 cast_name			= name of radio
 cast_url			= http://your.url/
 cast_genre			= music
 cast_description 	= this is a nice online radio, also maep is a ruler
 
-# the error tune will be played if connection to server is lost
-# if that tune fails to load, 2 minutes of white noise will be played instead
+# the error tune will be played if connection to the demovibes server is lost
+# alternatively you can specifiy a fallback dir
+# if that fails, the streamer will play silence for one minute and try again
 error_tune			= error.tune
-error_title			= error 
+error_title			= error
 error_fallback_dir	= /dir/to/songs
 
-# a %1% in fog file name will be replace by the current date-time
-log_file			= demosauce_	%1%.log
-
-# level can be debug, info, warn, error, fatal, nothing
+# to prevent old logs from being overwritten, a %date% in log file name will be
+# replaced by the current date-time
+# log level can be debug, info, warn, error, fatal, nothing
+log_file			= demosauce_%date%.log
 log_file_level		= info
 log_console_level	= warn
-
-# channel ratio for mixing amiga stereo channels
-# 0 = no mixing, 0.5 = mix evenly, 1 = swap channels 
-# so anything between 0 and .5 only makes sense
-amiga_channel_ratio = 0.4

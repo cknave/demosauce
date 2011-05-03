@@ -1,111 +1,73 @@
-#!/bin/bash
-#builds the backend
+#!/bin/sh
+# a small script to build the streamer
+# here is the deal: I don't like make or ./configure. to change the build configuration you'll
+# just have to edit this file. check the comments to see what do do.
+# remember to run installDependencies.sh before you compile the first time
 
-svn_revision=`svnversion .`
-flags="-Wall -Wfatal-errors -Iffmpeg -DREVISION_NR=$svn_revision"
-flags_debug='-g -DDEBUG'
-flags_release='-s -O3 -mtune=native -msse2 -mfpmath=sse'
-libs_ffmpeg='-Lffmpeg -Wl,-rpath=ffmpeg -lavcodec -lavformat'
-
-replaygain_a='libreplaygain/libreplaygain.a'
-avcodec_so='ffmpeg/libavcodec.so'
-
-src_common='avsource.cpp convert.cpp basscast.cpp effects.cpp basssource.cpp sockets.cpp logror.cpp'
-
-src_preview='preview.cpp'
-input_preview="avsource.o effects.o logror.o basssource.o"
-libs_preview="$libs_ffmpeg -lbass -lbass_aac -lbassflac -lsamplerate -lboost_system-mt -lboost_date_time-mt"
-
-src_scan='scan.cpp'
-input_scan="avsource.o effects.o logror.o convert.o basssource.o $replaygain_a"
-libs_scan="$libs_ffmpeg -lbass -lbass_aac -lbassflac -lsamplerate -lboost_system-mt -lboost_date_time-mt"
-
-src_demosauce='settings.cpp  demosauce.cpp'
-input_demosauce="avsource.o convert.o effects.o logror.o basssource.o sockets.o basscast.o $samplerate_a"
-libs_demosauce="$libs_ffmpeg -lbass -lbassenc -lbass_aac -lbassflac -lsamplerate -lboost_system-mt -lboost_thread-mt -lboost_filesystem-mt -lboost_program_options-mt -lboost_date_time-mt"
-
-build_deps=
-build_debug=
-build_rebuild=
-build_lazy=
-
-for var in "$@"
-do
-    case "$var" in
-    'deps') build_deps=1;;
-    'debug') build_debug=1;;
-    'rebuild') build_rebuild=1;;
-    'lazy') build_lazy=1;;
-    'clean') rm -f *.o; exit 0;;
-    esac
-done
-
-if test $build_deps; then
-    # Installation of dependencies
-    echo "Please log as root to install some packages (check installDependencies.sh)"
-    # We have to check for ubuntu system ... to use sudo (because su not working by default)
-    if [ -a /etc/lsb-release ] ; then
-        sudo ./installDependencies.sh
-    else
-        su -c ./installDependencies.sh root
-    fi
-fi
-
-echo -n "configuration: "
-if test $build_debug; then
-    echo -n 'debug'
-    flags="$flags $flags_debug" #-pedantic
-else
-    echo -n 'release'
-    flags="$flags $flags_release"
-fi
+# swap to create a debug build
+cflags='-Wall -s -O1 -mtune=native -msse2 -mfpmath=sse -DNDEBUG'
+#cflags='-Wall -g -DDEBUG'
 
 if test `uname -m` = 'x86_64'; then
-    echo ' 64 bit'
     dir_bass='bass/bin_linux64'
 else
-    echo ' 32 bit'
     dir_bass='bass/bin_linux'
 fi
 
-# libreplaygain
-if test ! -f "$replaygain_a" -o "$build_rebuild"; then
+# build libreplaygain
+replaygain_a='libreplaygain/libreplaygain.a'
+if test ! -f $replaygain_a; then
     cd libreplaygain
-    ./build.sh ${build_debug:+debug}
+    ./build.sh
     if test $? -ne 0; then exit 1; fi
     cd ..
 fi
 
-# ffmpeg
-if test ! -f "$avcodec_so" -o "$build_rebuild"; then
+# build ffmpeg
+avcodec_so='ffmpeg/libavcodec.so'
+if test ! -f $avcodec_so; then
     cd ffmpeg
     ./build.sh
     if test $? -ne 0; then exit 1; fi
     cd ..
 fi
 
-echo "building common"
-for input in $src_common
-do
-    output=${input/%.cpp/.o}
-    if test "$input" -nt "$output" -o ! "$build_lazy"; then
-        g++ $flags -c $input -o $output
-        if test $? -ne 0; then exit 1; fi
-    fi
-done
+compile() {
+    echo g++ $@
+    g++ $@
+    if test $? -ne 0; then exit 1; fi
+}
 
-flags_bass="-L$dir_bass -Wl,-rpath=$dir_bass"
+# comment next 4 line to disable BASS library support
+cflags_bass="-DENABLE_BASS"
+basssource_o="basssource.o"
+libs_bass="-L$dir_bass -Wl,-rpath=$dir_bass -lbass -lbass_aac -lbassflac"
+compile $cflags -c basssource.cpp
 
-#~ echo 'building preview'
-#~ g++ -o preview $src_preview $flags $flags_bass $libs_preview $input_preview
-#~ if test $? -ne 0; then exit 1; fi
+#ffmpeg stuff
+libs_ffmpeg="-Lffmpeg -Wl,-rpath=ffmpeg -lavcodec -lavformat"
+compile $cflags -Iffmpeg -c avsource.cpp
 
-echo 'building scan'
-g++ -o scan $src_scan $flags $flags_bass $libs_scan $input_scan
-if test $? -ne 0; then exit 1; fi
+compile $cflags $cflags_bass -I. -c shoutcast.cpp
+compile $cflags $cflags_bass -c scan.cpp
+#compile $flags -c preview.cpp
+compile $cflags -c convert.cpp
+compile $cflags -c effects.cpp
+compile $cflags -c sockets.cpp
+compile $cflags -c logror.cpp
+compile $cflags -c settings.cpp
+#remove -DREVISION_NR=`svnversion .` if you're not using svn
+compile $cflags -DREVISION_NR=`svnversion .` -c demosauce.cpp
 
-echo 'building demosauce'
-g++ -o demosauce $src_demosauce $flags $flags_bass $libs_demosauce `icu-config --ldflags` $input_demosauce
-if test $? -ne 0; then exit 1; fi
+#link scan
+input="scan.o avsource.o effects.o logror.o convert.o $basssource_o $replaygain_a"
+libs="-lsamplerate -lboost_system-mt -lboost_date_time-mt"
+compile -o scan $input $libs $libs_ffmpeg $libs_bass
 
-if test ! $build_lazy; then rm -f *.o; fi
+#link demosauce
+input="settings.o demosauce.o avsource.o convert.o effects.o logror.o sockets.o shoutcast.o $basssource_o $samplerate_a"
+libs="-lshout -lsamplerate -lboost_system-mt -lboost_thread-mt -lboost_filesystem-mt -lboost_program_options-mt -lboost_date_time-mt"
+compile -o demosauce $input $libs $libs_ffmpeg $libs_bass `icu-config --ldflags`
+
+#clean up
+rm -f *.o; fi

@@ -2,7 +2,7 @@
 
 /*
 *	applejuice music player
-*	this is beerware! you are strongly encouraged to invite the authors of 
+*	this is beerware! you are strongly encouraged to invite the authors of
 *	this software to a beer if you happen to run into them.
 *	also, this code is licensed under teh GPL, i guess. whatever.
 *	copyright 'n shit: year MMX by maep
@@ -35,18 +35,24 @@ void log_set_file_level(logror::Level level)
 	if (log_stream.is_open() && !log_stream.fail())
 		file_level = level;
 }
-		
+
 void log_set_file(std::string file_name, logror::Level level)
 {
 	// don't throw exception if something fails
 	log_stream.exceptions(std::ifstream::goodbit);
-	
+
+    if (level == logror::nothing)
+        return;
+
 	std::string time = to_simple_string(second_clock::local_time());
-	boost::format formater(file_name);
+    std::string tmp_name = file_name;
+    boost::replace_all(tmp_name, "%date%", "%1%");
+
+	boost::format formater(tmp_name);
 	formater.exceptions(boost::io::no_error_bits);
-	std::string formatted_name = str(formater % time);
-	
-	log_stream.open(formatted_name.c_str());
+	tmp_name = str(formater % time);
+
+	log_stream.open(tmp_name.c_str());
 	if (log_stream.fail())
 		std::cout << "WARNING: could not open log file\n";
 	else
@@ -132,7 +138,7 @@ bool log_string_to_level(std::string level_string, logror::Level& level)
 		level = logror::fatal;
 	else if (str =="nothing")
 		level = logror::nothing;
-	else 
+	else
 		return false;
 	return true;
 }

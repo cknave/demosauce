@@ -1,0 +1,30 @@
+BUILDING
+==================
+officially we support only linux (tested on ubuntu, gentoo), but the code is written fully portable.
+
+LINUX
+run sudo installDependencies.sh or su -c installDependencies.sh to install some packages that are needed. then run ./makebelieve.sh to build the source client & friends.
+if you want to change the build configuration (like disabling bass) you have to edit ./makebelieve.sh and comment/uncomment a few lines.
+
+OSX
+you need to install the required libraries yourself. ./makebelieve.sh may still work.
+
+BSD
+you'll have to disable bass. installDependencies.sh could be patched to work with bsd flavours, maybe YOU can help :D
+
+WINDOWS
+you're on your own for now. if you manage to build it, maybe you can share your experience (and project files).
+
+SETUP
+==================
+copy or rename demosauce.conf.example to demosauce.conf. then edit it. the comments should help you with that.
+
+LICENSE
+==================
+GPL, google it yourself
+
+FAQ
+==================
+if you have a question, contact me (maep) via irc: #nectarine on irc.eu.esper.net
+
+cheers, maep

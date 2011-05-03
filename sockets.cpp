@@ -26,8 +26,7 @@ Sockets::Sockets(string const & host, uint32_t const port):
 	pimpl->port = port;
 }
 
-bool
-Sockets::Pimpl::SendCommand(string const & command, string & result)
+bool Sockets::Pimpl::SendCommand(string const& command, string & result)
 {
 	result.clear(); // result string might conatin shit from lasst call or something
 	try
@@ -72,15 +71,14 @@ Sockets::Pimpl::SendCommand(string const & command, string & result)
 	return true;
 }
 
-void
-Sockets::GetSong(SongInfo& songInfo)
+void Sockets::GetSong(SongInfo& songInfo)
 {
 	songInfo.fileName = "";
 	songInfo.artist = "";
 	songInfo.title = "";
 	songInfo.gain = 0;
 	songInfo.loopDuration = 0;
-	
+
 	if (!pimpl->SendCommand("GETSONG", songInfo.fileName))
 		ERROR("socket command GETSONG failed");
 
@@ -89,27 +87,27 @@ Sockets::GetSong(SongInfo& songInfo)
 
 	if (!pimpl->SendCommand("GETTITLE", songInfo.title))
 		LOG_WARNING("socket command GETTITLE failed");
-		
+
 	string gain = "0";
 	if (!pimpl->SendCommand("GETGAIN", gain))
 		LOG_WARNING("socket command GETGAIN failed");
-	try 
+	try
 	{
 		songInfo.gain = lexical_cast<float>(gain);
 	}
 	catch (bad_lexical_cast&) {}
-	
+
 	string loopDuration = "0";
 	if (!pimpl->SendCommand("GETLOOP", loopDuration))
 		LOG_WARNING("socket command GETLOOP failed");
-	try 
+	try
 	{
-		songInfo.loopDuration = lexical_cast<float>(loopDuration); 
+		songInfo.loopDuration = lexical_cast<float>(loopDuration);
 	}
 	catch (bad_lexical_cast&) {}
 }
 
-bool ResolveIp(string host, std::string &ipAddress)
+bool ResolveIp(const string host, string& ipAddress)
 {
 	try
 	{

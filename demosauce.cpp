@@ -32,7 +32,6 @@
 #include <ctime>
 #include <iostream>
 
-#include "globals.h"
 #include "settings.h"
 #include "shoutcast.h"
 
@@ -51,7 +50,7 @@ int main(int argc, char* argv[])
 	srand(time(0));
 	try
 	{
-        InitSettings(argc, argv);
+        init_settings(argc, argv);
 		log_set_console_level(setting::log_console_level);
 		log_set_file(setting::log_file, setting::log_file_level);
 		ShoutCast cast;

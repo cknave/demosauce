@@ -16,6 +16,7 @@
 #include "bass/bassflac.h"
 
 #include "logror.h"
+#include "keyvalue.h"
 #include "convert.h"
 #include "basssource.h"
 
@@ -63,7 +64,59 @@ BassSource::~BassSource()
 
 bool BassSource::load(std::string file_name)
 {
-	return load(file_name, false);
+	bool loaded = load(file_name, false);
+
+    static DWORD const amiga_flags = BASS_MUSIC_NONINTER | BASS_MUSIC_PT1MOD;
+	if (is_amiga_module())
+		BASS_ChannelFlags(pimpl->channel, amiga_flags, amiga_flags);
+	else if (is_module())
+		BASS_ChannelFlags(pimpl->channel, BASS_MUSIC_RAMP, BASS_MUSIC_RAMP);
+
+    return loaded;
+}
+
+bool BassSource::load(std::string file_name, std::string playback_settings)
+{
+    bool loaded = load(file_name, false);
+    if (!is_module())
+    {
+        return loaded;
+    }
+
+    // interpolation; values are audo, auto, off, linear, sinc
+    string inter_str = get_value(playback_settings, "bass_inter", "auto");
+    if ((is_amiga_module() && inter_str == "auto") || inter_str == "off")
+    {
+        BASS_ChannelFlags(pimpl->channel, BASS_MUSIC_NONINTER, BASS_MUSIC_NONINTER);
+    }
+    else if (inter_str == "sinc")
+    {
+        BASS_ChannelFlags(pimpl->channel, BASS_MUSIC_SINCINTER, BASS_MUSIC_SINCINTER);
+    }
+
+    // ramping
+    string ramp_str = get_value(playback_settings, "bass_ramp", "auto");
+    if ((!is_amiga_module() && ramp_str == "auto") || inter_str == "normal")
+    {
+        BASS_ChannelFlags(pimpl->channel, BASS_MUSIC_RAMP, BASS_MUSIC_RAMP);
+    }
+    else if (ramp_str == "sensitive")
+    {
+        BASS_ChannelFlags(pimpl->channel, BASS_MUSIC_RAMPS, BASS_MUSIC_RAMPS);
+    }
+
+    // mode
+    string mode_str = get_value(playback_settings, "bass_mode", "auto");
+    if ((is_amiga_module() && mode_str == "auto") || mode_str == "pt1")
+    {
+        BASS_ChannelFlags(pimpl->channel, BASS_MUSIC_PT1MOD, BASS_MUSIC_PT1MOD);
+    }
+    else if (mode_str == "ft2")
+    {
+        BASS_ChannelFlags(pimpl->channel, BASS_MUSIC_FT2MOD, BASS_MUSIC_FT2MOD);
+    }
+
+    return loaded;
 }
 
 bool BassSource::load(string file_name, bool prescan)
@@ -95,19 +148,13 @@ bool BassSource::load(string file_name, bool prescan)
 	BASS_ChannelGetInfo(channel, &pimpl->channelInfo);
 	const QWORD length = BASS_ChannelGetLength(channel, BASS_POS_BYTE);
     pimpl->lastFrame = length / (sizeof(sample_t) *  channels());
-    
+
 	if (length == static_cast<QWORD>(-1))
 	{
 		ERROR("failed to determine duration of %1%"), file_name;
 		pimpl->free();
 		return false;
 	}
-
-	static DWORD const amiga_flags = BASS_MUSIC_NONINTER | BASS_MUSIC_PT1MOD;
-	if (is_amiga_module())
-		BASS_ChannelFlags(pimpl->channel, amiga_flags, amiga_flags);
-	else
-		BASS_ChannelFlags(pimpl->channel, BASS_MUSIC_RAMP, BASS_MUSIC_RAMP);
 
 	return true;
 }
@@ -165,7 +212,7 @@ void BassSource::process(AudioStream& stream, uint32_t const frames)
 	pimpl->currentFrame += framesRead;
 
 	stream.end_of_stream = framesRead != framesToRead || pimpl->currentFrame >= pimpl->lastFrame;
-	if(stream.end_of_stream) 
+	if(stream.end_of_stream)
 		LOG_DEBUG("eos bass %1% frames left"), stream.frames();
 }
 
@@ -276,7 +323,7 @@ std::string BassSource::Pimpl::codec_type() const
 	return "-";
 }
 
-std::string BassSource::metadata(std::string key) const 
+std::string BassSource::metadata(std::string key) const
 {
 	if (key == "codec_type")
 		return pimpl->codec_type();
@@ -284,7 +331,7 @@ std::string BassSource::metadata(std::string key) const
 	return "";
 }
 
-std::string  BassSource::name() const 
+std::string  BassSource::name() const
 {
 	return "Bass Source";
 }
@@ -302,14 +349,14 @@ float BassSource::loopiness() const
 	HMUSIC channel = BASS_MusicLoad(FALSE, pimpl->file_name.c_str(), 0, 0 , flags, samplerate);
     size_t check_frames = samplerate / 20;
     size_t check_bytes = check_frames * sizeof(int16_t);
-    
+
     QWORD length = BASS_ChannelGetLength(channel, BASS_POS_BYTE);
     if (!BASS_ChannelSetPosition(channel, length - check_bytes, BASS_POS_BYTE))
         return 0;
-    
+
     AlignedBuffer<int16_t> buff(check_frames);
     buff.zero();
-    
+
     DWORD read_bytes = 0;
     int16_t* out = buff.get();
     while (read_bytes < check_bytes && BASS_ErrorGetCode() == BASS_OK)
@@ -319,11 +366,11 @@ float BassSource::loopiness() const
         read_bytes += r;
     }
     BASS_MusicFree(channel);
-    
+
 	uint32_t accu = 0;
     out = buff.get();
 	for (size_t i = check_frames; i; --i)
 		accu += fabs(*out++);
-	
+
 	return static_cast<float>(accu) / check_frames / -numeric_limits<int16_t>::min();
 }

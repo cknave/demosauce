@@ -27,4 +27,14 @@ FAQ
 ==================
 if you have a question, contact me (maep) via irc: #nectarine on irc.eu.esper.net
 
+what per-song settings are support?
+the first value is the default value:
+gain        : <replay gain value>
+length      : <force length in seconds, 0 = disabled>
+fade_out    : false | true
+mix         : auto, 0.0 - 0.5
+bass_inter  : auto | off | linear | sinc
+bass_ramp   : auto | off | normal | sensitive
+bass_mode   : auto | pt1 | ft2
+
 cheers, maep

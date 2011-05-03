@@ -7,8 +7,6 @@
 #endif
 
 #include <boost/bind.hpp>
-#include <boost/asio.hpp>
-#include <boost/format.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/make_shared.hpp>
 #include <boost/lexical_cast.hpp>
@@ -27,7 +25,8 @@
 
 #include <shout/shout.h>
 
-#include "globals.h"
+#include "settings.h"
+#include "keyvalue.h"
 #include "sockets.h"
 #include "effects.h"
 #include "convert.h"
@@ -37,6 +36,8 @@
 #endif
 #include "shoutcast.h"
 
+#define DEFAULT_RATIO 0.4
+
 // some classes in boost and std namespace collide...
 using std::string;
 using std::vector;
@@ -44,10 +45,9 @@ using std::vector;
 using boost::bind;
 using boost::optional;
 using boost::shared_ptr;
-using boost::scoped_ptr;
 using boost::make_shared;
-using boost::lexical_cast;
 using boost::numeric_cast;
+using boost::lexical_cast;
 
 namespace bp = ::boost::process;
 namespace fs = ::boost::filesystem;
@@ -69,7 +69,6 @@ struct ShoutCastPimpl
     void writer();
     void reader();
     void change_song();
-    void get_next_song(SongInfo& songInfo);
     void init_machines();
 
     //-----------------
@@ -96,7 +95,7 @@ struct ShoutCastPimpl
     bool                        encoder_running;
     bool                        decoder_ready;
     bool                        connected;
-    int                         change_counter;
+    int                         remaining_frames;
 };
 
 ShoutCast::ShoutCast() :
@@ -109,7 +108,7 @@ ShoutCastPimpl::ShoutCastPimpl() :
     encoder_running(false),
     decoder_ready(true),
     connected(false),
-    change_counter(0)
+    remaining_frames(0)
 {
     shout_init();
     cast = shout_new();
@@ -124,19 +123,17 @@ ShoutCastPimpl::~ShoutCastPimpl()
 void ShoutCastPimpl::init_machines()
 {
     machineStack = make_shared<MachineStack>();
-    zeroSource = make_shared<ZeroSource>();
+    zeroSource  = make_shared<ZeroSource>();
 #ifdef ENABLE_BASS
-    bassSource = make_shared<BassSource>();
+    bassSource  = make_shared<BassSource>();
 #endif
-    avSource = make_shared<AvSource>();
-    resample = make_shared<Resample>();
+    avSource    = make_shared<AvSource>();
+    resample    = make_shared<Resample>();
     mixChannels = make_shared<MixChannels>();
     mapChannels = make_shared<MapChannels>();
-    linearFade = make_shared<LinearFade>();
-    gain = make_shared<Gain>();
+    linearFade  = make_shared<LinearFade>();
+    gain        = make_shared<Gain>();
 
-    float ratio = .4; // default mix ration 0 = no mixing .5 full mixing
-    mixChannels->set_mix(1 - ratio, ratio, 1 - ratio, ratio);
     mapChannels->set_channels(setting::encoder_channels);
 
     machineStack->add(zeroSource);
@@ -174,11 +171,11 @@ void ShoutCastPimpl::writer()
         if (decoder_ready)
         {
             uint32_t frames = converter.process(decode_buffer.get(), decode_frames, channels);
-            //~ if (change_counter < 0)
+            //~ if (remaining_frames < 0)
             //~ {
-                //~ change_counter += frames;
+                //~ remaining_frames += frames;
             //~ }
-            //~ if (change_counter > 0 || frames != decode_frames) // implicates end of stream
+            //~ if (remaining_frames > 0 || frames != decode_frames) // implicates end of stream
             if (frames != decode_frames) // implicates end of stream
             {
                 LOG_DEBUG("end of stream");
@@ -286,93 +283,86 @@ string get_random_file(string directoryName)
     return it->path().string();
 }
 
-void ShoutCastPimpl::get_next_song(SongInfo& songInfo)
-{
-    if (setting::debug_file.size() > 0)
-    {
-        songInfo.fileName = setting::debug_file;
-    }
-    else
-    {
-        sockets.GetSong(songInfo);
-    }
-
-    if (songInfo.fileName.size() == 0) // failed to obtain file
-    {
-        LOG_ERROR("got empty file name");
-
-        if (setting::error_tune.size() > 0)
-        {
-            LOG_INFO("using error_tune: %1%"), setting::error_tune;
-            songInfo.fileName = setting::error_tune;
-        }
-        else if (setting::error_fallback_dir.size() > 0)
-        {
-            LOG_INFO("using random file from: %1%"), setting::error_fallback_dir;
-            songInfo.fileName = get_random_file(setting::error_fallback_dir);
-        }
-    }
-
-    if (songInfo.artist.size() == 0 && songInfo.title.size() == 0)
-    {
-        songInfo.title = setting::error_title;
-    }
-}
-
 //}
 
 // this is called whenever the song is changed
 void ShoutCastPimpl::change_song()
 {
     LOG_DEBUG("change_song");
-    change_counter = 0;
-    decoder_ready = false;
     // reset routing
     resample->set_enabled(false);
     mixChannels->set_enabled(false);
     linearFade->set_enabled(false);
 
-    SongInfo songInfo;
+    // stuff
+    remaining_frames = 0;
+    decoder_ready = false;
+
     uint32_t samplerate = setting::encoder_samplerate;
     bool loaded = false;
     int loadTries = 0;
+    double length = 0;
+    double forced_length = 0;
+    bool auto_mix = false;
+
+    string song_data;
+    string file_name;
 
     while (loadTries < 3 && !loaded)
     {
-        get_next_song(songInfo);
+        if (setting::debug_file.empty())
+        {
+            song_data = sockets.get_next_song();
+            file_name = get_value(song_data, "path", "");
+        }
+        else
+        {
+            file_name = setting::debug_file;
+        }
 
-        if (fs::exists(songInfo.fileName))
+        if (file_name.empty())
+        {
+            LOG_WARNING("file name is empty, using fallback settings");
+            file_name = setting::error_tune;
+        }
+
+        if (file_name.empty() && !setting::error_fallback_dir.empty())
+        {
+            LOG_INFO("using random file from: %1%"), setting::error_fallback_dir;
+            file_name = get_random_file(setting::error_fallback_dir);
+        }
+
+        forced_length = get_value(song_data, "force_length", 0.0);
+        auto_mix = (get_value(song_data, "mix", "") == "auto");
+
+        if (fs::exists(file_name))
         {
 #ifdef ENABLE_BASS
-            if (!loaded && bassSource->load(songInfo.fileName))
+            if (!loaded && bassSource->load(file_name, song_data))
             {
                 loaded = true;
                 machineStack->add(bassSource, 0);
+                length = bassSource->length();
                 samplerate = bassSource->samplerate();
-                if (bassSource->is_amiga_module() && setting::encoder_channels == 2)
+
+                if (auto_mix && bassSource->is_amiga_module() && setting::encoder_channels == 2)
                 {
+                    mixChannels->set_mix(1. - DEFAULT_RATIO, DEFAULT_RATIO, 1. - DEFAULT_RATIO, DEFAULT_RATIO);
                     mixChannels->set_enabled(true);
-                }
-                if (songInfo.loopDuration > 0)
-                {
-                    bassSource->set_loop_duration(songInfo.loopDuration);
-                    uint64_t const start = (songInfo.loopDuration - 5) * setting::encoder_samplerate;
-                    uint64_t const end = songInfo.loopDuration * setting::encoder_samplerate;
-                    linearFade->set_fade(start, end, 1, 0);
-                    linearFade->set_enabled(true);
                 }
             }
 #endif
-            if (!loaded && avSource->load(songInfo.fileName))
+            if (!loaded && avSource->load(file_name))
             {
                 loaded = true;
                 machineStack->add(avSource, 0);
+                length = avSource->length();
                 samplerate = avSource->samplerate();
             }
         }
         else
         {
-            ERROR("file doesn't exist: %1%"), songInfo.fileName;
+            ERROR("file doesn't exist: %1%"), file_name;
         }
         loadTries++;
     }
@@ -380,8 +370,22 @@ void ShoutCastPimpl::change_song()
     if (loadTries >= 3 && !loaded)
     {
         LOG_WARNING("loading failed three times, pumping out a minute of zeros");
-        change_counter = -60 * setting::encoder_samplerate;
+        remaining_frames = -60 * setting::encoder_samplerate;
         machineStack->add(zeroSource, 0);
+    }
+
+    if (forced_length > 0)
+    {
+        remaining_frames = -numeric_cast<int>(setting::encoder_samplerate * forced_length);
+    }
+
+    if (get_value(song_data, "fade_out", false))
+    {
+        double duration = forced_length > 0 ? forced_length : length;
+        uint64_t start = numeric_cast<int>((duration  - 5) * setting::encoder_samplerate);
+        uint64_t end = numeric_cast<int>(duration  * setting::encoder_samplerate);
+        linearFade->set_fade(start, end, 1, 0);
+        linearFade->set_enabled(true);
     }
 
     if (samplerate != setting::encoder_samplerate)
@@ -389,11 +393,24 @@ void ShoutCastPimpl::change_song()
         resample->set_rates(samplerate, setting::encoder_samplerate);
         resample->set_enabled(true);
     }
-    gain->set_amp(db_to_amp(songInfo.gain));
+
+    if (!auto_mix && setting::encoder_channels == 2)
+    {
+        double ratio = get_value(song_data, "mix", 0.4);
+        ratio = (ratio < 0) ? 0 : ((ratio > 1) ? : 1);
+        mixChannels->set_mix(1. - ratio, ratio, 1. - ratio, ratio);
+        mixChannels->set_enabled(true);
+    }
+
+    double song_gain = get_value(song_data, "gain", 0.0);
+    gain->set_amp(db_to_amp(song_gain));
     machineStack->update_routing();
 
-    string title = create_cast_title(songInfo.artist, songInfo.title);
+    //~ string title = get_value(song_data, "title", setting::error_title);
+    //~ string artist = get_value(song_data, "artist", string(""));
+
     // TODO: set title
+    // create_cast_title(songInfo.artist, songInfo.title);
     decoder_ready = true;
 }
 

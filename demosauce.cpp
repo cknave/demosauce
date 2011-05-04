@@ -1,10 +1,10 @@
 /*
-	fancy streaming engine for scenemusic
-	slapped together by maep 2009, 2010
+    fancy streaming engine for scenemusic
+    slapped together by maep 2009, 2010
 
-	BEHOLD, A FUCKING PONY!
+    BEHOLD, A FUCKING PONY!
 
-	           .,,.
+               .,,.
          ,;;*;;;;,
         .-'``;-');;.
        /'  .-.  /;;;
@@ -23,9 +23,9 @@
        '*jgs/     |       /    |      ;*;
             `""""`        `""""`     ;'
 
-	pony source:
-	http://www.geocities.com/SoHo/7373/index.htm#home
-	(yeah... geocities, haha)
+    pony source:
+    http://www.geocities.com/SoHo/7373/index.htm#home
+    (yeah... geocities, haha)
 */
 
 #include <cstdlib>
@@ -36,9 +36,9 @@
 #include "shoutcast.h"
 
 #ifdef REVISION_NR
-	#define REVISION -REVISION_NR
+    #define REVISION -REVISION_NR
 #else
-	#define REVISION
+    #define REVISION
 #endif
 
 #define STR(arg) #arg
@@ -46,20 +46,20 @@
 
 int main(int argc, char* argv[])
 {
-	std::cout << "demosauce 0.3" EXPAND(REVISION) " - less BASS, more SHOUT!\n";
-	srand(time(0));
-	try
-	{
+    std::cout << "demosauce 0.3.1" EXPAND(REVISION) " - less BASS, more SHOUT!\n";
+    srand(time(0));
+    try
+    {
         init_settings(argc, argv);
-		log_set_console_level(setting::log_console_level);
-		log_set_file(setting::log_file, setting::log_file_level);
-		ShoutCast cast;
-		std::cout << "streamin'\n";
-		cast.Run();
-	}
-	catch (std::exception& e)
-	{
-		FATAL("%1%"), e.what();
-	}
-	return EXIT_SUCCESS;
+        log_set_console_level(setting::log_console_level);
+        log_set_file(setting::log_file, setting::log_file_level);
+        ShoutCast cast;
+        std::cout << "streamin'\n";
+        cast.Run();
+    }
+    catch (std::exception& e)
+    {
+        FATAL("%1%"), e.what();
+    }
+    return EXIT_SUCCESS;
 }

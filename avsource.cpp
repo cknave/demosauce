@@ -183,7 +183,7 @@ void AvSource::Pimpl::process(AudioStream& stream, uint32_t const frames)
         packet_buffer.resize(buffer_size);
 
     AVPacket packet;
-       while (packet_buffer_pos < min_bytes)
+    while (packet_buffer_pos < min_bytes)
     {
         if (av_read_frame(format_context, &packet) < 0) // demux/read packet
             break; // end of stream

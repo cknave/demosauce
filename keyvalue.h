@@ -16,7 +16,7 @@ bool get_value_impl(std::string data, std::string key, std::string& value)
     if (key_start > 0 && data[key_start - 1] != '\n')
         return false;
     size_t value_start = key_start + key.size() + 1;
-    if (value_start >= data.size() || data[value_start - 1] != ':')
+    if (value_start >= data.size() || data[value_start - 1] != '=')
         return false;
     size_t value_end = data.find('\n', value_start);
     value = data.substr(value_start, value_end - value_start);

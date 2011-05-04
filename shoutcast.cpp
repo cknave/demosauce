@@ -1,4 +1,6 @@
 #include <cstring>
+#include <csignal>
+
 #include <vector>
 
 #include <boost/version.hpp>
@@ -125,6 +127,7 @@ ShoutCastPimpl::ShoutCastPimpl() :
     connected(false),
     remaining_frames(0)
 {
+    signal(SIGPIPE, SIG_IGN); // otherwise we won't be able to recover
     shout_init();
     cast = shout_new();
     init_machines();

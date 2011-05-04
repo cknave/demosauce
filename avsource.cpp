@@ -141,18 +141,19 @@ int AvSource::Pimpl::decode_frame(AVPacket& packet, uint8_t* const buffer, int c
     while (packet.size > 0)
     {
         int data_size = size - decoded_size;
-        // the decode buffer is needed due to alignment issues with sse
-        if (decode_buffer.size() < static_cast<uint32_t>(size))
+        if (decode_buffer.size() < static_cast<uint32_t>(size)) // the decode buffer is needed due to alignment issues with sse
             decode_buffer.resize(size);
-        sample_t* const buf = reinterpret_cast<sample_t*>(decode_buffer.get());
+        sample_t* buf = reinterpret_cast<sample_t*>(decode_buffer.get());
+
 #if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(52, 26, 0)
         len = avcodec_decode_audio2(codec_context, buf, &data_size, packet.data, packet.size);
 #else
         len = avcodec_decode_audio3(codec_context, buf, &data_size, &packet);
 #endif
-        memmove(buffer + decoded_size, decode_buffer.get(), data_size);
         if (len < 0) // error, skip frame
             return 0;
+
+        memmove(buffer + decoded_size, decode_buffer.get(), data_size);
         packet.data += len;
         packet.size -= len;
         decoded_size += data_size;
@@ -185,14 +186,11 @@ void AvSource::Pimpl::process(AudioStream& stream, const uint32_t frames)
     AVPacket packet;
     while (packet_buffer_pos < min_bytes)
     {
-        int err = av_read_frame(format_context, &packet);
-
-        if (err < 0) // demux/read packet
+        if (av_read_frame(format_context, &packet) < 0) // demux/read packet
             break; // end of stream
 
         if (packet.stream_index != audio_stream_index)
             continue;
-            //~ av_free_packet(&packet);
 
         packet_buffer_pos += decode_frame(packet, packet_buffer.get() + packet_buffer_pos, buffer_size);
     }

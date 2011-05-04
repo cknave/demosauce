@@ -253,17 +253,26 @@ std::string AvSource::name() const
 
 uint32_t AvSource::channels() const
 {
-    return boost::numeric_cast<uint32_t>(pimpl->codec_context->channels);
+    uint32_t ch = (pimpl->codec_context == 0) ?
+        0 :
+        boost::numeric_cast<uint32_t>(pimpl->codec_context->channels);
+    return ch;
 }
 
 uint32_t AvSource::AvSource::samplerate() const
 {
-    return boost::numeric_cast<uint32_t>(pimpl->codec_context->sample_rate);
+    uint32_t sr = (pimpl->codec_context == 0) ?
+        44100 :
+        boost::numeric_cast<uint32_t>(pimpl->codec_context->sample_rate);
+    return sr;
 }
 
 float AvSource::bitrate() const
 {
-    return boost::numeric_cast<float>(pimpl->codec_context->bit_rate) / 1000;
+    float br = (pimpl->codec_context == 0) ?
+        0 :
+        boost::numeric_cast<float>(pimpl->codec_context->bit_rate) / 1000;
+    return  br;
 }
 
 uint64_t AvSource::length() const

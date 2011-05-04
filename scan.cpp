@@ -106,13 +106,13 @@ string scan_song(string file_name, bool do_scan)
         msg.append("replaygain:%3%\n");
     double duration = av_loaded ? static_cast<double>(frames) / SAMPLERATE :
         static_cast<double>(source->length()) / srate;
-#ifdef BASS_ENABLED
+#ifdef ENABLE_BASS
     if (bass_source->is_module())
         msg.append("loopiness:%6%");
     else
         msg.append("bitrate:%4%\nsamplerate:%5%");
     float bitrate = av_loaded ? av_source->bitrate() : bass_source->bitrate();
-    float loopiness = bass_source->loopiness()
+    float loopiness = bass_source->loopiness();
 #else
     msg.append("bitrate:%4%\nsamplerate:%5%");
     float bitrate = av_source->bitrate();

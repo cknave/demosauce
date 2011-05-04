@@ -226,7 +226,7 @@ void ShoutCastPimpl::reader()
 
         if (err != SHOUTERR_SUCCESS)
         {
-            ERROR("icecast connection dropped, trying to reconnect");
+            ERROR("icecast connection dropped, trying to recover");
             disconnect();
         }
     }
@@ -418,7 +418,7 @@ void ShoutCastPimpl::run_encoder()
         encoder_running = false;
         write_tread.interrupt();    // try interrupting any blocking calls
         read_tread.interrupt();     // try interrupting any blocking calls
-        ERROR("the encoder process quit");
+        ERROR("encoder process stopped, trying to recover");
     }
     catch (fs::filesystem_error& e)
     {

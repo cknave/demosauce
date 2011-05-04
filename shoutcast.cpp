@@ -36,8 +36,6 @@
 #endif
 #include "shoutcast.h"
 
-#define DEFAULT_RATIO 0.4
-
 // some classes in boost and std namespace collide...
 using std::string;
 using std::vector;
@@ -188,10 +186,8 @@ void ShoutCastPimpl::writer()
         if (decoder_ready)
         {
             uint32_t frames = converter.process(decode_buffer.get(), decode_frames, channels);
-            if (remaining_frames < 0)
-            {
-                remaining_frames += frames;
-            }
+            remaining_frames += frames;
+
             if (frames != decode_frames || remaining_frames > 0) // end of song
             {
                 LOG_DEBUG("end of stream");
@@ -291,8 +287,6 @@ void ShoutCastPimpl::load_next()
 string get_random_file(string directoryName)
 {
     // I don't think this is a good idea, enumerating >30k files won't be fast
-    if (!fs::is_directory(directoryName))
-        return "";
     fs::path dir(directoryName);
     uint32_t numFiles = std::distance(dir.begin(), dir.end());
     uint32_t randIndex = rand() * numFiles / RAND_MAX;
@@ -315,14 +309,20 @@ void ShoutCastPimpl::get_next_song(SongInfo& song)
 
         if (song.file.empty())
         {
-            LOG_WARNING("file name is empty, using fallback settings");
-            song.file = setting::error_tune;
-        }
-
-        if (song.file.empty() && !setting::error_fallback_dir.empty())
-        {
-            LOG_INFO("using random file from: %1%"), setting::error_fallback_dir;
-            song.file = get_random_file(setting::error_fallback_dir);
+            if (fs::is_regular_file(setting::error_tune))
+            {
+                LOG_WARNING("file name is empty, using error_tune");
+                song.file = setting::error_tune;
+            }
+            else if (fs::is_directory(setting::error_fallback_dir))
+            {
+                LOG_WARNING("file name is empty, using error_fallback_dir");
+                song.file = get_random_file(setting::error_fallback_dir);
+            }
+            else
+            {
+                LOG_WARNING("file name is empty, and your fallback settings suck");
+            }
         }
 }
 
@@ -333,10 +333,11 @@ void ShoutCastPimpl::update_machines(SongInfo& song)
     mixChannels->set_enabled(false);
     linearFade->set_enabled(false);
 
-    remaining_frames = 0;
+    remaining_frames = std::numeric_limits<int64_t>::min();
     if (song.forced_length > 0)
     {
         remaining_frames = -numeric_cast<int>(setting::encoder_samplerate * song.forced_length);
+        LOG_DEBUG("song length forced to %1% seconds"), song.forced_length;
     }
 
     if (get_value(song.settings, "fade_out", false))
@@ -346,25 +347,30 @@ void ShoutCastPimpl::update_machines(SongInfo& song)
         uint64_t end = numeric_cast<int>(length  * setting::encoder_samplerate);
         linearFade->set_fade(start, end, 1, 0);
         linearFade->set_enabled(true);
+        LOG_DEBUG("song fading out at %1% seconds"), length;
     }
 
     if (song.samplerate != setting::encoder_samplerate)
     {
         resample->set_rates(song.samplerate, setting::encoder_samplerate);
         resample->set_enabled(true);
+        LOG_DEBUG("resampling %1% to %2% Hz"), song.samplerate, setting::encoder_samplerate;
     }
 
-    bool auto_mix = (get_value(song.settings, "mix", "") == "auto");
+    bool auto_mix = (get_value(song.settings, "mix", "auto") == "auto");
     if (setting::encoder_channels == 2 && (!auto_mix || song.amiga_mode))
     {
-        double ratio = get_value(song.settings, "mix", DEFAULT_RATIO);
-        ratio = (ratio < 0) ? 0 : ((ratio > 1) ? : 1);
+        double ratio = get_value(song.settings, "mix", 0.4);
+        ratio = std::max(ratio, 0.);
+        ratio = std::min(ratio, 1.);
         mixChannels->set_mix(1. - ratio, ratio, 1. - ratio, ratio);
         mixChannels->set_enabled(true);
+        LOG_DEBUG("mixing channels with %1% ratio"), ratio;
     }
 
     double song_gain = get_value(song.settings, "gain", 0.0);
     gain->set_amp(db_to_amp(song_gain));
+    LOG_DEBUG("applying gain of %1% dB"), song_gain;
 
     machineStack->update_routing();
 }

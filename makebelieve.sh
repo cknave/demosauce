@@ -6,7 +6,7 @@
 
 # swap to create a debug build
 cflags='-Wall -s -O2 -mtune=native -msse2 -mfpmath=sse -DNDEBUG'
-#~ cflags='-Wall -g -DDEBUG'
+# cflags='-Wall -g -DDEBUG'
 
 if test `uname -m` = 'x86_64'; then
     dir_bass='bass/bin_linux64'

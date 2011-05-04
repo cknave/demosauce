@@ -1,6 +1,6 @@
 /*
 *	applejuice music player
-*	this is beerware! you are strongly encouraged to invite the authors of 
+*	this is beerware! you are strongly encouraged to invite the authors of
 *	this software to a beer if you happen to run into them.
 *	also, this code is licensed under teh GPL, i guess. whatever.
 *	copyright 'n shit: year MMX by maep
@@ -11,24 +11,23 @@
 	to log, use
 	LOG_DEBUG, LOG_INFO, LOG_WARNING, LOG_ERROR, LOG_FATAL
 	LOG_DEBUG will only be compiled with DEBUG macro
-	
+
 	example:
 	LOG_INFO("something unimportant happend");
 	int foo = 10;
 	string bar = monogo-moose
 	LOG_DEBUG("i see %1% %2%!"), foo, bar; // prints "i see 10 mongo-moose!"
 
-	
-	for error handling, use
+	for error "handling", use
 	ERROR, FATAL
 	example:
 	ERROR("DOOOOOM!! /o\ message: %1%"), error_message;
 	FATAL("FFFFFFFFUUUUUUUUUUUUUUUUUUUU %1%"), reason;
-	
+
 	ERROR keeps track of the last errors and calls exit(1) if too many errors appear
 	(currently 10 errors in less than 10 minutes)
-	FATAL logs the message and then calls exit(1). 
-	
+	FATAL logs the message and then calls exit(1).
+
 	other functions you might need:
 	void log_set_console_level(Level level);
 	void log_set_file_level(Level level);
@@ -71,7 +70,7 @@ private:
 template <typename T>
 LogBlob& LogBlob::operator , (T right)
 {
-	if (level != nothing) 
+	if (level != nothing)
 		formater % right;
 	return *this;
 }

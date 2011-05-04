@@ -130,8 +130,11 @@ bool BassSource::load(string file_name, bool prescan)
 	// brute force attempt, don't rely on extensions
 	channel = BASS_StreamCreateFile(FALSE, file_name.c_str(), 0, 0, stream_flags);
 	if (!channel)
+    {
 		channel = BASS_MusicLoad(FALSE, file_name.c_str(), 0, 0 , music_flags, pimpl->samplerate);
-	{
+    }
+	if (!channel)
+    {
 		ERROR("failed to load %1%"), file_name;
 		return false;
 	}
@@ -298,10 +301,6 @@ std::string BassSource::Pimpl::codec_type() const
 		case BASS_CTYPE_STREAM_WAV_PCM:
 		case BASS_CTYPE_STREAM_WAV_FLOAT:
 		case BASS_CTYPE_STREAM_WAV: return "pcm";
-		//~ case BASS_CTYPE_STREAM_MP4: return "mp4";
-		//~ case BASS_CTYPE_STREAM_AAC: return "aac";
-		//~ case BASS_CTYPE_STREAM_FLAC_OGG:
-		//~ case BASS_CTYPE_STREAM_FLAC: return "flac";
 
 		case BASS_CTYPE_MUSIC_MOD: return "mod";
 		case BASS_CTYPE_MUSIC_MTM: return "mtm";

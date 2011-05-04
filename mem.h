@@ -22,7 +22,7 @@ static void* aligned_realloc(void* ptr, size_t size)
         if (reinterpret_cast<size_t>(ptr) % 16 != 0)
         {
             void* tmp_ptr = aligned_malloc(16, size);
-            memcpy(tmp_ptr, ptr, size);
+            memmove(tmp_ptr, ptr, size);
             free(ptr);
             ptr = tmp_ptr;
         }

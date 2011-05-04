@@ -135,8 +135,8 @@ int AvSource::Pimpl::decode_frame(AVPacket& packet, uint8_t* const buffer, int c
     int len = 0;
     int decoded_size = 0;
     //store size & data for later freeing
-    uint8_t* const packet_data = packet.data;
-    int const packet_size = packet.size;
+    uint8_t* packet_data = packet.data;
+    int packet_size = packet.size;
 
     while (packet.size > 0)
     {
@@ -150,7 +150,7 @@ int AvSource::Pimpl::decode_frame(AVPacket& packet, uint8_t* const buffer, int c
 #else
         len = avcodec_decode_audio3(codec_context, buf, &data_size, &packet);
 #endif
-        memcpy(buffer + decoded_size, decode_buffer.get(), data_size);
+        memmove(buffer + decoded_size, decode_buffer.get(), data_size);
         if (len < 0) // error, skip frame
             return 0;
         packet.data += len;
@@ -163,7 +163,7 @@ int AvSource::Pimpl::decode_frame(AVPacket& packet, uint8_t* const buffer, int c
     return decoded_size;
 }
 
-void AvSource::Pimpl::process(AudioStream& stream, uint32_t const frames)
+void AvSource::Pimpl::process(AudioStream& stream, const uint32_t frames)
 {
     uint32_t const channels = boost::numeric_cast<uint32_t>(codec_context->channels);
     if (packet_buffer_pos < 0 || channels < 1)
@@ -185,25 +185,29 @@ void AvSource::Pimpl::process(AudioStream& stream, uint32_t const frames)
     AVPacket packet;
     while (packet_buffer_pos < min_bytes)
     {
-        if (av_read_frame(format_context, &packet) < 0) // demux/read packet
+        int err = av_read_frame(format_context, &packet);
+
+        if (err < 0) // demux/read packet
             break; // end of stream
-        if (packet.stream_index == audio_stream_index)
-            packet_buffer_pos += decode_frame(packet, packet_buffer.get() + packet_buffer_pos, buffer_size);
-        else
-            av_free_packet(&packet);
+
+        if (packet.stream_index != audio_stream_index)
+            continue;
+            //~ av_free_packet(&packet);
+
+        packet_buffer_pos += decode_frame(packet, packet_buffer.get() + packet_buffer_pos, buffer_size);
     }
 
     // according to the docs, av_free_packet should be called at some point after av_read_frame
     // without these checks, mysterious segfaults start appearing with small buffers. stable my ass!
-     if (packet.data && packet.size && packet.stream_index == audio_stream_index)
+     if (packet.data != 0 && packet.size != 0) // && packet.stream_index == audio_stream_index
         av_free_packet(&packet);
 
     stream.end_of_stream = packet_buffer_pos < need_bytes;
-    size_t const used_bytes = std::min(need_bytes, packet_buffer_pos);
-    uint32_t const used_frames = bytes_in_frames<uint32_t, sample_t>(used_bytes, channels);
-    sample_t* const conv_buffer = converter.input_buffer(frames, channels);
+    size_t used_bytes = std::min(need_bytes, packet_buffer_pos);
+    uint32_t used_frames = bytes_in_frames<uint32_t, sample_t>(used_bytes, channels);
+    sample_t* conv_buffer = converter.input_buffer(frames, channels);
 
-    memcpy(conv_buffer, packet_buffer.get(), used_bytes);
+    memmove(conv_buffer, packet_buffer.get(), used_bytes);
     converter.process(stream, used_frames);
     memmove(packet_buffer.get(), packet_buffer.get() + used_bytes, packet_buffer_pos - used_bytes);
     packet_buffer_pos -= used_bytes;

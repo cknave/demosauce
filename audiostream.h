@@ -231,7 +231,7 @@ public:
         if (_frames + stream.frames() > _max_frames)
             resize(_frames + stream.frames());
         for (uint32_t i = 0; i < _channels && i < stream.channels(); ++i)
-            memcpy(_buff[i] + _frames, stream.buffer(i), stream.channel_bytes());
+            memmove(_buff[i] + _frames, stream.buffer(i), stream.channel_bytes());
         _frames += stream.frames();
     }
 
@@ -243,7 +243,7 @@ public:
             resize(_frames + stream.frames());
         size_t channel_bytes = frames * sizeof(float);
         for (uint32_t i = 0; i < _channels && i < stream.channels(); ++i)
-            memcpy(_buff[i] + _frames, stream.buffer(i), channel_bytes);
+            memmove(_buff[i] + _frames, stream.buffer(i), channel_bytes);
         _frames += frames;
     }
 

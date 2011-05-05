@@ -1,6 +1,6 @@
 /*
     fancy streaming engine for scenemusic
-    slapped together by maep 2009, 2010
+    slapped together by maep 2009 - 2011
 
     BEHOLD, A FUCKING PONY!
 
@@ -23,9 +23,8 @@
        '*jgs/     |       /    |      ;*;
             `""""`        `""""`     ;'
 
-    pony source:
+    pony source (yeah... geocities, haha):
     http://www.geocities.com/SoHo/7373/index.htm#home
-    (yeah... geocities, haha)
 */
 
 #include <cstdlib>
@@ -54,7 +53,7 @@ int main(int argc, char* argv[])
         log_set_console_level(setting::log_console_level);
         log_set_file(setting::log_file, setting::log_file_level);
         ShoutCast cast;
-        std::cout << "streamin'\n";
+        std::cout << "streamin' in the wind\n";
         cast.Run();
     }
     catch (std::exception& e)

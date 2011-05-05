@@ -125,8 +125,7 @@ bool BassSource::load(string file_name, bool prescan)
 	DWORD stream_flags = BASS_STREAM_DECODE | (prescan ? BASS_STREAM_PRESCAN : 0) | FLOAT_FLAG;
 	DWORD music_flags = BASS_MUSIC_DECODE | BASS_MUSIC_PRESCAN | FLOAT_FLAG;
 
-	LOG_INFO("basssource loading %1%"), file_name;
-
+    LOG_DEBUG("basssource: attempting to load %1%"), file_name;
 	// brute force attempt, don't rely on extensions
 	channel = BASS_StreamCreateFile(FALSE, file_name.c_str(), 0, 0, stream_flags);
 	if (!channel)
@@ -135,7 +134,7 @@ bool BassSource::load(string file_name, bool prescan)
     }
 	if (!channel)
     {
-		ERROR("failed to load %1%"), file_name;
+        LOG_DEBUG("basssource: can't load %1%"), file_name;
 		return false;
 	}
 
@@ -149,6 +148,8 @@ bool BassSource::load(string file_name, bool prescan)
 		pimpl->free();
 		return false;
 	}
+
+    LOG_INFO("basssource playing %1%"), file_name;
 
 	return true;
 }

@@ -1,20 +1,20 @@
 /*
-*    applejuice music player
-*    this is beerware! you are strongly encouraged to invite the authors of
-*    this software to a beer if you happen to run into them.
-*    also, this code is licensed under teh GPL, i guess. whatever.
-*    copyright 'n shit: year MMX by maep
+*   applejuice music player
+*   this is beerware! you are strongly encouraged to invite the authors of
+*   this software to a beer if you happen to run into them.
+*   also, this code is licensed under teh GPL, i guess. whatever.
+*   copyright 'n shit: year MMX by maep
 *
-*    classes:
-*    AlignedBuffer
-*    AudioStream
-*    Machine
-*    ZeroSource
+*   classes:
+*   AlignedBuffer
+*   AudioStream
+*   Machine
+*   ZeroSource
 *
-*    functions:
-*    frames_in_bytes
-*    bytes_in_frames
-*    unsigned_min
+*   functions:
+*   frames_in_bytes
+*   bytes_in_frames
+*   unsigned_min
 */
 
 #ifndef _AUDIO_STREAM_H_
@@ -124,7 +124,7 @@ public:
     }
 
 private:
-    static uint32_t const MAGIC_NUMBER = 0xaa55aa55;
+    const static uint32_t MAGIC_NUMBER = 0xaa55aa55;
     void* _buff;
     size_t _size;
 };

@@ -127,7 +127,7 @@ ShoutCastPimpl::ShoutCastPimpl() :
     connected(false),
     remaining_frames(0)
 {
-    signal(SIGPIPE, SIG_IGN); // otherwise we won't be able to recover
+    signal(SIGPIPE, SIG_IGN); // otherwise we won't be able to recover from encoder death
     shout_init();
     cast = shout_new();
     init_machines();
@@ -195,6 +195,7 @@ void ShoutCastPimpl::writer()
             {
                 LOG_DEBUG("end of stream");
                 decode_buffer.zero_end((decode_frames - frames) * channels);
+                // load next song in separate thread
                 boost::thread thread(bind(&ShoutCastPimpl::load_next, this));
             }
         }
@@ -223,10 +224,9 @@ void ShoutCastPimpl::reader()
         encoder_output->read(send_buffer.get(), send_buffer.size_bytes());
         shout_sync(cast);
         int err = shout_send(cast, send_buffer.get_uchar(), send_buffer.size_bytes());
-
         if (err != SHOUTERR_SUCCESS)
         {
-            ERROR("icecast connection dropped, trying to recover");
+            ERROR("icecast connection dropped, trying to recover(%1%)"), shout_get_error(cast);
             disconnect();
         }
     }
@@ -235,9 +235,7 @@ void ShoutCastPimpl::reader()
 // this is called whenever the song is changed
 void ShoutCastPimpl::load_next()
 {
-    LOG_DEBUG("load_next");
     decoder_ready = false;
-
     SongInfo song = {"", "", setting::encoder_samplerate, 0, 0, false};
 
     int loadTries = 0;
@@ -249,7 +247,7 @@ void ShoutCastPimpl::load_next()
 
         if (!fs::exists(song.file))
         {
-            ERROR("file doesn't exist: %1%"), song.file;
+            LOG_WARNING("file doesn't exist: %1%"), song.file;
             continue;
         }
 
@@ -271,6 +269,11 @@ void ShoutCastPimpl::load_next()
             machineStack->add(avSource, 0);
             song.length = avSource->length();
             song.samplerate = avSource->samplerate();
+        }
+
+        if (!loaded)
+        {
+            LOG_WARNING("can't decode %1%"), song.file;
         }
     }
 
@@ -458,25 +461,12 @@ void ShoutCastPimpl::connect()
             LOG_INFO("connected to icecast");
             connected = true;
             break;
-        case SHOUTERR_CONNECTED:
-            FATAL("icecast connection already open");
-            break;
-        case SHOUTERR_UNSUPPORTED:
-        case SHOUTERR_INSANE:
-            FATAL("can't set up connection, probably a configuration error");
-            break;
-        case SHOUTERR_NOLOGIN:
-            FATAL("authentification error");
-            break;
-        case SHOUTERR_MALLOC:
-            FATAL("out of memory");
-            break;
-        default:
-            FATAL("unknown error while connecting to icecast");
-            break;
         case SHOUTERR_NOCONNECT:
         case SHOUTERR_SOCKET:
-            ERROR("network error");
+            ERROR("can't connect to icecast (%1%)"), shout_get_error(cast);
+            break;
+        default:
+            FATAL("can't connect to icecast (%1%)"), shout_get_error(cast);
             break;
     }
 }
@@ -549,9 +539,8 @@ void ShoutCastPimpl::update_metadata(SongInfo& song)
     int err = shout_set_metadata(cast, metadata);
     if (err != SHOUTERR_SUCCESS)
     {
-        LOG_WARNING("shout_set_metadata failed with code %1%"), err;
+        LOG_WARNING("shout_set_metadata: failed with code %1%"), err;
     }
-
     shout_metadata_free(metadata);
 }
 

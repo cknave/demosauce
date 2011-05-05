@@ -72,10 +72,9 @@ bool AvSource::load(std::string file_name)
     pimpl->free();
     pimpl->file_name = file_name;
 
-    LOG_INFO("avsource loading %1%"), file_name;
+    LOG_DEBUG("avsource: attempting to load %1%"), file_name;
 
     // KHAAAAAAAAAN! FOR SOME REASON THIS IS BROKEN IN EARLIER RELEASES!
-
     //~ AVProbeData probe_data = {file_name.c_str(), 0, 0};
     //~ AVInputFormat* input_format = av_probe_input_format(&probe_data, 0);
     //~ if (input_format == NULL)
@@ -87,13 +86,13 @@ bool AvSource::load(std::string file_name)
     //    if (av_open_input_file(&pimpl->format_context, file_name.c_str(), input_format, 0, NULL) != 0)
     if (av_open_input_file(&pimpl->format_context, file_name.c_str(), 0, 0, NULL) != 0)
     {
-        LOG_WARNING("can't open file %1%"), file_name;
+        LOG_DEBUG("avsource: can't load %1%"), file_name;
         return false;
     }
 
     if (av_find_stream_info(pimpl->format_context) < 0)
     {
-        LOG_WARNING("no stream information %1%"), file_name;
+        LOG_DEBUG("avsource: no stream information %1%"), file_name;
         return false;
     }
 
@@ -106,7 +105,7 @@ bool AvSource::load(std::string file_name)
 
     if (pimpl->audio_stream_index == -1)
     {
-        LOG_WARNING("no audio stream :( %1%"), file_name;
+        LOG_DEBUG("avsource: no audio stream :( %1%"), file_name;
         return false;
     }
 
@@ -114,18 +113,20 @@ bool AvSource::load(std::string file_name)
     pimpl->codec = avcodec_find_decoder(pimpl->codec_context->codec_id);
     if (!pimpl->codec)
     {
-        LOG_WARNING("unsupported codec %1%"), file_name;
+        LOG_DEBUG("avsource: unsupported codec %1%"), file_name;
         return false;
     }
 
     if (avcodec_open(pimpl->codec_context, pimpl->codec) < 0)
     {
-        LOG_WARNING("failed to open codec %1%"), file_name;
+        LOG_DEBUG("avsource: failed to open codec %1%"), file_name;
         return false;
     }
 
     pimpl->length = boost::numeric_cast<uint64_t>(pimpl->format_context->duration *
         (static_cast<double>(pimpl->codec_context->sample_rate) / AV_TIME_BASE));
+
+    LOG_INFO("avsource: playing %1%"), file_name;
 
     return true;
 }

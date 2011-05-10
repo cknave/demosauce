@@ -38,6 +38,33 @@ using boost::iends_with;
 
 namespace fs = ::boost::filesystem;
 
+LIB_HANDLE_T dynamic_open(string file_name)
+{
+#if defined (__unix__)
+    return dlopen(file_name.c_str(), RTLD_LAZY);
+#else
+    #error "implementation missing"
+#endif
+}
+
+void dynamic_close(LIB_HANDLE_T lib_handle)
+{
+#if defined (__unix__)
+    dlclose(lib_handle);
+#else
+    #error "implementation missing"
+#endif
+}
+
+LADSPA_Descriptor_Function bind_descriptor_function(LIB_HANDLE_T lib_handle)
+{
+#if defined (__unix__)
+    return (LADSPA_Descriptor_Function) dlsym(lib_handle, "ladspa_descriptor");
+#else
+    #error "implementation missing"
+#endif
+}
+
 vector<string> enumerate_plugins()
 {
     vector<string> list;
@@ -72,33 +99,12 @@ vector<string> enumerate_plugins()
     return list;
 }
 
-
-LIB_HANDLE_T dynamic_open(string file_name)
+struct PluginChannel
 {
-#if defined (__unix__)
-    return dlopen(file_name.c_str(), RTLD_LAZY);
-#else
-    #error "implementation missing"
-#endif
-}
-
-void dynamic_close(LIB_HANDLE_T lib_handle)
-{
-#if defined (__unix__)
-    dlclose(lib_handle);
-#else
-    #error "implementation missing"
-#endif
-}
-
-LADSPA_Descriptor_Function bind_descriptor_function(LIB_HANDLE_T lib_handle)
-{
-#if defined (__unix__)
-    return (LADSPA_Descriptor_Function) dlsym(lib_handle, "ladspa_descriptor");
-#else
-    #error "implementation missing"
-#endif
-}
+    LADSPA_Handle   handle;
+    unsigned long   input_port;
+    unsigned long   output_port;
+};
 
 struct LadspaHost::Pimpl
 {
@@ -107,11 +113,14 @@ struct LadspaHost::Pimpl
 
     bool load_plugin(string label);
     void unload_plugin();
-    void init_plugin();
 
-    LIB_HANDLE_T        lib_handle;
-    LADSPA_Descriptor*  descriptor;
-    LADSPA_Handle       plugin_handle;
+    bool is_stereo_plugin();
+    bool init_plugin(uint32_t samplerate);
+
+    LIB_HANDLE_T            lib_handle;
+    LADSPA_Descriptor*      descriptor;
+    vector<PluginChannel>   channels;
+
 };
 
 bool LadspaHost::Pimpl::load_plugin(string label)
@@ -160,46 +169,184 @@ bool LadspaHost::Pimpl::load_plugin(string label)
 
 void LadspaHost::Pimpl::unload_plugin()
 {
+    reset_channels();
     if (lib_handle != 0)
     {
-        LOG_DEBUG("ladspahost: unloading plugin");
+        LOG_DEBUG("ladspahost: unloading library");
         dynamic_close(lib_handle);
         lib_handle = 0;
         descriptor = 0;
-        plugin_handle = 0;
     }
 }
 
-bool LadspaHost::Pimpl::init_plugin(uint32_t samplerate)
+LADSPA_Handle LadspaHost::Pimp::init_plugin(unsigned long samplerate)
 {
-    if (lib_handle == 0)
+    LADSPA_Handle h = descriptor->instantiate(descriptor, samplerate);
+
+    if (h == 0)
     {
-        return false;
+        LOG_ERROR("[ladspahost] failed to init plugin %1%"), descriptor->Label;
+        return 0;
     }
 
-    plugin_handle = descriptor->instantiate(descriptor, samplerate);
-
-    if (plugin_handle == 0)
+    if (descriptor->activate != 0)
     {
-        return false;
+        descriptor->activate(h);
     }
 
+    return h;
 }
 
+// count port of specific type
+unsigned long LadspaHost::Pimpl::count_ports(LADSPA_PortDescriptor port_type)
+{
+    unsigned long counter = 0;
+    for (unsigned long i = 0; i < descriptor->PortCount; i++)
+    {
+        LADSPA_PortDescriptor p = descriptor->PortDescriptors[i];
+        if (p & port_type)
+        {
+            counter++;
+        }
+    }
+    return counter;
+}
+
+// get Nth port of specific type
+unsigned long LadspaHost::Pimpl::get_nth_port(LADSPA_Descriptor descriptor, LADSPA_PortDescriptor port_type, unsigned long n)
+{
+    unsigned long counter = 0;
+    for (unsigned long i = 0; i < descriptor->PortCount; i++)
+    {
+        LADSPA_PortDescriptor p = descriptor->PortDescriptors[i];
+        if (p & port_type && counter++ == n)
+        {
+            return i;
+        }
+    }
+    return 0;
+}
+
+bool LadspaHost::Pimpl::is_stereo_plugin()
+{
+    bool is_stero = count_ports(LADSPA_PORT_AUDIO | LADSPA_PORT_INPUT) == 2
+        && count_ports(LADSPA_PORT_AUDIO | LADSPA_PORT_OUTPUT) == 2;
+    return is_stero;
+}
+
+bool LadspaHost::Pimpl::init_channels(uint32_t samplerate uint32_t channels)
+{
+    close_channels();
+
+    if (channels == 2 && is_stereo_plugin())
+    {
+        // we have a stereo plugin
+        LOG_INFO("[ladspahost] treating %1% as stereo plugin"), descriptor->Label;
+
+        LADSPA_Handle handle = init_plugin(numeric_cast<unsigned int>(samplerate));
+
+        if (handle == 0)
+        {
+            return false;
+        }
+
+        PluginChannel left = {handle,
+            get_nth_port(LADSPA_PORT_AUDIO | LADSPA_PORT_INPUT, 0),
+            get_nth_port(LADSPA_PORT_AUDIO | LADSPA_PORT_OUTPUT, 0)};
+        PluginChannel right = {handle,
+            get_nth_port(LADSPA_PORT_AUDIO | LADSPA_PORT_INPUT, 1),
+            get_nth_port(LADSPA_PORT_AUDIO | LADSPA_PORT_OUTPUT, 1)};
+
+        channels.push_back(left);
+        channels.push_back(right);
+    }
+    else
+    {
+        // we have a mono plugin!
+        LOG_INFO("[ladspahost] treating %1% as mono plugin"), descriptor->Label;
+
+        for (uint32_t i = 0; i < channels; i++)
+        {
+            LADSPA_Handle handle = init_plugin(numeric_cast<unsigned int>(samplerate));
+
+            if (handle == 0)
+            {
+                return false;
+            }
+
+            PluginChannel channel = {handle,
+                get_nth_port(LADSPA_PORT_AUDIO | LADSPA_PORT_INPUT, 0),
+                get_nth_port(LADSPA_PORT_AUDIO | LADSPA_PORT_OUTPUT, 0)};
+
+            channels.push_back(channel);
+        }
+    }
+
+    return true;
+}
+
+void LadspaHost::Pimpl::close_channels()
+{
+    if (channels.empty())
+    {
+        return;
+    }
+
+    LOG_DEBUG("ladspahost: decativating %1%"), descriptor->Label;
+
+    if (is_stereo_plugin())
+    {
+        PluginChannel channel = channels[0];
+        if (descriptor->deactivate != 0)
+        {
+            descriptor->deactivate(channel.handle);
+        }
+        descriptor->cleanup(channel.handle);
+    }
+    else
+    {
+        BOOST_FOREACH(PluginChannel channel, channels)
+        {
+            if (descriptor->deactivate != 0)
+            {
+                descriptor->deactivate(channel.handle);
+            }
+            descriptor->cleanup(channel.handle);
+        }
+    }
+    channels.clear();
+}
 
 LadspaHost::LadspaHost() :
     pimpl(new Pimpl)
 {}
 
+void LadspaHost::Pimpl::process(AudioStream& stream, const uint32_t frames)
+{
+    if (stream.samplerate() != samplerate || stream.channels() != channels.size())
+    {
+        close_channels();
+        init_channels(stream.samplerate(), stream.channels());
+    }
+
+    unsigned long stream_frames = numeric_cast<unsigned long>(stream.frames());
+    for (size_t i = 0; i < cannels.size(); i++)
+    {
+        PluginChannel c = channels[i];
+        descriptor->connect_port(c.handle, c.input_port, stream.buffer(i));
+        descriptor->connect_port(c.handle, c.output_port, stream.buffer(i))
+        descriptor->Run(c.handle, stream_frames);
+    }
+}
+
 LadspaHost::~LadspaHost() {} // needed or scoped_ptr may start whining
 
 void LadspaHost::process(AudioStream& stream, const uint32_t frames)
 {
-    if (source.get() == 0)
+    if (source.get() == 0 || pimpl->descriptor == 0)
     {
         return;
     }
-
-    return source->process(stream, frames);
+    source->process(stream, frames);
+    pimpl->run(stream, frames);
 }
-

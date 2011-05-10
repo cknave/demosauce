@@ -81,7 +81,7 @@ bool BassSource::load(std::string file_name, std::string playback_settings)
         return loaded;
     }
 
-    // interpolation; values are audo, auto, off, linear, sinc
+    // interpolation, values: auto, auto, off, linear, sinc (bass uses linear as default)
     string inter_str = get_value(playback_settings, "bass_inter", "auto");
     if ((is_amiga_module() && inter_str == "auto") || inter_str == "off")
     {
@@ -92,7 +92,7 @@ bool BassSource::load(std::string file_name, std::string playback_settings)
         BASS_ChannelFlags(pimpl->channel, BASS_MUSIC_SINCINTER, BASS_MUSIC_SINCINTER);
     }
 
-    // ramping
+    // ramping, values: auto, normal, sensitive
     string ramp_str = get_value(playback_settings, "bass_ramp", "auto");
     if ((!is_amiga_module() && ramp_str == "auto") || inter_str == "normal")
     {
@@ -103,7 +103,7 @@ bool BassSource::load(std::string file_name, std::string playback_settings)
         BASS_ChannelFlags(pimpl->channel, BASS_MUSIC_RAMPS, BASS_MUSIC_RAMPS);
     }
 
-    // mode
+    // playback mode, values: auto, bass, pt1, ft2 (bass is default)
     string mode_str = get_value(playback_settings, "bass_mode", "auto");
     if ((is_amiga_module() && mode_str == "auto") || mode_str == "pt1")
     {

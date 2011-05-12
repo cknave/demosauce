@@ -1,5 +1,14 @@
 /*
-    fancy streaming engine for scenemusic
+*   demosauce - fancy icecast source client
+*
+*   this source is published under the gpl license. google it yourself.
+*   also, this is beerware! you are strongly encouraged to invite the
+*   authors of this software to a beer when you happen to meet them.
+*   copyright MMXI by maep
+*/
+
+/*
+    a fancy source client for scenemusic.net
     slapped together by maep 2009 - 2011
 
     BEHOLD, A FUCKING PONY!
@@ -45,7 +54,7 @@
 
 int main(int argc, char* argv[])
 {
-    std::cout << "demosauce 0.3.1" EXPAND(REVISION) " - less BASS, more SHOUT!\n";
+    std::cout << "demosauce 0.3.2" EXPAND(REVISION) " - less BASS, more SHOUT!\n";
     srand(time(0));
     try
     {

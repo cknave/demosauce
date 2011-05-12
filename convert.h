@@ -1,9 +1,10 @@
 /*
-*   applejuice music player
-*   this is beerware! you are strongly encouraged to invite the authors of
-*   this software to a beer if you happen to run into them.
-*   also, this code is licensed under teh GPL, i guess. whatever.
-*   copyright 'n shit: year MMX by maep
+*   demosauce - fancy icecast source client
+*
+*   this source is published under the gpl license. google it yourself.
+*   also, this is beerware! you are strongly encouraged to invite the
+*   authors of this software to a beer when you happen to meet them.
+*   copyright MMXI by maep
 *
 *   classes:
 *   Resample

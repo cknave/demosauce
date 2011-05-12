@@ -1,11 +1,10 @@
-// build_depends logror.cpp
-
 /*
-*   applejuice music player
-*   this is beerware! you are strongly encouraged to invite the authors of
-*   this software to a beer if you happen to run into them.
-*   also, this code is licensed under teh GPL, i guess. whatever.
-*   copyright 'n shit: year MMX by maep
+*   demosauce - icecast source client
+*
+*   this source is published under the gpl license. google it yourself.
+*   also, this is beerware! you are strongly encouraged to invite the
+*   authors of this software to a beer when you happen to meet them.
+*   copyright MMXI by maep
 */
 
 #include <cmath>
@@ -44,7 +43,7 @@ MachineStack::MachineStack() :
 
 MachineStack::~MachineStack() {} // needed or scoped_ptr may start whining
 
-void MachineStack::process(AudioStream& stream, uint32_t const frames)
+void MachineStack::process(AudioStream& stream, uint32_t frames)
 {
     if (source.get() == 0)
         source = MachinePtr(new ZeroSource);
@@ -56,12 +55,16 @@ void MachineStack::add_machine(MachinePtr& machine, size_t position)
     static size_t const max_machines = 1000;
 
     if (machine.get() == this)
+    {
         return;
+    }
 
     std::vector<MachinePtr>& machines = pimpl->machines;
 
     if (position == APPEND && machines.size() < max_machines)
+    {
         machines.push_back(machine);
+    }
     else if (position < max_machines)
     {
         if (machines.size() < position + 1)
@@ -78,9 +81,13 @@ void MachineStack::remove_machine(MachinePtr& machine)
     for (size_t i = 0; i < machines.size(); i++)
     {
         if (machines[i] == machine)
+        {
             machines[i] = MachinePtr(); // other way to do this?
+        }
         if (machines[i].get())
+        {
             last_machine = i;
+        }
     }
 
     machines.resize(last_machine + 1);
@@ -94,32 +101,39 @@ void MachineStack::update_routing()
 
     // find initial machine
     for(; i < machines.size() && !source_machine.get(); ++i)
+    {
         if (machines[i].get() && machines[i]->enabled())
+        {
             source_machine = machines[i];
+        }
+    }
 
     // chain the rest of the machines
     for(; i < machines.size(); ++i)
+    {
         if (machines[i].get() && machines[i]->enabled())
         {
             LOG_DEBUG("connect %1% -> %2%"), source_machine->name(), machines[i]->name();
             machines[i]->set_source(source_machine);
             source_machine = machines[i];
         }
+    }
 
     set_source(source_machine);
 }
 
 //-----------------------------------------------------------------------------
 
-void MapChannels::process(AudioStream& stream, uint32_t const frames)
+void MapChannels::process(AudioStream& stream, uint32_t frames)
 {
     source->process(stream, frames);
     uint32_t const in_channels = stream.channels();
     stream.set_channels(out_channels);
 
     if (in_channels == 1 && out_channels == 2)
+    {
         memmove(stream.buffer(1), stream.buffer(0), stream.channel_bytes());
-
+    }
     else if (in_channels == 2 && out_channels == 1)
     {
         float* left = stream.buffer(0);
@@ -138,7 +152,9 @@ void MapChannels::process(AudioStream& stream, uint32_t const frames)
 void LinearFade::set_fade(uint64_t start_frame, uint64_t end_frame, float begin_amp, float end_amp)
 {
     if (start_frame >= end_frame || begin_amp < 0 || end_amp < 0)
+    {
         return;
+    }
     this->start_frame = start_frame;
     this->end_frame = end_frame;
     this->current_frame = 0;
@@ -146,7 +162,7 @@ void LinearFade::set_fade(uint64_t start_frame, uint64_t end_frame, float begin_
     this->amp_inc = (end_amp - begin_amp) / (end_frame - start_frame);
 }
 
-void LinearFade::process(AudioStream& stream, uint32_t const frames)
+void LinearFade::process(AudioStream& stream, uint32_t frames)
 {
     source->process(stream, frames);
 
@@ -161,7 +177,9 @@ void LinearFade::process(AudioStream& stream, uint32_t const frames)
     current_frame += proc_frames;
 
     if (amp == 1 && (end_a >= proc_frames || end_b == 0))
+    {
         return; // nothing to do; amp mignt not be exacly on target, so proximity check would be better
+    }
 
     for (uint_fast32_t i_chan = 0; i_chan < stream.channels(); ++i_chan)
     {
@@ -170,13 +188,17 @@ void LinearFade::process(AudioStream& stream, uint32_t const frames)
         float a = amp;
 
         for (; i < end_a; ++i)
+        {
             *out++ *= a;
-
+        }
         for (; i < end_b; ++i, a += amp_inc)
+        {
             *out++ *= a;
-
+        }
         for (; i < proc_frames; ++i)
+        {
             *out++ *= a;
+        }
     }
 
     amp += amp_inc * (end_b - end_a);
@@ -184,14 +206,16 @@ void LinearFade::process(AudioStream& stream, uint32_t const frames)
 
 //-----------------------------------------------------------------------------
 
-void Gain::process(AudioStream& stream, uint32_t const frames)
+void Gain::process(AudioStream& stream, uint32_t frames)
 {
     source->process(stream, frames);
     for (uint_fast32_t i_chan = 0; i_chan < stream.channels(); ++i_chan)
     {
         float* out = stream.buffer(i_chan);
         for (uint_fast32_t i = stream.frames(); i; --i)
+        {
             *out++ *= amp;
+        }
     }
 }
 
@@ -203,7 +227,7 @@ void NoiseSource::set_duration(uint64_t duration)
     current_frame = 0;
 }
 
-void NoiseSource::process(AudioStream& stream, uint32_t const frames)
+void NoiseSource::process(AudioStream& stream, uint32_t frames)
 {
     if (current_frame >= duration)
     {
@@ -213,7 +237,9 @@ void NoiseSource::process(AudioStream& stream, uint32_t const frames)
     }
 
     if (stream.max_frames() < frames)
+    {
         stream.resize(frames);
+    }
 
     float const gah = 1.0 / RAND_MAX;
     const uint_fast32_t proc_frames = unsigned_min<uint32_t>(duration - current_frame, frames);
@@ -222,7 +248,9 @@ void NoiseSource::process(AudioStream& stream, uint32_t const frames)
     {
         float* out = stream.buffer(i_chan);
         for (uint_fast32_t i = proc_frames; i; --i)
+        {
             *out++ = gah * rand();
+        }
     }
 
     current_frame += proc_frames;
@@ -239,12 +267,14 @@ void MixChannels::set_mix(float ll_amp, float lr_amp, float rr_amp, float rl_amp
     this->rl_amp = rl_amp;
 }
 
-void MixChannels::process(AudioStream& stream, uint32_t const frames)
+void MixChannels::process(AudioStream& stream, uint32_t frames)
 {
     source->process(stream, frames);
 
     if (stream.channels() != 2)
+    {
         return;
+    }
 
     float* left = stream.buffer(0);
     float* right = stream.buffer(1);
@@ -260,7 +290,7 @@ void MixChannels::process(AudioStream& stream, uint32_t const frames)
 
 //-----------------------------------------------------------------------------
 
-void Peaky::process(AudioStream& stream, uint32_t const frames)
+void Peaky::process(AudioStream& stream, uint32_t frames)
 {
     source->process(stream, frames);
 
@@ -271,7 +301,9 @@ void Peaky::process(AudioStream& stream, uint32_t const frames)
         {
             float const value = fabs(*in++);
             if (value > _peak )
+            {
                 _peak  = value;
+            }
         }
     }
 }

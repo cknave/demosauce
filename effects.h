@@ -1,9 +1,10 @@
 /*
-*   applejuice music player
-*   this is beerware! you are strongly encouraged to invite the authors of
-*   this software to a beer if you happen to run into them.
-*   also, this code is licensed under teh GPL, i guess. whatever.
-*   copyright 'n shit: year MMX by maep
+*   demosauce - icecast source client
+*
+*   this source is published under the gpl license. google it yourself.
+*   also, this is beerware! you are strongly encouraged to invite the
+*   authors of this software to a beer when you happen to meet them.
+*   copyright MMXI by maep
 */
 
 #ifndef _EFFECTS_H_
@@ -28,16 +29,16 @@ public:
 
     virtual ~MachineStack();
 
-    void process(AudioStream & stream, uint32_t const frames);
+    void process(AudioStream& stream, uint32_t frames);
 
     std::string name() const
     {
         return "Machine Stack";
     }
 
-    template<typename T> void add(T& machine, size_t position = APPEND);
+    template<class T> void add(T& machine, size_t position = APPEND);
 
-    template<typename T> void remove(T& machine);
+    template<class T> void remove(T& machine);
 
     void update_routing();
 
@@ -49,14 +50,14 @@ private:
     boost::scoped_ptr<Pimpl> pimpl;
 };
 
-template<typename T>
+template<class T>
 inline void MachineStack::add(T& machine, size_t position)
 {
     MachinePtr base_machine = boost::static_pointer_cast<Machine>(machine);
     add_machine(base_machine, position);
 }
 
-template<typename T>
+template<class T>
 inline void MachineStack::remove(T& machine)
 {
     MachinePtr base_machine = boost::static_pointer_cast<Machine>(machine);
@@ -72,7 +73,7 @@ public:
         out_channels(2)
     {}
 
-    void process(AudioStream& stream, uint32_t const frames);
+    void process(AudioStream& stream, uint32_t frames);
 
     std::string name() const
     {
@@ -98,7 +99,7 @@ private:
 class LinearFade : public Machine
 {
 public:
-    void process(AudioStream& stream, uint32_t const frames);
+    void process(AudioStream& stream, uint32_t frames);
 
     std::string name() const
     {
@@ -124,7 +125,7 @@ public:
         amp(1)
     {}
 
-    void process(AudioStream & stream, uint32_t const frames);
+    void process(AudioStream& stream, uint32_t frames);
 
     std::string name() const
     {
@@ -152,7 +153,7 @@ public:
         current_frame(0)
     {}
 
-    void process(AudioStream & stream, uint32_t const frames);
+    void process(AudioStream& stream, uint32_t frames);
 
     std::string name() const
     {
@@ -184,7 +185,7 @@ public:
         rl_amp(0)
     {}
 
-    void process(AudioStream & stream, uint32_t const frames);
+    void process(AudioStream& stream, uint32_t frames);
 
     std::string name() const
     {
@@ -211,7 +212,7 @@ public:
     {}
 
     // overwriting
-    void process(AudioStream & stream, uint32_t const frames);
+    void process(AudioStream& stream, uint32_t frames);
     std::string name() const
     {
         return "Peaky";

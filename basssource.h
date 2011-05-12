@@ -1,3 +1,12 @@
+/*
+*   demosauce - fancy icecast source client
+*
+*   this source is published under the gpl license. google it yourself.
+*   also, this is beerware! you are strongly encouraged to invite the
+*   authors of this software to a beer when you happen to meet them.
+*   copyright MMXI by maep
+*/
+
 #ifndef _H_BASSSOURCE_
 #define _H_BASSSOURCE_
 
@@ -6,9 +15,9 @@
 #include <boost/cstdint.hpp>
 #include <boost/scoped_ptr.hpp>
 
-#include "abstractplugin.h"
+#include "audiostream.h"
 
-class BassSource : public AbstractSource
+class BassSource : public Decoder
 {
 public:
     BassSource();
@@ -25,7 +34,7 @@ public:
 
     // manipulators from AbstractSource
     bool load(std::string file_name);
-    void process(AudioStream& stream, uint32_t const frames);
+    void process(AudioStream& stream, uint32_t frames);
     void seek(uint64_t frame);
 
     // observers

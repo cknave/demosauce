@@ -1,3 +1,12 @@
+/*
+*   demosauce - fancy icecast source client
+*
+*   this source is published under the gpl license. google it yourself.
+*   also, this is beerware! you are strongly encouraged to invite the
+*   authors of this software to a beer when you happen to meet them.
+*   copyright MMXI by maep
+*/
+
 #include <cstring>
 #include <csignal>
 
@@ -33,9 +42,15 @@
 #include "effects.h"
 #include "convert.h"
 #include "avsource.h"
+
 #ifdef ENABLE_BASS
     #include "basssource.h"
 #endif
+
+#ifdef ENABLE_LADSPA
+    #include "ladspahost.h"
+#endif
+
 #include "shoutcast.h"
 
 // some classes in boost and std namespace collide...
@@ -54,7 +69,7 @@ namespace fs = ::boost::filesystem;
 
 /*  current processing stack layout, machines in () may be disabled depending on input
     NoiseSource / BassSource / AVCodecSource -> (Resample) -> (MixChannels) ->
-    -> MapChannels -> Gain -> [LADSPA planned] -> (LinearFade) -> ShoutCast
+    -> MapChannels -> Gain -> (LADSPA 0,1,2) -> (LinearFade) -> ShoutCast
 */
 
 typedef int16_t sample_t; // sample type that is fed to encoder
@@ -138,6 +153,20 @@ ShoutCastPimpl::~ShoutCastPimpl()
     shout_free(cast);
 }
 
+#ifdef ENABLE_LADSPA
+void add_ladspa_plugin(shared_ptr<MachineStack>& machine_stack, string configuration)
+{
+    if (!configuration.empty())
+    {
+        shared_ptr<LadspaHost> host = make_shared<LadspaHost>();
+        if (host->load_plugin(configuration, setting::encoder_samplerate))
+        {
+            machine_stack->add(host);
+        }
+    }
+}
+#endif
+
 void ShoutCastPimpl::init_machines()
 {
     machineStack = make_shared<MachineStack>();
@@ -159,7 +188,18 @@ void ShoutCastPimpl::init_machines()
     machineStack->add(mixChannels);
     machineStack->add(mapChannels);
     machineStack->add(gain);
-    // dsp here
+#ifdef ENABLE_LADSPA
+    add_ladspa_plugin(machineStack, setting::ladspa_plugin0);
+    add_ladspa_plugin(machineStack, setting::ladspa_plugin1);
+    add_ladspa_plugin(machineStack, setting::ladspa_plugin2);
+    add_ladspa_plugin(machineStack, setting::ladspa_plugin3);
+    add_ladspa_plugin(machineStack, setting::ladspa_plugin4);
+    add_ladspa_plugin(machineStack, setting::ladspa_plugin5);
+    add_ladspa_plugin(machineStack, setting::ladspa_plugin6);
+    add_ladspa_plugin(machineStack, setting::ladspa_plugin7);
+    add_ladspa_plugin(machineStack, setting::ladspa_plugin8);
+    add_ladspa_plugin(machineStack, setting::ladspa_plugin9);
+#endif
     machineStack->add(linearFade);
 
     converter.set_source(machineStack);

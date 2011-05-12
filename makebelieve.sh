@@ -1,7 +1,7 @@
 #!/bin/sh
-# a small script to build the streamer
+# a small script to build the source client
 # here is the deal: I don't like make or ./configure. to change the build configuration you'll
-# just have to edit this file. check the comments to see what do do.
+# have to edit this file. check the comments to see what do do.
 # remember to run installDependencies.sh before you compile for the first time
 
 # swap to create a debug build
@@ -38,39 +38,44 @@ compile() {
     if test $? -ne 0; then exit 1; fi
 }
 
-# comment/uncomment next 4 line to disable/enable BASS library support
+# comment/uncomment the next 4 lines to disable/enable LADSPA effect support
+cflags_ladspa="-DENABLE_LADSPA"
+ladspa_o="ladspahost.o"
+ldl="-ldl"
+compile $cflags -c ladspahost.cpp
+
+# comment/uncomment next 4 line to disable/enable BASS playback support
 cflags_bass="-DENABLE_BASS"
-basssource_o="basssource.o"
-libs_bass="-L$dir_bass -Wl,-rpath=$dir_bass -lbass"
+bass_o="basssource.o"
+lbass="-L$dir_bass -Wl,-rpath=$dir_bass -lbass -lid3tag -lz"
 compile $cflags -c basssource.cpp
 
-# swap next two lines to use your distro's own ffmpeg
+# swap next lines to use your distro's ffmpeg
 libs_ffmpeg="-Lffmpeg -Wl,-rpath=ffmpeg -lavcodec -lavformat"
 compile $cflags -Iffmpeg -c avsource.cpp
 #libs_ffmpeg="-lavcodec -lavformat"
 #compile $cflags -c avsource.cpp
 
-compile $cflags $cflags_bass -I. -c shoutcast.cpp
+#remove -DREVISION_NR=`svnversion .` if you're not using subversion
+compile $cflags -DREVISION_NR=`svnversion .` -c demosauce.cpp
+compile $cflags $cflags_bass $cflags_ladspa -I. -c shoutcast.cpp
 compile $cflags $cflags_bass -c scan.cpp
+compile $cflags $cflags_ladspa -c settings.cpp
 #compile $cflags $cflags_bass -c preview.cpp
 compile $cflags -c convert.cpp
 compile $cflags -c effects.cpp
 compile $cflags -c sockets.cpp
 compile $cflags -c logror.cpp
-compile $cflags -c settings.cpp
 
-# remove -DREVISION_NR=`svnversion .` if you're not using subversion
-compile $cflags -DREVISION_NR=`svnversion .` -c demosauce.cpp
-
-# link scan
-input="scan.o avsource.o effects.o logror.o convert.o $basssource_o $replaygain_a"
+#link scan
+input="scan.o avsource.o effects.o logror.o convert.o $bass_o $replaygain_a"
 libs="-lsamplerate -lboost_system-mt -lboost_date_time-mt"
-compile -o scan $input $libs $libs_ffmpeg $libs_bass
+compile -o scan $input $libs $lavcodec $lbass
 
-# link demosauce
-input="settings.o demosauce.o avsource.o convert.o effects.o logror.o sockets.o shoutcast.o $basssource_o"
+#link demosauce
+input="settings.o demosauce.o avsource.o convert.o effects.o logror.o sockets.o shoutcast.o $bass_o $ladspa_o"
 libs="-lshout -lsamplerate -lboost_system-mt -lboost_thread-mt -lboost_filesystem-mt -lboost_program_options-mt -lboost_date_time-mt"
-compile -o demosauce $input $libs $libs_ffmpeg $libs_bass `icu-config --ldflags`
+compile -o demosauce $input $libs $lavcodec $lbass $ldl `icu-config --ldflags`
 
 # clean up
 rm -f *.o; fi

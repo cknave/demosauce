@@ -1,3 +1,12 @@
+/*
+*   demosauce - icecast source client
+*
+*   this source is published under the gpl license. google it yourself.
+*   also, this is beerware! you are strongly encouraged to invite the
+*   authors of this software to a beer when you happen to meet them.
+*   copyright MMXI by maep
+*/
+
 #ifndef _H_KEYVALUE_
 #define _H_KEYVALUE_
 

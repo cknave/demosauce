@@ -1,26 +1,41 @@
+/*
+*   demosauce - fancy icecast source client
+*
+*   this source is published under the gpl license. google it yourself.
+*   also, this is beerware! you are strongly encouraged to invite the
+*   authors of this software to a beer when you happen to meet them.
+*   copyright MMXI by maep
+*/
+
 #include <cstdlib>
 #include <string>
+#include <sstream>
 #include <iostream>
 
 #include <boost/make_shared.hpp>
 
 #include "libreplaygain/replay_gain.h"
 
-#include "logror.h"
 #ifdef ENABLE_BASS
     #include "basssource.h"
 #endif
+
 #include "avsource.h"
 #include "convert.h"
 
-// abort scan if track is too long, in seconds
-#define MAX_LENGTH 3600
-// samplerate shouldn't matter, but fish had some problems with short samples
+#define MAX_LENGTH 3600     // abort scan if track is too long, in seconds
 #define SAMPLERATE 44100
 
+using std::endl;
+using std::cout;
 using std::string;
+using std::stringstream;
 
-void fill_buffer(boost::shared_ptr<Machine>& machine, AudioStream& stream, uint32_t const frames)
+using boost::shared_ptr;
+using boost::make_shared;
+using boost::static_pointer_cast;
+
+void fill_buffer(shared_ptr<Machine>& machine, AudioStream& stream, uint32_t frames)
 {
     machine->process(stream, frames);
     if (stream.frames() < frames && !stream.end_of_stream)
@@ -30,114 +45,146 @@ void fill_buffer(boost::shared_ptr<Machine>& machine, AudioStream& stream, uint3
         {
             machine->process(helper, frames - stream.frames());
             stream.append(helper);
-            stream.end_of_stream = helper.end_of_stream;
         }
+        stream.end_of_stream = helper.end_of_stream;
     }
+}
+
+void exit_error(string message)
+{
+    cout << message << endl;
+    exit(EXIT_FAILURE);
 }
 
 string scan_song(string file_name, bool do_scan)
 {
     bool bass_loaded = false;
     bool av_loaded = false;
+    float bitrate = 0;
+    shared_ptr<Decoder> decoder;
 
-    boost::shared_ptr<AbstractSource> source;
-    boost::shared_ptr<AvSource> av_source = boost::make_shared<AvSource>();
 #ifdef ENABLE_BASS
-    boost::shared_ptr<BassSource> bass_source = boost::make_shared<BassSource>();
-    bass_loaded = bass_source->load(file_name, true);
-    if (bass_loaded)
-        source = boost::static_pointer_cast<AbstractSource>(bass_source);
+    shared_ptr<BassSource> bass_decoder = make_shared<BassSource>();
+    bass_loaded = bass_decoder->load(file_name, true);
+    bitrate = bass_decoder->bitrate();
+    decoder = static_pointer_cast<Decoder>(bass_decoder);
 #endif
 
     if (!bass_loaded)
-        av_loaded = av_source->load(file_name);
-    if (av_loaded)
-        source = boost::static_pointer_cast<AbstractSource>(av_source);
-
-    if (!av_loaded && !bass_loaded)
-        FATAL("unknown format");
-
-    uint32_t chan = source->channels();
-    uint32_t srate = source->samplerate();
-
-    if (srate == 0)
-        FATAL("samplerate is zero");
-    if (chan < 1 || chan > 2)
-        FATAL("unsupported number of channels");
-
-    boost::shared_ptr<Machine> decoder = boost::static_pointer_cast<Machine>(source);
-    if (srate != SAMPLERATE)
     {
-        LOG_DEBUG("resampling from %1% to %2%"), srate, SAMPLERATE;
-        boost::shared_ptr<Resample> resample = boost::make_shared<Resample>();
-        resample->set_rates(srate, SAMPLERATE);
-        resample->set_source(decoder);
-        decoder = boost::static_pointer_cast<Machine>(resample);
+        shared_ptr<AvSource> av_decoder = make_shared<AvSource>();
+        av_loaded = av_decoder->load(file_name);
+        bitrate = av_decoder->bitrate();
+        decoder = static_pointer_cast<Decoder>(av_decoder);
     }
 
-    uint64_t const max_frames = MAX_LENGTH * SAMPLERATE;
+    if (!av_loaded && !bass_loaded)
+    {
+        exit_error("unknown format");
+    }
+
+    uint32_t chan = decoder->channels();
+    uint32_t srate = decoder->samplerate();
+
+    if (srate == 0)
+    {
+        exit_error("samplerate is zero");
+    }
+
+    if (chan < 1 || chan > 2)
+    {
+        exit_error("unsupported number of channels");
+    }
+
+    shared_ptr<Machine> source = static_pointer_cast<Machine>(decoder);
+    if (srate != SAMPLERATE)
+    {
+        shared_ptr<Resample> resample = make_shared<Resample>();
+        resample->set_rates(srate, SAMPLERATE);
+        resample->set_source(decoder);
+        source = static_pointer_cast<Machine>(resample);
+    }
+
     uint64_t frames = 0;
     AudioStream stream;
     RG_SampleFormat format = {SAMPLERATE, RG_FLOAT_32_BIT, chan, FALSE};
     RG_Context* context = RG_NewContext(&format);
 
     if (do_scan || av_loaded)
+    {
         while (!stream.end_of_stream)
         {
-            fill_buffer(decoder, stream, 48000);
+            fill_buffer(source, stream, 48000);
             float* buffers[2] = {stream.buffer(0), chan == 2 ? stream.buffer(1) : 0};
-            // there is some bug in the replaygain code that causes it to report the wrong
-            // value if the buffer has an odd lengh, until the root of the cause is found,
+            // there is a strange bug in the replaygain code that can cause it to report the wrong
+            // value if the input buffer has an odd lengh, until the root of the cause is found,
             // this will have to do :(
             uint32_t analyze_frames = stream.frames() - stream.frames() % 2;
             if (do_scan)
+            {
                 RG_Analyze(context, buffers, analyze_frames);
+            }
             frames += stream.frames();
-            if (frames > max_frames)
-                FATAL("too long (more than %1% seconds)"), MAX_LENGTH;
+            if (frames > MAX_LENGTH * SAMPLERATE)
+            {
+                exit_error("too long");
+            }
         }
+    }
 
-    double replay_gain = RG_GetTitleGain(context);
+    stringstream msg;
+
+    string artist = decoder->metadata("artist");
+    if (!artist.empty())
+    {
+        msg << "artist:" << artist << endl;
+    }
+
+    string title = decoder->metadata("title");
+    if (!artist.empty())
+    {
+        msg << "title:" << title << endl;
+    }
+
+    msg << "type:" << decoder->metadata("codec_type") << endl;
+
+    double duration = av_loaded ?
+        static_cast<double>(frames) / SAMPLERATE :
+        static_cast<double>(decoder->length()) / srate;
+    msg << "length:" << duration << endl;
+
+    if (do_scan)
+    {
+        msg << "replaygain:" << RG_GetTitleGain(context) << endl;
+    }
     RG_FreeContext(context);
 
-    // prepare output
-    string msg = "type:%1%\nlength:%2%\n";
-    if (do_scan)
-        msg.append("replaygain:%3%\n");
-    double duration = av_loaded ? static_cast<double>(frames) / SAMPLERATE :
-        static_cast<double>(source->length()) / srate;
 #ifdef ENABLE_BASS
-    if (bass_source->is_module())
-        msg.append("loopiness:%6%");
+    if (bass_decoder->is_module())
+    {
+        msg << "loopiness:" << bass_decoder->loopiness() << endl;
+    }
     else
-        msg.append("bitrate:%4%\nsamplerate:%5%");
-    float bitrate = av_loaded ? av_source->bitrate() : bass_source->bitrate();
-    float loopiness = bass_source->loopiness();
-#else
-    msg.append("bitrate:%4%\nsamplerate:%5%");
-    float bitrate = av_source->bitrate();
-    float loopiness = 0;
 #endif
-    boost::format formater(msg);
-    formater.exceptions(boost::io::no_error_bits);
-    string output = str(formater % source->metadata("codec_type") % duration % replay_gain
-        % bitrate % srate % loopiness);
+    {
+        msg << "bitrate:" << bitrate  << endl;
+        msg << "samplerate:" << decoder->samplerate() << endl;
+    }
 
-    return output;
+    return msg.str();
 }
 
 int main(int argc, char* argv[])
 {
-    log_set_console_level(logror::fatal);
     if (argc < 2 || (*argv[1] == '-' && argc < 3))
     {
-        std::cout << "demosauce scan tool 0.3.1\nsyntax: scan [--no-replaygain] file\n";
+        cout << "demosauce scan tool 0.3.2\nsyntax: scan [--no-replaygain] file" << endl;
         return EXIT_FAILURE;
     }
 
     string file_name = argv[argc - 1];
-    bool do_replay_gain = strcmp(argv[1], "--no-replaygain");
-    std::cout << scan_song(file_name, do_replay_gain) << std::endl;
+    bool do_replay_gain = string(argv[1]) != "--no-replaygain";
+    cout << scan_song(file_name, do_replay_gain);
 
     return EXIT_SUCCESS;
 }

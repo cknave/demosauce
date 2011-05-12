@@ -1,4 +1,13 @@
 /*
+*   demosauce - fancy icecast source client
+*
+*   this source is published under the gpl license. google it yourself.
+*   also, this is beerware! you are strongly encouraged to invite the
+*   authors of this software to a beer when you happen to meet them.
+*   copyright MMXI by maep
+*/
+
+/*
     when I started working on this I never used boost asio or sockets in general before. I got it
     to work quickly and for now it works. boost::asio is a bit overwhelming at first and now I saw
     they provide services (datagram_socket_service) which might be exactly what we need. If we change

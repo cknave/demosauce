@@ -1,18 +1,40 @@
+demosauce - fancy icecast source client
+
 BUILDING
 ==================
-officially we support only linux (tested on ubuntu, gentoo), but the code is written fully portable.
+officially we support only linux (tested on ubuntu, gentoo), but the code is written with portability in mind.
 
-LINUX
-run sudo installDependencies.sh or su -c installDependencies.sh to install some packages that are needed. then run ./makebelieve.sh to build the source client & friends.
-if you want to change the build configuration (like disabling bass) you have to edit ./makebelieve.sh and comment/uncomment a few lines.
+Libraries
+------------------
+required libs:
+boost, libsamplerate, libshout, libicu, libavcodec, libavformat
+
+required programs:
+lame (or any other mp3 encoder that reatd from stdin)
+
+optional libs:
+ladspa-sdk, bass, libid3tag
+
+you can use BASS for module playback (mod, s3m, xm, it files) you should get the binaries for your system here http://www.un4seen.com/bass.html. extract the bass.h header file and bass.so/bass.dll for your platform.  libid3tag is required for bass.
+
+Unix-Like
+------------------
+if you're building in a unix-like environment, edit the build script "makebelieve.sh" to customize (it's easy!). the comments inside the file will guide you. after youre done, run ./makebelieve.sh to build the source client & friends.
+
+Linux
+------------------
+we provide a script to install the required libraries calld installDependencies.sh which you will need to run as root.
 
 OSX
-you need to install the required libraries yourself. ./makebelieve.sh may still work.
+------------------
+you will need to install the required libraries manually.
 
 BSD
-you'll have to disable bass. installDependencies.sh could be patched to work with bsd flavours, maybe YOU can help :D
+------------------
+no bass support for bsd. installDependencies.sh could be patched to work with bsd flavours, maybe YOU can help :D
 
-WINDOWS
+Windows
+------------------
 you're on your own for now. if you manage to build it, maybe you can share your experience (and project files).
 
 SETUP
@@ -21,20 +43,24 @@ copy or rename demosauce.conf.example to demosauce.conf. then edit it. the comme
 
 LICENSE
 ==================
-GPL, google it yourself
+GPL
 
 FAQ
 ==================
 if you have a question, contact me (maep) via irc: #nectarine on irc.eu.esper.net
 
-what per-song settings are support?
-the first value is the default value:
-gain        : <replay gain value>
-length      : <force length in seconds, 0 = disabled>
-fade_out    : false | true
-mix         : auto, 0.0 - 0.5
-bass_inter  : auto | off | linear | sinc
-bass_ramp   : auto | off | normal | sensitive
-bass_mode   : auto | pt1 | ft2
+what per-song settings are available?
+    general
+    ------------------
+    gain        : <replay gain value>
+    length      : <force length in seconds, 0 = disabled>
+    fade_out    : false | true
+    mix         : auto  | 0.0 - 0.5
+
+    bass only
+    ------------------
+    bass_inter  : auto | off  | linear | sinc
+    bass_ramp   : auto | off  | normal | sensitive
+    bass_mode   : auto | bass | pt1    | ft2
 
 cheers, maep

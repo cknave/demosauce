@@ -1,3 +1,12 @@
+/*
+*   demosauce - icecast source client
+*
+*   this source is published under the gpl license. google it yourself.
+*   also, this is beerware! you are strongly encouraged to invite the
+*   authors of this software to a beer when you happen to meet them.
+*   copyright MMXI by maep
+*/
+
 #include <cstdlib>
 #include <string>
 #include <iostream>
@@ -39,7 +48,7 @@ void safe_png(std::string name, uint32_t* buffer, uint32_t width, uint32_t heigh
 
 	/* initialize stuff */
 	png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
-	
+
 	if (!png_ptr)
 		abort_("[write_png_file] png_create_write_struct failed");
 
@@ -77,7 +86,7 @@ void safe_png(std::string name, uint32_t* buffer, uint32_t width, uint32_t heigh
     /* cleanup heap allocation */
 	for (y=0; y<height; y++)
 		free(row_pointers[y]);
-    
+
 	free(row_pointers);
     fclose(fp);
 
@@ -94,7 +103,7 @@ void read_params(int argc, char* argv[])
         exit(EXIT_FAILURE);
     }
     for (int i = 1; i < argc; ++i)
-        switch (i) 
+        switch (i)
         {
             case 1:
                 replay_gain = boost::lexical_cast<float>(argv[i]);
@@ -111,7 +120,7 @@ void read_params(int argc, char* argv[])
         }
 }
 
-uint32_t make_color(uint8_t r, uint8_t g, uint8_t b, uint8_t a) 
+uint32_t make_color(uint8_t r, uint8_t g, uint8_t b, uint8_t a)
 {
     return (r << 24) | (g << 16) | (b << 8) | a;
 }
@@ -126,7 +135,7 @@ void gen_map(uint32_t* buf, uint32_t color0, uint32_t color1)
     float deltag = static_cast<float>((color1 >> 16) & 0xff) / startg;
     float deltab = static_cast<float>((color1 >> 8) & 0xff) / startb;
     float deltaa = static_cast<float>(color1 & 0xff) / starta;
-    
+
     size_t center = IMG_HEIGHT / 2;
     for (size_t i = 0; i < center; ++i)
     {
@@ -155,7 +164,7 @@ void scan_song(std::string file_name)
 
 	uint32_t chan = source->channels();
 	uint32_t samplerate = source->samplerate();
-	
+
 	if ((!av_loaded && !bass_loaded) || samplerate == 0 || chan < 1 || chan > 2)
 		FATAL("can't read file");
 
@@ -164,18 +173,18 @@ void scan_song(std::string file_name)
     uint32_t chunksize = samplerate;
     uint32_t chunk_counter = 0;
     float max_l = 0; // left channel
-    
+
     while (!stream.end_of_stream)
     {
         source->process(stream, 48000);
         float const* in = stream.buffer(0);
         // optimize if bored :)
-        for (size_t i = stream.frames(); i; --i) 
+        for (size_t i = stream.frames(); i; --i)
         {
             float const value = fabs(*in++);
             if (value >  max_l)
                 max_l = value;
-            
+
             ++in;
             if (++chunk_counter >= chunksize)
             {
@@ -187,17 +196,17 @@ void scan_song(std::string file_name)
     }
     if (peaks.size() > IMG_WIDTH)
         ; // chrunch_peaks()
-    
+
     std::vector<uint32_t> pic_buff;
     pic_buff.reserve(IMG_WIDTH * IMG_HEIGHT);
-    
+
     for (size_t y = 0; y < IMG_HEIGHT; ++y)
     {
         float line_peak = 1.0 - static_cast<float>(y) / ( .5 * IMG_HEIGHT);
         for (size_t x = 0; x < IMG_WIDTH ; ++x)
             pic_buff[y * x + x] = peaks[x] > line_peak ? fg_map[y] : bg_map[y];
     }
-    
+
     save_png("test.png", &pic_buf[0], IMG_WIDTH, IMG_HEIGHT)
 
 }

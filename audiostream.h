@@ -1,14 +1,16 @@
 /*
-*   applejuice music player
-*   this is beerware! you are strongly encouraged to invite the authors of
-*   this software to a beer if you happen to run into them.
-*   also, this code is licensed under teh GPL, i guess. whatever.
-*   copyright 'n shit: year MMX by maep
+*   demosauce - fancy icecast source client
+*
+*   this source is published under the gpl license. google it yourself.
+*   also, this is beerware! you are strongly encouraged to invite the
+*   authors of this software to a beer when you happen to meet them.
+*   copyright MMXI by maep
 *
 *   classes:
 *   AlignedBuffer
 *   AudioStream
 *   Machine
+*   Decoder
 *   ZeroSource
 *
 *   functions:
@@ -38,7 +40,7 @@
 
 //-----------------------------------------------------------------------------
 
-template <typename T>
+template <class T>
 class AlignedBuffer : boost::noncopyable
 {
 public:
@@ -118,8 +120,9 @@ public:
     bool no_overrun() const
     {
         if (!_buff)
+        {
             return true;
-
+        }
         return *reinterpret_cast<uint32_t*>(reinterpret_cast<char*>(_buff) + _size * sizeof(T)) == MAGIC_NUMBER;
     }
 
@@ -156,7 +159,9 @@ public:
     {
         OVERRUN_ASSERT(no_overrun());
         if (_max_frames == frames)
+        {
             return;
+        }
         _max_frames = frames;
         size_t buffer_size = sizeof(float) * (frames + 1);
         for (uint32_t i = 0; i < _channels; ++i)
@@ -293,15 +298,11 @@ public:
         is_enabled(true)
     {}
 
-    virtual void process(AudioStream& stream, uint32_t const frames) = 0;
+    virtual void process(AudioStream& stream, uint32_t frames) = 0;
 
     virtual std::string name() const = 0;
 
-    void set_source(MachinePtr& machine)
-    {
-        if (machine.get() != this)
-            source = machine;
-    }
+    template<class T> void set_source(T& machine);
 
     void set_enabled(bool enabled)
     {
@@ -317,7 +318,44 @@ protected:
     MachinePtr source;
 
 private:
+    void set_source_machine(MachinePtr& machine)
+    {
+
+    }
+
     bool is_enabled;
+};
+template<class T> inline void Machine::set_source(T& machine)
+{
+    MachinePtr base_machine = boost::static_pointer_cast<Machine>(machine);
+    if (base_machine.get() != this)
+    {
+        source = machine;
+    }
+}
+
+//-----------------------------------------------------------------------------
+
+class Decoder : public Machine
+{
+public:
+    // manipulators
+    virtual bool load(std::string url) = 0;
+    virtual void seek(uint64_t frame) = 0;
+
+    // observers
+    virtual uint64_t length() const = 0;
+    virtual uint32_t channels() const = 0;
+    virtual uint32_t samplerate() const = 0;
+    virtual bool seekable() const = 0;
+
+    /*  metadata keys:
+    *   codec_type
+    *   artist
+    *   title
+    *   album
+    */
+    virtual std::string metadata(std::string key) const = 0;
 };
 
 //-----------------------------------------------------------------------------
@@ -327,10 +365,12 @@ class ZeroSource : public Machine
 public:
     ZeroSource() {};
 
-    void process(AudioStream& stream, uint32_t const frames)
+    void process(AudioStream& stream, uint32_t frames)
     {
         if (stream.max_frames() < frames)
+        {
             stream.resize(frames);
+        }
         stream.zero(0, frames);
         stream.set_frames(frames);
     }
@@ -344,22 +384,24 @@ public:
 //-----------------------------------------------------------------------------
 
 // some helper functions
-template<typename FrameType, typename SampleType, typename ByteType, typename ChannelType>
-inline FrameType bytes_in_frames(ByteType const bytes, ChannelType const channels)
+template<class FrameType, class SampleType, class ByteType, class ChannelType>
+inline FrameType bytes_in_frames(ByteType bytes, ChannelType channels)
 {
     if (channels == 0)
+    {
         return 0;
+    }
     return boost::numeric_cast<FrameType>(bytes / sizeof(SampleType) / channels);
 }
 
-template<typename SampleType, typename FrameType, typename ChannelType>
-inline size_t frames_in_bytes(FrameType const frames, ChannelType const channels)
+template<class SampleType, class FrameType, class ChannelType>
+inline size_t frames_in_bytes(FrameType frames, ChannelType channels)
 {
     return boost::numeric_cast<size_t>(frames * sizeof(SampleType) * channels);
 }
 
-template<typename ReturnType> // unsigned min
-inline ReturnType unsigned_min(uint64_t const value0, uint64_t const value1)
+template<class ReturnType> // unsigned min
+inline ReturnType unsigned_min(uint64_t value0, uint64_t value1)
 {
     return static_cast<ReturnType>(value0 < value1 ? value0 : value1);
 }

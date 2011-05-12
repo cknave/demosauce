@@ -1,3 +1,12 @@
+/*
+*   demosauce - fancy icecast source client
+*
+*   this source is published under the gpl license. google it yourself.
+*   also, this is beerware! you are strongly encouraged to invite the
+*   authors of this software to a beer when you happen to meet them.
+*   copyright MMXI by maep
+*/
+
 #ifndef _H_MEM_
 #define _H_MEM_
 
@@ -10,7 +19,7 @@
 #elif defined(__unix__)
     #define aligned_malloc(alignment, size) memalign(alignment, size)
 #else
-    #error "don't have aligned malloc"
+    #error "don't have aligned malloc for your system"
 #endif
 
 // ffmpeg/sse needs mem aligned to 16 byete bounds

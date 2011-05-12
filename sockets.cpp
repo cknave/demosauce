@@ -1,3 +1,12 @@
+/*
+*   demosauce - icecast source client
+*
+*   this source is published under the gpl license. google it yourself.
+*   also, this is beerware! you are strongly encouraged to invite the
+*   authors of this software to a beer when you happen to meet them.
+*   copyright MMXI by maep
+*/
+
 #include <boost/asio.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/thread/thread.hpp>
@@ -45,11 +54,15 @@ bool Sockets::Pimpl::send_command(string command, string& result)
             socket.connect(*endpoint_iterator++, error);
         }
         if (error)
+        {
             throw boost::system::system_error(error);
+        }
         // write command to socket
         write(socket, buffer(command), transfer_all(), error);
         if (error)
+        {
             throw boost::system::system_error(error);
+        }
         for (;;)
         {
             boost::array<char, 256> buf;
@@ -61,7 +74,7 @@ bool Sockets::Pimpl::send_command(string command, string& result)
                 throw boost::system::system_error(error); // Some other error.
             result.append(buf.data(), len);
         }
-        LOG_DEBUG("socket command=%1% result=%2%"), command, result;
+        LOG_DEBUG("[sockets] command=%1% result=%2%"), command, result;
     }
     catch (std::exception & e)
     {
@@ -77,10 +90,10 @@ string Sockets::get_next_song()
 
     if (!pimpl->send_command("NEXTSONG", result))
     {
-        ERROR("socket command NEXTSONG failed");
+        ERROR("[sockets] command NEXTSONG failed");
     }
 
-    LOG_DEBUG("get_next_song: %1%"), result;
+    LOG_DEBUG("[sockets] get_next_song: %1%"), result;
     return result;
 }
 
@@ -94,7 +107,9 @@ bool resolve_ip(string host, string& ipAddress)
         tcp::resolver::iterator endpoint_iterator = resolver.resolve(query);
         tcp::resolver::iterator end;
         if (endpoint_iterator == end)
+        {
             return false;
+        }
         tcp::endpoint ep = *endpoint_iterator;
         ipAddress = ep.address().to_string();
     }

@@ -1,12 +1,10 @@
-// build_depends logror.cpp convert.cpp
-// build_lflags -lavcodec -lavformat -lboost_filesystem-mt
-
 /*
-*   applejuice music player
-*   this is beerware! you are strongly encouraged to invite the authors of
-*   this software to a beer if you happen to run into them.
-*   also, this code is licensed under teh GPL, i guess. whatever.
-*   copyright 'n shit: year MMX by maep
+*   demosauce - fancy icecast source client
+*
+*   this source is published under the gpl license. google it yourself.
+*   also, this is beerware! you are strongly encouraged to invite the
+*   authors of this software to a beer when you happen to meet them.
+*   copyright MMXI by maep
 */
 
 // fixes build problems with ffmpeg and g++
@@ -28,6 +26,10 @@ extern "C"
 #include <libavformat/avformat.h>
 }
 
+using std::string;
+using boost::numeric_cast;
+namespace fs = ::boost::filesystem;
+
 typedef int16_t sample_t;
 
 struct AvSource::Pimpl
@@ -41,13 +43,13 @@ struct AvSource::Pimpl
         packet_buffer_pos(0),
         length(0)
     {}
-    std::string codec_type();
+    string codec_type();
     void free();
     int decode_frame(AVPacket& packet, uint8_t* const buffer, int const size);
-    void process(AudioStream & stream, uint32_t const frames);
+    void process(AudioStream& stream, uint32_t frames);
 
     ConvertFromInterleaved<sample_t> converter;
-    std::string file_name;
+    string file_name;
 
     AVFormatContext* format_context;
     AVCodecContext* codec_context;
@@ -67,12 +69,12 @@ AvSource::AvSource():
     pimpl->free();
 }
 
-bool AvSource::load(std::string file_name)
+bool AvSource::load(string file_name)
 {
     pimpl->free();
     pimpl->file_name = file_name;
 
-    LOG_DEBUG("avsource: attempting to load %1%"), file_name;
+    LOG_DEBUG("[avsource] attempting to load %1%"), file_name;
 
     // KHAAAAAAAAAN! FOR SOME REASON THIS IS BROKEN IN EARLIER RELEASES!
     //~ AVProbeData probe_data = {file_name.c_str(), 0, 0};
@@ -86,26 +88,28 @@ bool AvSource::load(std::string file_name)
     //    if (av_open_input_file(&pimpl->format_context, file_name.c_str(), input_format, 0, NULL) != 0)
     if (av_open_input_file(&pimpl->format_context, file_name.c_str(), 0, 0, NULL) != 0)
     {
-        LOG_DEBUG("avsource: can't load %1%"), file_name;
+        LOG_DEBUG("[avsource] can't load %1%"), file_name;
         return false;
     }
 
     if (av_find_stream_info(pimpl->format_context) < 0)
     {
-        LOG_DEBUG("avsource: no stream information %1%"), file_name;
+        LOG_DEBUG("[avsource] no stream information %1%"), file_name;
         return false;
     }
 
     for (unsigned int i = 0; i < pimpl->format_context->nb_streams; i++) // find first stream
+    {
         if (pimpl->format_context->streams[i]->codec->codec_type == CODEC_TYPE_AUDIO)
         {
             pimpl->audio_stream_index = i;
             break;
         }
+    }
 
     if (pimpl->audio_stream_index == -1)
     {
-        LOG_DEBUG("avsource: no audio stream :( %1%"), file_name;
+        LOG_DEBUG("[avsource] no audio stream :( %1%"), file_name;
         return false;
     }
 
@@ -113,20 +117,20 @@ bool AvSource::load(std::string file_name)
     pimpl->codec = avcodec_find_decoder(pimpl->codec_context->codec_id);
     if (!pimpl->codec)
     {
-        LOG_DEBUG("avsource: unsupported codec %1%"), file_name;
+        LOG_DEBUG("[avsource] unsupported codec %1%"), file_name;
         return false;
     }
 
     if (avcodec_open(pimpl->codec_context, pimpl->codec) < 0)
     {
-        LOG_DEBUG("avsource: failed to open codec %1%"), file_name;
+        LOG_DEBUG("[avsource] failed to open codec %1%"), file_name;
         return false;
     }
 
-    pimpl->length = boost::numeric_cast<uint64_t>(pimpl->format_context->duration *
+    pimpl->length = numeric_cast<uint64_t>(pimpl->format_context->duration *
         (static_cast<double>(pimpl->codec_context->sample_rate) / AV_TIME_BASE));
 
-    LOG_INFO("avsource: playing %1%"), file_name;
+    LOG_INFO("[avsource] playing %1%"), file_name;
 
     return true;
 }
@@ -143,7 +147,9 @@ int AvSource::Pimpl::decode_frame(AVPacket& packet, uint8_t* const buffer, int c
     {
         int data_size = size - decoded_size;
         if (decode_buffer.size() < static_cast<uint32_t>(size)) // the decode buffer is needed due to alignment issues with sse
+        {
             decode_buffer.resize(size);
+        }
         sample_t* buf = reinterpret_cast<sample_t*>(decode_buffer.get());
 
 #if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(52, 26, 0)
@@ -165,12 +171,12 @@ int AvSource::Pimpl::decode_frame(AVPacket& packet, uint8_t* const buffer, int c
     return decoded_size;
 }
 
-void AvSource::Pimpl::process(AudioStream& stream, const uint32_t frames)
+void AvSource::Pimpl::process(AudioStream& stream, uint32_t frames)
 {
-    uint32_t const channels = boost::numeric_cast<uint32_t>(codec_context->channels);
+    uint32_t const channels = numeric_cast<uint32_t>(codec_context->channels);
     if (packet_buffer_pos < 0 || channels < 1)
     {
-        ERROR("strange state");
+        ERROR("[avsource] strange state");
         stream.zero(0, frames);
         stream.end_of_stream = true;
         return;
@@ -182,16 +188,22 @@ void AvSource::Pimpl::process(AudioStream& stream, const uint32_t frames)
     int const min_bytes = std::max(192000, need_bytes);
     int const buffer_size = std::max(AVCODEC_MAX_AUDIO_FRAME_SIZE * 3, min_bytes * 2);
     if (packet_buffer.size() < static_cast<size_t>(buffer_size))
+    {
         packet_buffer.resize(buffer_size);
+    }
 
     AVPacket packet;
     while (packet_buffer_pos < min_bytes)
     {
         if (av_read_frame(format_context, &packet) < 0) // demux/read packet
+        {
             break; // end of stream
+        }
 
         if (packet.stream_index != audio_stream_index)
+        {
             continue;
+        }
 
         packet_buffer_pos += decode_frame(packet, packet_buffer.get() + packet_buffer_pos, buffer_size);
     }
@@ -199,7 +211,9 @@ void AvSource::Pimpl::process(AudioStream& stream, const uint32_t frames)
     // according to the docs, av_free_packet should be called at some point after av_read_frame
     // without these checks, mysterious segfaults start appearing with small buffers. stable my ass!
      if (packet.data != 0 && packet.size != 0) // && packet.stream_index == audio_stream_index
+     {
         av_free_packet(&packet);
+     }
 
     stream.end_of_stream = packet_buffer_pos < need_bytes;
     size_t used_bytes = std::min(need_bytes, packet_buffer_pos);
@@ -210,10 +224,11 @@ void AvSource::Pimpl::process(AudioStream& stream, const uint32_t frames)
     converter.process(stream, used_frames);
     memmove(packet_buffer.get(), packet_buffer.get() + used_bytes, packet_buffer_pos - used_bytes);
     packet_buffer_pos -= used_bytes;
-//    decoded_frames += used_frames;
 
     if (stream.end_of_stream)
-        LOG_DEBUG("eos avcodec %1% frames left"), stream.frames();
+    {
+        LOG_DEBUG("[avsource] eos avcodec %1% frames left"), stream.frames();
+    }
 }
 
 void AvSource::seek(uint64_t frame)
@@ -224,7 +239,7 @@ void AvSource::seek(uint64_t frame)
 //    LOG_DEBUG("seek %1% %2%"), timestamp, ret;
 }
 
-void AvSource::process(AudioStream& stream, uint32_t const frames)
+void AvSource::process(AudioStream& stream, uint32_t frames)
 {
     pimpl->process(stream, frames);
 }
@@ -247,7 +262,7 @@ AvSource::~AvSource()
     pimpl->free();
 }
 
-std::string AvSource::name() const
+string AvSource::name() const
 {
     return "AvCodec Source";
 }
@@ -256,7 +271,7 @@ uint32_t AvSource::channels() const
 {
     uint32_t ch = (pimpl->codec_context == 0) ?
         0 :
-        boost::numeric_cast<uint32_t>(pimpl->codec_context->channels);
+        numeric_cast<uint32_t>(pimpl->codec_context->channels);
     return ch;
 }
 
@@ -264,7 +279,7 @@ uint32_t AvSource::AvSource::samplerate() const
 {
     uint32_t sr = (pimpl->codec_context == 0) ?
         44100 :
-        boost::numeric_cast<uint32_t>(pimpl->codec_context->sample_rate);
+        numeric_cast<uint32_t>(pimpl->codec_context->sample_rate);
     return sr;
 }
 
@@ -272,7 +287,7 @@ float AvSource::bitrate() const
 {
     float br = (pimpl->codec_context == 0) ?
         0 :
-        boost::numeric_cast<float>(pimpl->codec_context->bit_rate) / 1000;
+        numeric_cast<float>(pimpl->codec_context->bit_rate) / 1000;
     return  br;
 }
 
@@ -286,37 +301,53 @@ bool AvSource::seekable() const
     return true;
 }
 
-bool AvSource::probe_name(std::string file_name)
+bool AvSource::probe_name(string file_name)
 {
-    boost::filesystem::path file(file_name);
-    std::string name = file.filename();
+    fs::path file(file_name);
+    string name = file.filename();
     static const size_t elements = 17;
     const char* ext[elements] = {".mp3", ".ogg", ".m4a", ".wma", ".acc", ".flac", ".mp4", ".ac3",
         ".wav", ".ape", ".wv", ".mpc", ".mp+", ".mpp", ".ra", ".mp2", ".mp1"};
     for (size_t i = 0; i < elements; ++i)
+    {
         if (boost::iends_with(name, ext[i]))
+        {
             return true;
+        }
+    }
     return false;
 }
 
-std::string AvSource::metadata(std::string key) const
+string AvSource::metadata(string key) const
 {
+    string value;
     if (key == "codec_type")
-        return pimpl->codec_type();
+    {
+        value = pimpl->codec_type();
+    }
     else if (key == "artist")
-        return pimpl->format_context->author;
+    {
+        value = pimpl->format_context->author;
+    }
     else if (key == "title")
-        return pimpl->format_context->title;
-    return "";
+    {
+        value = pimpl->format_context->title;
+    }
+    boost::trim(value);
+    return value;
 }
 
-std::string AvSource::Pimpl::codec_type()
+string AvSource::Pimpl::codec_type()
 {
     CodecID codec_type = codec->id;
     if (codec_type >= CODEC_ID_PCM_S16LE && codec_type < CODEC_ID_ADPCM_IMA_QT)
+    {
         return "pcm";
+    }
     if (codec_type >= CODEC_ID_ADPCM_IMA_QT && codec_type < CODEC_ID_AMR_NB)
+    {
         return "adpcm";
+    }
     switch (codec_type)
     {
         case CODEC_ID_RA_144:

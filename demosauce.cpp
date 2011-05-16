@@ -55,7 +55,6 @@
 int main(int argc, char* argv[])
 {
     std::cout << "demosauce 0.3.2" EXPAND(REVISION) " - less BASS, more SHOUT!\n";
-    srand(time(0));
     try
     {
         init_settings(argc, argv);

@@ -32,6 +32,7 @@ namespace setting
     extern std::string      cast_host;
     extern uint32_t         cast_port;
     extern std::string      cast_mount;
+    extern std::string      cast_user;
     extern std::string      cast_password;
     extern std::string      cast_name;
     extern std::string      cast_url;
@@ -46,7 +47,7 @@ namespace setting
     extern logror::Level    log_file_level;
     extern logror::Level    log_console_level;
 
-    extern std::string      debug_file;
+    extern std::string      debug_song;
 
 #ifdef ENABLE_LADSPA
     extern std::string      ladspa_plugin0;

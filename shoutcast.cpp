@@ -333,9 +333,10 @@ void ShoutCastPimpl::load_next()
 string get_random_file(string directoryName)
 {
     // I don't think this is a good idea, enumerating >30k files won't be fast
+    srand(time(0));
     fs::path dir(directoryName);
     uint32_t numFiles = std::distance(dir.begin(), dir.end());
-    uint32_t randIndex = rand() * numFiles / RAND_MAX;
+    uint32_t randIndex = (rand() * numFiles) / RAND_MAX;
     fs::directory_iterator it(dir);
     std::advance(it, randIndex);
     return it->path().string();
@@ -343,15 +344,16 @@ string get_random_file(string directoryName)
 
 void ShoutCastPimpl::get_next_song(SongInfo& song)
 {
-        if (setting::debug_file.empty())
+        if (setting::debug_song.empty())
         {
             song.settings = sockets.get_next_song();
-            song.file = get_value(song.settings, "path", "");
         }
         else
         {
-            song.file = setting::debug_file;
+            song.settings = setting::debug_song;
         }
+
+        song.file = get_value(song.settings, "path", "");
 
         if (song.file.empty())
         {
@@ -386,11 +388,14 @@ void ShoutCastPimpl::update_machines(SongInfo& song)
         LOG_DEBUG("song length forced to %1% seconds"), song.forced_length;
     }
 
-    if (get_value(song.settings, "fade_out", false))
+    string fade_out = get_value(song.settings, "fade_out", "false");
+    if (fade_out == "true" || fade_out == "1")
     {
-        double length = song.forced_length > 0 ? song.forced_length : song.length;
-        uint64_t start = numeric_cast<int>((length  - 5) * setting::encoder_samplerate);
-        uint64_t end = numeric_cast<int>(length  * setting::encoder_samplerate);
+        double length = song.forced_length > 0 ?
+            song.forced_length :
+            song.length;
+        uint64_t start = numeric_cast<uint64_t>((length  - 5) * setting::encoder_samplerate);
+        uint64_t end = numeric_cast<uint64_t>(length  * setting::encoder_samplerate);
         linearFade->set_fade(start, end, 1, 0);
         linearFade->set_enabled(true);
         LOG_DEBUG("song fading out at %1% seconds"), length;
@@ -474,7 +479,7 @@ void ShoutCastPimpl::connect()
     // setup connection
     shout_set_host(cast, setting::cast_host.c_str());
     shout_set_port(cast, setting::cast_port);
-    shout_set_user(cast, "source");
+    shout_set_user(cast, setting::cast_user.c_str());
     shout_set_password(cast, setting::cast_password.c_str());
     shout_set_format(cast, SHOUT_FORMAT_MP3);
     shout_set_mount(cast, setting::cast_mount.c_str());
@@ -546,8 +551,12 @@ string utf8_to_ascii(string utf8_str)
     // NFKD may produce non ascii chars, these are dropped
     string out_str;
     for (int32_t i = 0; i < norm_str.length(); ++i)
+    {
         if (norm_str[i] >= ' ' && norm_str[i] <= '~')
+        {
             out_str.push_back(static_cast<char>(norm_str[i]));
+        }
+    }
     return out_str;
 }
 
@@ -558,10 +567,16 @@ string create_cast_title(string artist, string title)
     // used as artist-title separator. talk about bad semantics...
     string cast_title = utf8_to_ascii(artist);
     for (size_t i = 0; i < cast_title.size(); ++i)
+    {
         if (cast_title[i] == '-')
+        {
             cast_title[i] = ' ';
+        }
+    }
     if (cast_title.size() > 0)
+    {
         cast_title.append(" - ");
+    }
     cast_title.append(utf8_to_ascii(title));
     LOG_DEBUG("unicode decomposition: %1%, %2% -> %3%"), artist, title, cast_title;
     return cast_title;

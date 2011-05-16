@@ -43,6 +43,7 @@ namespace setting
     string      cast_host           = "127.0.0.1";
     uint32_t    cast_port           = 8000;
     string      cast_mount          = "stream";
+    string      cast_user           = "source";
     string      cast_password;
     string      cast_name;
     string      cast_url;
@@ -57,7 +58,7 @@ namespace setting
     log::Level  log_file_level      = log::info;
     log::Level  log_console_level   = log::warning;
 
-    string      debug_file;
+    string      debug_song;
 
 #ifdef ENABLE_LADSPA
     string      ladspa_plugin0;
@@ -96,6 +97,7 @@ void build_descriptions(po::options_description& settingsDesc, po::options_descr
     ("cast_host", po::value<string>(&cast_host))
     ("cast_port", po::value<uint32_t>(&cast_port))
     ("cast_mount", po::value<string>(&cast_mount))
+    ("cast_user", po::value<string>(&cast_user))
     ("cast_password", po::value<string>(&cast_password))
     ("cast_name", po::value<string>(&cast_name))
     ("cast_url", po::value<string>(&cast_url))
@@ -128,7 +130,7 @@ void build_descriptions(po::options_description& settingsDesc, po::options_descr
     ("help", "what do you think this flag does? call the police, maybe?")
     ("config_file,c", po::value<string>(&configFileName), "use config file, default: demosauce.conf")
     ("cast_password,p", po::value<string>(&castForcePassword), "password for cast server, overwrites setting from config file")
-    ("debug_file,f", po::value<string>(&debug_file), "load specific file, intended for testing and debugging")
+    ("debug_song,d", po::value<string>(&debug_song), "force next song command, used for testing and debugging")
     ;
 }
 

@@ -346,7 +346,7 @@ public:
     // observers
     virtual uint64_t length() const = 0;
     virtual uint32_t channels() const = 0;
-    virtual uint32_t samplerate() const = 0;
+    virtual uint32_t samplerate() const = 0; // must never return 0
     virtual bool seekable() const = 0;
 
     /*  metadata keys:

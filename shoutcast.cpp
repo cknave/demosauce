@@ -300,15 +300,15 @@ void ShoutCastPimpl::load_next()
                 bassSource->set_loop_duration(song.forced_length);
             }
             song.samplerate = bassSource->samplerate();
-            song.length = bassSource->length();
+            song.length = bassSource->length() / song.samplerate;
             song.amiga_mode = bassSource->is_amiga_module();
         }
 #endif
         if (!loaded && (loaded = avSource->load(song.file)))
         {
             machineStack->add(avSource, 0);
-            song.length = avSource->length();
             song.samplerate = avSource->samplerate();
+            song.length = avSource->length() / song.samplerate;
         }
 
         if (!loaded)
@@ -389,6 +389,7 @@ void ShoutCastPimpl::update_machines(SongInfo& song)
     }
 
     string fade_out = get_value(song.settings, "fade_out", "false");
+    boost::to_lower(fade_out);
     if (fade_out == "true" || fade_out == "1")
     {
         double length = song.forced_length > 0 ?

@@ -282,7 +282,10 @@ uint32_t BassSource::channels() const
 
 uint32_t BassSource::samplerate() const
 {
-    return static_cast<uint32_t>(pimpl->channelInfo.freq);
+    uint32_t value = (pimpl->channelInfo.freq == 0) ?
+        44100 :
+        static_cast<uint32_t>(pimpl->channelInfo.freq);
+    return value;
 }
 
 float BassSource::bitrate() const

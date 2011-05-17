@@ -38,11 +38,14 @@ compile() {
     if test $? -ne 0; then exit 1; fi
 }
 
-# comment/uncomment the next 4 lines to disable/enable LADSPA effect support
+compile $cflags -c logror.cpp
+
+# comment/uncomment the next 5 lines to disable/enable LADSPA effect support
 cflags_ladspa="-DENABLE_LADSPA"
 ladspa_o="ladspahost.o"
 ldl="-ldl"
 compile $cflags -c ladspahost.cpp
+compile $cflags -o ladspainfo ladspainfo.cpp logror.o ladspahost.o -ldl -lboost_filesystem-mt -lboost_date_time-mt
 
 # comment/uncomment next 4 line to disable/enable BASS playback support
 cflags_bass="-DENABLE_BASS"
@@ -51,7 +54,7 @@ lbass="-L$dir_bass -Wl,-rpath=$dir_bass -lbass -lid3tag -lz"
 compile $cflags -c basssource.cpp
 
 # swap next lines to use your distro's ffmpeg
-libs_ffmpeg="-Lffmpeg -Wl,-rpath=ffmpeg -lavcodec -lavformat"
+lavcodec="-Lffmpeg -Wl,-rpath=ffmpeg -lavcodec -lavformat"
 compile $cflags -Iffmpeg -c avsource.cpp
 #libs_ffmpeg="-lavcodec -lavformat"
 #compile $cflags -c avsource.cpp
@@ -65,7 +68,6 @@ compile $cflags $cflags_ladspa -c settings.cpp
 compile $cflags -c convert.cpp
 compile $cflags -c effects.cpp
 compile $cflags -c sockets.cpp
-compile $cflags -c logror.cpp
 
 #link scan
 input="scan.o avsource.o effects.o logror.o convert.o $bass_o $replaygain_a"

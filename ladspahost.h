@@ -16,7 +16,17 @@
 #include <boost/cstdint.hpp>
 #include <boost/scoped_ptr.hpp>
 
+#include <ladspa.h>
+
 #include "audiostream.h"
+
+// some static helper functions
+typedef void* LadspaHandle;
+
+void            ladspa_enumerate_plugins(std::vector<std::string>& list);
+LadspaHandle    ladspa_load(std::string path, std::vector<const LADSPA_Descriptor*>& desc);
+void            ladspa_unload(LadspaHandle handle);
+LADSPA_Data     ladspa_default_value(LADSPA_PortRangeHint hint);
 
 class LadspaHost : public Machine
 {
@@ -26,7 +36,7 @@ public:
     LadspaHost();
     virtual ~LadspaHost();
 
-    void process(AudioStream& stream, const uint32_t frames);
+    void process(AudioStream& stream, uint32_t frames);
 
     bool load_plugin(std::string desciptor, uint32_t samplerate);
     bool load_plugin(std::string label, uint32_t samplerate, const std::vector<Setting>& setting_list);

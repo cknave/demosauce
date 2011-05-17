@@ -16,7 +16,7 @@
     example:
     LOG_INFO("something unimportant happend");
     int foo = 10;
-    string bar = monogo-moose
+    string bar = mongo-moose
     LOG_DEBUG("i see %1% %2%!"), foo, bar; // prints "i see 10 mongo-moose!"
 
     for error "handling", use

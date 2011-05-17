@@ -41,3 +41,10 @@ error_fallback_dir	= /dir/to/songs
 log_file			= demosauce_%date%.log
 log_file_level		= warn
 log_console_level	= warn
+
+# load ladspa plugin with setings, use the ladspainfo tool to see
+# which plugins are available, and what settings they take
+# to configure a plugin, you can assign a value to a control input port
+# there are 10 plugin slots available: ladspa_plugin0 to ladspa_plugin9
+# format is: <plugin label> [port:value] [port:value] ... [port:value]
+# ladspa_plugin0 = pluginLabel 3:0.5 4:440 7:0

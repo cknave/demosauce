@@ -18,8 +18,6 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/numeric/conversion/cast.hpp>
 
-#include <ladspa.h>
-
 #include "logror.h"
 #include "ladspahost.h"
 
@@ -75,9 +73,8 @@ LADSPA_Descriptor_Function bind_descriptor_function(LIB_HANDLE_T lib_handle)
 #endif
 }
 
-vector<string> LadspaHost_enumerate_plugins()
+void ladspa_enumerate_plugins(vector<string>& list)
 {
-    vector<string> list;
     vector<string> search_dirs;
 
     char* ladspa_path = getenv("LADSPA_PATH");
@@ -106,10 +103,47 @@ vector<string> LadspaHost_enumerate_plugins()
             }
         }
     }
-    return list;
 }
 
-LADSPA_Data default_value(LADSPA_PortRangeHint hint)
+LIB_HANDLE_T ladspa_load_impl(string path, vector<const LADSPA_Descriptor*>& desc)
+{
+    LIB_HANDLE_T h = dynamic_open(path);
+    if (h == 0)
+    {
+        return 0;
+    }
+
+    LADSPA_Descriptor_Function df = bind_descriptor_function(h);
+    if (df == 0)
+    {
+        dynamic_close(h);
+        return 0;
+    }
+
+    for (unsigned long i = 0; true; i++)
+    {
+        const LADSPA_Descriptor* d = df(i);
+        if (d == 0)
+        {
+            break;
+        }
+        desc.push_back(d);
+    }
+
+    return h;
+}
+
+LadspaHandle ladspa_load(string path, vector<const LADSPA_Descriptor*>& desc)
+{
+    return static_cast<LadspaHandle>(ladspa_load_impl(path, desc));
+}
+
+void ladspa_unload(LadspaHandle handle)
+{
+    dynamic_close(static_cast<LIB_HANDLE_T>(handle));
+}
+
+LADSPA_Data ladspa_default_value(LADSPA_PortRangeHint hint)
 {
     if (LADSPA_IS_HINT_HAS_DEFAULT(hint.HintDescriptor))
     {
@@ -186,7 +220,7 @@ struct LadspaHost::Pimpl
     bool            is_inplace_broken();
 
     // run the sucker
-    void            process(AudioStream& input_stream, AudioStream& output_stream, const uint32_t frames);
+    void            process(AudioStream& input_stream, AudioStream& output_stream, uint32_t frames);
 
     // variables
     uint32_t                    samplerate;
@@ -213,34 +247,29 @@ LadspaHost::Pimpl::~Pimpl()
 bool LadspaHost::Pimpl::load_plugin(string label)
 {
     unload_plugin();
-    vector<string> plugin_list = LadspaHost_enumerate_plugins();
+    vector<string> plugin_list;
+    ladspa_enumerate_plugins(plugin_list);
     BOOST_FOREACH(string file_name, plugin_list)
     {
+        vector<const LADSPA_Descriptor*> desc_list;
         LOG_DEBUG("ladspahost: inspecting %1%"), file_name;
 
-        LIB_HANDLE_T h = dynamic_open(file_name);
+        LIB_HANDLE_T h = ladspa_load(file_name, desc_list);
         if (h == 0)
         {
             LOG_DEBUG("ladspahost: can't open %1%"), file_name;
             return false;
         }
 
-        LADSPA_Descriptor_Function get_descriptor = bind_descriptor_function(h);
-        if (get_descriptor == 0)
+        if (desc_list.empty())
         {
             LOG_DEBUG("ladspahost: not a LADSPA plugin %1%"), file_name;
             dynamic_close(h);
             continue;
         }
 
-        for (unsigned long i = 0; true; i++)
+        BOOST_FOREACH(const LADSPA_Descriptor* d, desc_list)
         {
-            const LADSPA_Descriptor* d = get_descriptor(i);
-            if (d == 0)
-            {
-                break;
-            }
-
             if (label == d->Label)
             {
                 LOG_INFO("ladspahost: loading %1% (%2%)"), label, file_name;
@@ -249,6 +278,7 @@ bool LadspaHost::Pimpl::load_plugin(string label)
                 return true;
             }
         }
+        // in case it's not the droid we're looking for
         dynamic_close(h);
     }
     return false;
@@ -431,12 +461,12 @@ void LadspaHost::Pimpl::configure(const vector<Setting>& settings)
     {
         if (setting_list[i] == 0 && LADSPA_IS_PORT_CONTROL(descriptor->PortDescriptors[i]))
         {
-            setting_list[i] = default_value(descriptor->PortRangeHints[i]);
+            setting_list[i] = ladspa_default_value(descriptor->PortRangeHints[i]);
         }
     }
 }
 
-void LadspaHost::Pimpl::process(AudioStream& input_stream, AudioStream& output_stream, const uint32_t frames)
+void LadspaHost::Pimpl::process(AudioStream& input_stream, AudioStream& output_stream, uint32_t frames)
 {
     unsigned long stream_frames = numeric_cast<unsigned long>(input_stream.frames());
     for (size_t i = 0; i < channel_list.size(); i++)
@@ -456,7 +486,7 @@ LadspaHost::~LadspaHost()
     pimpl->unload_plugin();
 }
 
-void LadspaHost::process(AudioStream& stream, const uint32_t frames)
+void LadspaHost::process(AudioStream& stream, uint32_t frames)
 {
     if (source.get() == 0 || pimpl->descriptor == 0)
     {

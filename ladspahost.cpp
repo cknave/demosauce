@@ -1,7 +1,8 @@
 /*
-*   demosauce - icecast source client
+*   demosauce - fancy icecast source client
 *
-*   this source is published under the gpl license. google it yourself.
+*   this source is published under the GPLv3 license.
+*   http://www.gnu.org/licenses/gpl.txt
 *   also, this is beerware! you are strongly encouraged to invite the
 *   authors of this software to a beer when you happen to meet them.
 *   copyright MMXI by maep
@@ -32,7 +33,7 @@
     #define LIB_HANDLE_T        HWND
     #define PLUGIN_EXTENSION    ".dll"
     #define PATHENV_SEPARATOR   ";"
-    #error "LADSPA on windows still needs some work, DO IT!"
+    #error "LADSPA on windows still needs a little work, DO IT!"
 #else
     #error "LADSPA won't work on your system. disable or implement it"
 #endif
@@ -227,7 +228,7 @@ struct LadspaHost::Pimpl
     LIB_HANDLE_T                lib_handle;
     const LADSPA_Descriptor*    descriptor;
     vector<PluginChannel>       channel_list;
-    vector<LADSPA_Data>         setting_list;
+    vector<LADSPA_Data>         settings_list;
     AudioStream                 source_stream;
 
 };
@@ -252,18 +253,18 @@ bool LadspaHost::Pimpl::load_plugin(string label)
     BOOST_FOREACH(string file_name, plugin_list)
     {
         vector<const LADSPA_Descriptor*> desc_list;
-        LOG_DEBUG("ladspahost: inspecting %1%"), file_name;
+        LOG_DEBUG("[ladspa] inspecting %1%"), file_name;
 
         LIB_HANDLE_T h = ladspa_load(file_name, desc_list);
         if (h == 0)
         {
-            LOG_DEBUG("ladspahost: can't open %1%"), file_name;
+            LOG_DEBUG("[ladspa] can't open %1%"), file_name;
             return false;
         }
 
         if (desc_list.empty())
         {
-            LOG_DEBUG("ladspahost: not a LADSPA plugin %1%"), file_name;
+            LOG_DEBUG("[ladspa] not a LADSPA plugin %1%"), file_name;
             dynamic_close(h);
             continue;
         }
@@ -272,7 +273,7 @@ bool LadspaHost::Pimpl::load_plugin(string label)
         {
             if (label == d->Label)
             {
-                LOG_INFO("ladspahost: loading %1% (%2%)"), label, file_name;
+                LOG_INFO("[ladspa] loading %1% (%2%)"), label, file_name;
                 lib_handle = h;
                 descriptor = d;
                 return true;
@@ -289,7 +290,7 @@ void LadspaHost::Pimpl::unload_plugin()
     close_channels();
     if (lib_handle != 0)
     {
-        LOG_DEBUG("ladspahost: unloading library");
+        LOG_DEBUG("[ladspa] unloading library");
         dynamic_close(lib_handle);
         lib_handle = 0;
         descriptor = 0;
@@ -303,7 +304,7 @@ LADSPA_Handle LadspaHost::Pimpl::instantiate(uint32_t samplerate)
 
     if (h == 0)
     {
-        LOG_ERROR("[ladspahost] failed to init plugin %1%"), descriptor->Label;
+        LOG_ERROR("[ladspa] failed to init plugin %1%"), descriptor->Label;
         return 0;
     }
 
@@ -315,6 +316,20 @@ LADSPA_Handle LadspaHost::Pimpl::instantiate(uint32_t samplerate)
     return h;
 }
 
+
+void configure_ports(const LADSPA_Descriptor* d, LADSPA_Handle h, vector<LADSPA_Data>& settings)
+{
+    for (unsigned long i = 0; i < d->PortCount; i++)
+    {
+        if (LADSPA_IS_PORT_CONTROL(d->PortDescriptors[i]))
+        {
+            LOG_DEBUG("[ladspa] setting control port %1% to %2%"), i, settings[i];
+            d->connect_port(h, i, &settings.at(i));
+        }
+    }
+}
+
+
 bool LadspaHost::Pimpl::update_channels(uint32_t samplerate0, uint32_t channels0)
 {
     if (samplerate0 == samplerate && channels0 == channel_list.size())
@@ -324,48 +339,49 @@ bool LadspaHost::Pimpl::update_channels(uint32_t samplerate0, uint32_t channels0
 
     close_channels();
 
-    if (channels0 == 2 && is_stereo_plugin())
+    unsigned long in_channels = count_ports(LADSPA_PORT_AUDIO | LADSPA_PORT_INPUT);
+    unsigned long out_channels = count_ports(LADSPA_PORT_AUDIO | LADSPA_PORT_OUTPUT);
+
+    if (channels0 == 2 && in_channels == 2 && out_channels == 2)
     {
-        // we have a stereo plugin
-        LOG_INFO("[ladspahost] treating %1% as stereo plugin"), descriptor->Label;
+        LOG_INFO("[ladspa] using %1% as stereo plugin"), descriptor->Label;
 
         LADSPA_Handle handle = instantiate(samplerate0);
-
         if (handle == 0)
         {
             return false;
         }
-
+        configure_ports(descriptor, handle, settings_list);
         PluginChannel left = {handle,
             get_nth_port(LADSPA_PORT_AUDIO | LADSPA_PORT_INPUT, 0),
             get_nth_port(LADSPA_PORT_AUDIO | LADSPA_PORT_OUTPUT, 0)};
         PluginChannel right = {handle,
             get_nth_port(LADSPA_PORT_AUDIO | LADSPA_PORT_INPUT, 1),
             get_nth_port(LADSPA_PORT_AUDIO | LADSPA_PORT_OUTPUT, 1)};
-
         channel_list.push_back(left);
         channel_list.push_back(right);
     }
-    else
+    else if (in_channels == 1 && out_channels == 1)
     {
-        // we have a mono plugin!
-        LOG_INFO("[ladspahost] treating %1% as mono plugin"), descriptor->Label;
+        LOG_INFO("[ladspa] using %1% as mono plugin"), descriptor->Label;
 
         for (uint32_t i = 0; i < channels0; i++)
         {
             LADSPA_Handle handle = instantiate(samplerate0);
-
             if (handle == 0)
             {
                 return false;
             }
-
+            configure_ports(descriptor, handle, settings_list);
             PluginChannel channel = {handle,
                 get_nth_port(LADSPA_PORT_AUDIO | LADSPA_PORT_INPUT, 0),
                 get_nth_port(LADSPA_PORT_AUDIO | LADSPA_PORT_OUTPUT, 0)};
-
             channel_list.push_back(channel);
         }
+    }
+    else
+    {
+        LOG_ERROR("[ladspa] don't know how to connect %1%"), descriptor->Label;
     }
 
     samplerate = samplerate0;
@@ -379,7 +395,7 @@ void LadspaHost::Pimpl::close_channels()
         return;
     }
 
-    LOG_DEBUG("ladspahost: decativating %1%"), descriptor->Label;
+    LOG_DEBUG("[ladspa] decativating %1%"), descriptor->Label;
 
     if (is_stereo_plugin())
     {
@@ -444,24 +460,24 @@ bool LadspaHost::Pimpl::is_inplace_broken()
     return LADSPA_IS_INPLACE_BROKEN(descriptor->Properties);
 }
 
-void LadspaHost::Pimpl::configure(const vector<Setting>& settings)
+void LadspaHost::Pimpl::configure(const vector<LadspaHost::Setting>& settings)
 {
-    setting_list.resize(descriptor->PortCount);
-    std::fill(setting_list.begin(), setting_list.end(), 0);
+    settings_list.resize(descriptor->PortCount);
+    std::fill(settings_list.begin(), settings_list.end(), 0);
 
     BOOST_FOREACH(Setting value, settings)
     {
-        if (value.first < setting_list.size())
+        if (value.first < settings_list.size())
         {
-            setting_list[value.first] = value.second;
+            settings_list[value.first] = value.second;
         }
     }
 
     for (unsigned long i = 0; i < descriptor->PortCount; i++)
     {
-        if (setting_list[i] == 0 && LADSPA_IS_PORT_CONTROL(descriptor->PortDescriptors[i]))
+        if (settings_list[i] == 0 && LADSPA_IS_PORT_CONTROL(descriptor->PortDescriptors[i]))
         {
-            setting_list[i] = ladspa_default_value(descriptor->PortRangeHints[i]);
+            settings_list[i] = ladspa_default_value(descriptor->PortRangeHints[i]);
         }
     }
 }
@@ -512,7 +528,7 @@ void LadspaHost::process(AudioStream& stream, uint32_t frames)
 
     if (!pimpl->update_channels(pimpl->samplerate, stream.channels()))
     {
-        LOG_ERROR("[ladspahost] failed to initialize channel_list %1%"), pimpl->descriptor->Label;
+        LOG_ERROR("[ladspa] failed to initialize channel_list %1%"), pimpl->descriptor->Label;
         pimpl->unload_plugin();
         return;
     }
@@ -534,11 +550,11 @@ bool LadspaHost::load_plugin(string label, uint32_t samplerate, const vector<Set
     if (loaded)
     {
         pimpl->configure(setting_list);
-        LOG_INFO("[ladspahost] %1% loaded"), label;
+        LOG_DEBUG("[ladspa] %1% loaded"), label;
     }
     else
     {
-        LOG_ERROR("[ladspahost] %1% failed to load"), label;
+        LOG_ERROR("[ladspa] %1% failed to load"), label;
     }
     return loaded;
 }
@@ -553,26 +569,26 @@ bool LadspaHost::load_plugin(string descriptor, uint32_t samplerate)
         return false;
     }
 
-    vector<Setting> settings;
     Setting setting;
-
+    vector<Setting> settings;
     for (size_t i = 1; i < elements.size(); i++)
     {
         try
         {
             if (i % 2 == 1)
             {
-                setting.first = lexical_cast<unsigned long>(elements[i]);
+                setting.first = lexical_cast<size_t>(elements[i]);
             }
             else
             {
-                setting.second = lexical_cast<double>(elements[i]);
+                setting.second = lexical_cast<LADSPA_Data>(elements[i]);
+                LOG_DEBUG("[ladspa] parsed port setting %1%:%2%"), setting.first, setting.second;
                 settings.push_back(setting);
             }
         }
         catch (boost::bad_lexical_cast& e)
         {
-            LOG_WARNING("[ladspahost] bad setting value (%1%)"), e.what();
+            LOG_WARNING("[ladspa] bad setting value (%1%)"), e.what();
             i += i % 2;
         }
     }

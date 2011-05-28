@@ -43,7 +43,7 @@ copy or rename demosauce.conf.example to demosauce.conf. then edit it. the comme
 
 LICENSE
 ==================
-GPL
+GPLv3 http://www.gnu.org/licenses/gpl.txt
 
 FAQ
 ==================

@@ -1,7 +1,8 @@
 /*
 *   demosauce - fancy icecast source client
 *
-*   this source is published under the gpl license. google it yourself.
+*   this source is published under the GPLv3 license.
+*   http://www.gnu.org/licenses/gpl.txt
 *   also, this is beerware! you are strongly encouraged to invite the
 *   authors of this software to a beer when you happen to meet them.
 *   copyright MMXI by maep
@@ -219,9 +220,11 @@ void ShoutCast::Run()
 void ShoutCastPimpl::writer()
 {
     uint32_t const channels = setting::encoder_channels;
-    uint32_t const decode_frames = setting::encoder_samplerate;
+    uint32_t const decode_frames = (setting::encoder_samplerate
+        * setting::decode_buffer_size) / 1000;
 
-    AlignedBuffer<sample_t> decode_buffer(setting::encoder_samplerate * channels);
+    // decode buffer size = sizeof(sample_t) * decode_frames * channels
+    AlignedBuffer<sample_t> decode_buffer(decode_frames * channels);
 
     while (encoder_running)
     {
@@ -333,10 +336,9 @@ void ShoutCastPimpl::load_next()
 string get_random_file(string directoryName)
 {
     // I don't think this is a good idea, enumerating >30k files won't be fast
-    srand(time(0));
     fs::path dir(directoryName);
-    uint32_t numFiles = std::distance(dir.begin(), dir.end());
-    uint32_t randIndex = (rand() * numFiles) / RAND_MAX;
+    size_t numFiles = std::distance(dir.begin(), dir.end());
+    size_t randIndex = (rand() * numFiles) / RAND_MAX;
     fs::directory_iterator it(dir);
     std::advance(it, randIndex);
     return it->path().string();

@@ -1,7 +1,8 @@
 /*
 *   demosauce - fancy icecast source client
 *
-*   this source is published under the gpl license. google it yourself.
+*   this source is published under the GPLv3 license.
+*   http://www.gnu.org/licenses/gpl.txt
 *   also, this is beerware! you are strongly encouraged to invite the
 *   authors of this software to a beer when you happen to meet them.
 *   copyright MMXI by maep
@@ -49,6 +50,8 @@ namespace setting
     string      cast_url;
     string      cast_genre;
     string      cast_description;
+
+    uint32_t    decode_buffer_size  = 200;
 
     string      error_tune;
     string      error_title         = "sorry, we're having some trouble";
@@ -103,6 +106,8 @@ void build_descriptions(po::options_description& settingsDesc, po::options_descr
     ("cast_url", po::value<string>(&cast_url))
     ("cast_genre", po::value<string>(&cast_genre))
     ("cast_description", po::value<string>(&cast_description))
+
+    ("decode_buffer_size", po::value<uint32_t>(&decode_buffer_size))
 
     ("error_tune", po::value<string>(&error_tune))
     ("error_title", po::value<string>(&error_title))
@@ -179,6 +184,12 @@ void check_sanity()
     {
         err = true;
         cout << "setting cast_port out of range (1-65535)\n";
+    }
+
+    if (decode_buffer_size < 1 || decode_buffer_size > 10000)
+    {
+        err = true;
+        cout << "setting decode_buffer_size out of range (1-10000)\n";
     }
 
     if (err)

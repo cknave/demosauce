@@ -27,6 +27,9 @@ cast_url			= http://your.url/
 cast_genre			= music
 cast_description 	= this is a nice online radio, also maep is a ruler
 
+# internal buffer size used for audio processing, in ms
+#decode_buffer_size  = 200
+
 # the error tune will be played if connection to the demovibes server is lost
 # alternatively you can specifiy a fallback dir. if you specifiy both, error_tune
 # is preferred
@@ -47,4 +50,4 @@ log_console_level	= warn
 # to configure a plugin, you can assign a value to a control input port
 # there are 10 plugin slots available: ladspa_plugin0 to ladspa_plugin9
 # format is: <plugin label> [port:value] [port:value] ... [port:value]
-# ladspa_plugin0 = pluginLabel 3:0.5 4:440 7:0
+#ladspa_plugin0 = pluginLabel 3:0.5 4:440 7:0

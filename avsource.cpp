@@ -1,14 +1,12 @@
 /*
 *   demosauce - fancy icecast source client
 *
-*   this source is published under the gpl license. google it yourself.
+*   this source is published under the GPLv3 license.
+*   http://www.gnu.org/licenses/gpl.txt
 *   also, this is beerware! you are strongly encouraged to invite the
 *   authors of this software to a beer when you happen to meet them.
 *   copyright MMXI by maep
 */
-
-// fixes build problems with ffmpeg and g++
-#define __STDC_CONSTANT_MACROS
 
 #include <algorithm>
 
@@ -20,6 +18,8 @@
 #include "convert.h"
 #include "avsource.h"
 
+// fixes build problems with ffmpeg and g++
+#define __STDC_CONSTANT_MACROS
 extern "C"
 {
 #include <libavcodec/avcodec.h>

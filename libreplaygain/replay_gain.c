@@ -1,10 +1,16 @@
+/*
+*   libReplayGain, based on mp3gain 1.5.1
+*   LGPL 2.1
+*   http://www.gnu.org/licenses/old-licenses/lgpl-2.1.txt
+*/
+
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
 #include "replay_gain.h"
 #include "gain_analysis.h"
 
-struct _RG_CONTEXT 
+struct _RG_CONTEXT
 {
 	RG_SampleFormat format;
 	Context_t * cxt;
@@ -40,17 +46,17 @@ void RG_FreeContext(RG_Context * context)
 
 size_t RG_FormatSize(uint32_t sampleFormat)
 {
-	switch (sampleFormat) 
+	switch (sampleFormat)
 	{
-		case RG_SIGNED_16_BIT: 
+		case RG_SIGNED_16_BIT:
             return sizeof(int16_t);
-		case RG_SIGNED_32_BIT: 
+		case RG_SIGNED_32_BIT:
             return sizeof(int32_t);
-		case RG_FLOAT_32_BIT: 
+		case RG_FLOAT_32_BIT:
             return sizeof(float);
-		case RG_FLOAT_64_BIT: 
+		case RG_FLOAT_64_BIT:
             return sizeof(double);
-		default: 
+		default:
             return 0;
 	}
 }
@@ -77,10 +83,10 @@ void ConvertF64(RG_Context* context, void* data, uint32_t length)
 			*outr++ = (Float_t) *in++ * buttScratcher;
 		}
 	}
-	else 
-	{	
+	else
+	{
 		Float_t* out = (Float_t*) context->buffer;
-		for (uint32_t iChan = 0; iChan < context->format.numberChannels; ++iChan)		
+		for (uint32_t iChan = 0; iChan < context->format.numberChannels; ++iChan)
 		{
 			double const* in = buffer[iChan];
 			for (size_t i = 0; i < length; i++)
@@ -107,7 +113,7 @@ void ConvertF32(RG_Context* context, void* data, uint32_t length)
 	else
 	{
 		Float_t* out = (Float_t*) context->buffer;
-		for (uint32_t iChan = 0; iChan < context->format.numberChannels; ++iChan)		
+		for (uint32_t iChan = 0; iChan < context->format.numberChannels; ++iChan)
 		{
 			float const* in = buffer[iChan];
 			for (size_t i = 0; i < length; i++)
@@ -118,7 +124,7 @@ void ConvertF32(RG_Context* context, void* data, uint32_t length)
 
 void ConvertS32(RG_Context* context, void* data, uint32_t length)
 {
-	static Float_t const buttScratcher = 0x7fff / 0x7fffffff; 
+	static Float_t const buttScratcher = 0x7fff / 0x7fffffff;
 	int32_t** buffer = (int32_t**) data;
 	if (context->format.numberChannels == 2 && context->format.interleaved)
 	{
@@ -134,7 +140,7 @@ void ConvertS32(RG_Context* context, void* data, uint32_t length)
 	else
 	{
 		Float_t* out = (Float_t*) context->buffer;
-		for (uint32_t iChan = 0; iChan < context->format.numberChannels; ++iChan)		
+		for (uint32_t iChan = 0; iChan < context->format.numberChannels; ++iChan)
 		{
 			int32_t const * in = buffer[iChan];
 			for (size_t i = 0; i < length; i++)
@@ -160,7 +166,7 @@ void ConvertS16(RG_Context* context, void* data, uint32_t length)
 	else
 	{
 		Float_t* out = (Float_t*) context->buffer;
-		for (uint32_t iChan = 0; iChan < context->format.numberChannels; ++iChan)		
+		for (uint32_t iChan = 0; iChan < context->format.numberChannels; ++iChan)
 		{
 			int16_t const * in = buffer[iChan];
 			for (size_t i = 0; i < length; i++)
@@ -173,23 +179,25 @@ void RG_Analyze(RG_Context* context, void* data, uint32_t frames)
 {
 	assert(context);
 	assert(data);
+    // having odd number of frames sometimes causes odd behaviour
+    assert(frames % 2 == 0);
 
 	UpdateBuffer(context, frames);
-	switch (context->format.sampleType) 
+	switch (context->format.sampleType)
 	{
-		case RG_SIGNED_16_BIT: 
-            ConvertS16(context, data, frames); 
+		case RG_SIGNED_16_BIT:
+            ConvertS16(context, data, frames);
             break;
-		case RG_SIGNED_32_BIT: 
-            ConvertS32(context, data, frames); 
+		case RG_SIGNED_32_BIT:
+            ConvertS32(context, data, frames);
             break;
-		case RG_FLOAT_32_BIT: 
-            ConvertF32(context, data, frames); 
+		case RG_FLOAT_32_BIT:
+            ConvertF32(context, data, frames);
             break;
-		case RG_FLOAT_64_BIT: 
-            ConvertF64(context, data, frames); 
+		case RG_FLOAT_64_BIT:
+            ConvertF64(context, data, frames);
             break;
-		default: 
+		default:
             return;
 	}
 
@@ -216,5 +224,5 @@ double RG_GetAlbumGain(RG_Context* context)
 	double gain = GetAlbumGain(context->cxt);
 	if (gain == GAIN_NOT_ENOUGH_SAMPLES)
 		return 0; // no change
-	return gain;	
+	return gain;
 }

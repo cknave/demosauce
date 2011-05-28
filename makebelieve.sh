@@ -56,7 +56,7 @@ compile $cflags -c basssource.cpp
 # swap next lines to use your distro's ffmpeg
 lavcodec="-Lffmpeg -Wl,-rpath=ffmpeg -lavcodec -lavformat"
 compile $cflags -Iffmpeg -c avsource.cpp
-#libs_ffmpeg="-lavcodec -lavformat"
+#lavcodec="-lavcodec -lavformat"
 #compile $cflags -c avsource.cpp
 
 #remove -DREVISION_NR=`svnversion .` if you're not using subversion

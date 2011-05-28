@@ -1,6 +1,7 @@
 /*
-	This is just a small convenience wrapper for the gain_analysis module from mp3gain. I hope
-	this is one of the better implenentations, as some of the standard's creators contributed.
+*   libReplayGain, based on mp3gain 1.5.1
+*   LGPL 2.1
+*   http://www.gnu.org/licenses/old-licenses/lgpl-2.1.txt
 */
 
 #ifndef _H_REPLAY_GAIN_
@@ -9,10 +10,10 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
- 
+
 #include <stdlib.h>
-#include <stdint.h>	
-	
+#include <stdint.h>
+
 #ifndef BOOL
 #define BOOL int
 #endif
@@ -22,12 +23,12 @@ extern "C" {
 #define TRUE (!FALSE)
 #endif
 
-// #define RG_UNSIGNED_8_BIT 00 
+// #define RG_UNSIGNED_8_BIT 00
 #define RG_SIGNED_16_BIT 1
 #define RG_SIGNED_32_BIT 2
 #define RG_FLOAT_32_BIT 3
 #define RG_FLOAT_64_BIT 4
-	
+
 typedef struct
 {
 	uint32_t sampleRate;

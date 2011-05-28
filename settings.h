@@ -1,7 +1,8 @@
 /*
 *   demosauce - fancy icecast source client
 *
-*   this source is published under the gpl license. google it yourself.
+*   this source is published under the GPLv3 license.
+*   http://www.gnu.org/licenses/gpl.txt
 *   also, this is beerware! you are strongly encouraged to invite the
 *   authors of this software to a beer when you happen to meet them.
 *   copyright MMXI by maep
@@ -38,6 +39,8 @@ namespace setting
     extern std::string      cast_url;
     extern std::string      cast_genre;
     extern std::string      cast_description;
+
+    extern uint32_t         decode_buffer_size;
 
     extern std::string      error_tune;
     extern std::string      error_title;

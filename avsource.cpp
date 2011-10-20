@@ -8,6 +8,9 @@
 *   copyright MMXI by maep
 */
 
+// fix missing UINT64_C macro
+#define __STDC_CONSTANT_MACROS
+
 #include <algorithm>
 
 #include <boost/filesystem.hpp>
@@ -18,10 +21,7 @@
 #include "convert.h"
 #include "avsource.h"
 
-// fixes build problems with ffmpeg and g++
-#define __STDC_CONSTANT_MACROS
-extern "C"
-{
+extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
 }
@@ -143,11 +143,9 @@ int AvSource::Pimpl::decode_frame(AVPacket& packet, uint8_t* const buffer, int c
     uint8_t* packet_data = packet.data;
     int packet_size = packet.size;
 
-    while (packet.size > 0)
-    {
+    while (packet.size > 0) {
         int data_size = size - decoded_size;
-        if (decode_buffer.size() < static_cast<uint32_t>(size)) // the decode buffer is needed due to alignment issues with sse
-        {
+        if (decode_buffer.size() < static_cast<uint32_t>(size)) {// the decode buffer is needed due to alignment issues with sse
             decode_buffer.resize(size);
         }
         sample_t* buf = reinterpret_cast<sample_t*>(decode_buffer.get());
@@ -174,8 +172,7 @@ int AvSource::Pimpl::decode_frame(AVPacket& packet, uint8_t* const buffer, int c
 void AvSource::Pimpl::process(AudioStream& stream, uint32_t frames)
 {
     uint32_t const channels = numeric_cast<uint32_t>(codec_context->channels);
-    if (packet_buffer_pos < 0 || channels < 1)
-    {
+    if (packet_buffer_pos < 0 || channels < 1) {
         ERROR("[avsource] strange state");
         stream.zero(0, frames);
         stream.end_of_stream = true;
@@ -187,31 +184,24 @@ void AvSource::Pimpl::process(AudioStream& stream, uint32_t frames)
     // btw that was a reference to thumbtanic
     int const min_bytes = std::max(192000, need_bytes);
     int const buffer_size = std::max(AVCODEC_MAX_AUDIO_FRAME_SIZE * 3, min_bytes * 2);
-    if (packet_buffer.size() < static_cast<size_t>(buffer_size))
-    {
+    if (packet_buffer.size() < static_cast<size_t>(buffer_size)) {
         packet_buffer.resize(buffer_size);
     }
 
     AVPacket packet;
-    while (packet_buffer_pos < min_bytes)
-    {
-        if (av_read_frame(format_context, &packet) < 0) // demux/read packet
-        {
+    while (packet_buffer_pos < min_bytes) {
+        if (av_read_frame(format_context, &packet) < 0) { // demux/read packet
             break; // end of stream
         }
-
-        if (packet.stream_index != audio_stream_index)
-        {
+        if (packet.stream_index != audio_stream_index) {
             continue;
         }
-
         packet_buffer_pos += decode_frame(packet, packet_buffer.get() + packet_buffer_pos, buffer_size);
     }
 
     // according to the docs, av_free_packet should be called at some point after av_read_frame
     // without these checks, mysterious segfaults start appearing with small buffers. stable my ass!
-     if (packet.data != 0 && packet.size != 0) // && packet.stream_index == audio_stream_index
-     {
+     if (packet.data != 0 && packet.size != 0) { // && packet.stream_index == audio_stream_index
         av_free_packet(&packet);
      }
 
@@ -225,8 +215,7 @@ void AvSource::Pimpl::process(AudioStream& stream, uint32_t frames)
     memmove(packet_buffer.get(), packet_buffer.get() + used_bytes, packet_buffer_pos - used_bytes);
     packet_buffer_pos -= used_bytes;
 
-    if (stream.end_of_stream)
-    {
+    if (stream.end_of_stream) {
         LOG_DEBUG("[avsource] eos avcodec %1% frames left"), stream.frames();
     }
 }
@@ -235,8 +224,6 @@ void AvSource::seek(uint64_t frame)
 {
     int64_t timestamp = frame / samplerate() * AV_TIME_BASE;
     av_seek_frame(pimpl->format_context, -1, timestamp, 0);
-//    pimpl->decoded_frames = frame; // not accurate, really
-//    LOG_DEBUG("seek %1% %2%"), timestamp, ret;
 }
 
 void AvSource::process(AudioStream& stream, uint32_t frames)
@@ -304,14 +291,12 @@ bool AvSource::seekable() const
 bool AvSource::probe_name(string file_name)
 {
     fs::path file(file_name);
-    string name = file.filename();
+    string name = file.string();
     static const size_t elements = 17;
     const char* ext[elements] = {".mp3", ".ogg", ".m4a", ".wma", ".acc", ".flac", ".mp4", ".ac3",
         ".wav", ".ape", ".wv", ".mpc", ".mp+", ".mpp", ".ra", ".mp2", ".mp1"};
-    for (size_t i = 0; i < elements; ++i)
-    {
-        if (boost::iends_with(name, ext[i]))
-        {
+    for (size_t i = 0; i < elements; ++i) {
+        if (boost::iends_with(name, ext[i])) {
             return true;
         }
     }
@@ -321,16 +306,11 @@ bool AvSource::probe_name(string file_name)
 string AvSource::metadata(string key) const
 {
     string value;
-    if (key == "codec_type")
-    {
+    if (key == "codec_type") {
         value = pimpl->codec_type();
-    }
-    else if (key == "artist")
-    {
+    } else if (key == "artist") {
         value = pimpl->format_context->author;
-    }
-    else if (key == "title")
-    {
+    } else if (key == "title") {
         value = pimpl->format_context->title;
     }
     boost::trim(value);
@@ -340,16 +320,13 @@ string AvSource::metadata(string key) const
 string AvSource::Pimpl::codec_type()
 {
     CodecID codec_type = codec->id;
-    if (codec_type >= CODEC_ID_PCM_S16LE && codec_type < CODEC_ID_ADPCM_IMA_QT)
-    {
+    if (codec_type >= CODEC_ID_PCM_S16LE && codec_type < CODEC_ID_ADPCM_IMA_QT) {
         return "pcm";
     }
-    if (codec_type >= CODEC_ID_ADPCM_IMA_QT && codec_type < CODEC_ID_AMR_NB)
-    {
+    if (codec_type >= CODEC_ID_ADPCM_IMA_QT && codec_type < CODEC_ID_AMR_NB) {
         return "adpcm";
-    }
-    switch (codec_type)
-    {
+    }   
+    switch (codec_type) {
         case CODEC_ID_RA_144:
         case CODEC_ID_RA_288:   return "real";
         case CODEC_ID_MP2:      return "mp2";
@@ -368,7 +345,7 @@ string AvSource::Pimpl::codec_type()
         case CODEC_ID_MUSEPACK7:
         case CODEC_ID_MUSEPACK8: return "musepack";
         case CODEC_ID_MP1:      return "mp1";
-// TODO not shure this is the right revision number
+// TODO not sure this is the right revision number
 #if LIBAVCODEC_VERSION_INT > AV_VERSION_INT(52, 26, 0)
         case CODEC_ID_MP4ALS:   return "mp4";
 #endif

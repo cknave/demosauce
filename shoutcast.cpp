@@ -13,11 +13,6 @@
 
 #include <vector>
 
-#include <boost/version.hpp>
-#if (BOOST_VERSION / 100) < 1036
-    #error "need at least BOOST version 1.36"
-#endif
-
 #include <boost/bind.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/make_shared.hpp>

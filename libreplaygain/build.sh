@@ -1,22 +1,12 @@
 #!/bin/sh
-
-SOURCE_FILES='gain_analysis.c replay_gain.c'
 OUTPUT='libreplaygain.a'
-
-echo -n "libreplaygain configuration: "
-if test "$1" = "debug"; then
-	echo "debug"
-	FLAGS_RELEASE='-g -DDEBUG' #-pedantic
-else
-	echo "release"
-	FLAGS_RELEASE='-s -O3 -mtune=native -msse2 -mfpmath=sse'
-fi
-
-FLAGS="-Wall -Wfatal-errors -c -std=gnu99 $FLAGS_RELEASE" 
-gcc $FLAGS $SOURCE_FILES
-
+CMD="gcc -Wall -std=gnu99 -O3 -c gain_analysis.c replay_gain.c"
+echo $CMD
+$CMD
 if test $? -eq 0; then
 	rm -f $OUTPUT
-	ar rs $OUTPUT *.o
+	CMD="ar rs $OUTPUT *.o"
+	echo $CMD
+	$CMD
 	rm *.o
 fi

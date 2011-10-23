@@ -138,7 +138,7 @@ ShoutCastPimpl::ShoutCastPimpl() :
     connected(false),
     remaining_frames(0)
 {
-    signal(SIGPIPE, SIG_IGN); // otherwise we won't be able to recover from encoder death
+    signal(SIGPIPE, SIG_IGN); // recover from encoder death
     shout_init();
     cast = shout_new();
     init_machines();
@@ -152,11 +152,9 @@ ShoutCastPimpl::~ShoutCastPimpl()
 #ifdef ENABLE_LADSPA
 void add_ladspa_plugin(shared_ptr<MachineStack>& machine_stack, string configuration)
 {
-    if (!configuration.empty())
-    {
+    if (!configuration.empty()) {
         shared_ptr<LadspaHost> host = make_shared<LadspaHost>();
-        if (host->load_plugin(configuration, setting::encoder_samplerate))
-        {
+        if (host->load_plugin(configuration, setting::encoder_samplerate)) {
             machine_stack->add(host);
         }
     }
@@ -205,8 +203,7 @@ void ShoutCast::Run()
 {
     pimpl->connect();
     pimpl->load_next();
-    while (true)
-    {
+    while (true) {
         pimpl->run_encoder();
         boost::this_thread::sleep(boost::posix_time::seconds(10));
     }
@@ -221,24 +218,19 @@ void ShoutCastPimpl::writer()
     // decode buffer size = sizeof(sample_t) * decode_frames * channels
     AlignedBuffer<sample_t> decode_buffer(decode_frames * channels);
 
-    while (encoder_running)
-    {
+    while (encoder_running) {
         // decode and read some
-        if (decoder_ready)
-        {
+        if (decoder_ready) {
             uint32_t frames = converter.process(decode_buffer.get(), decode_frames, channels);
             remaining_frames += frames;
 
-            if (frames != decode_frames || remaining_frames > 0) // end of song
-            {
+            if (frames != decode_frames || remaining_frames > 0) { // end of song 
                 LOG_DEBUG("end of stream");
                 decode_buffer.zero_end((decode_frames - frames) * channels);
                 // load next song in separate thread
                 boost::thread thread(bind(&ShoutCastPimpl::load_next, this));
             }
-        }
-        else
-        {
+        } else {
             decode_buffer.zero();
         }
         // this should block once internal buffers are full
@@ -250,10 +242,8 @@ void ShoutCastPimpl::reader()
 {
     AlignedBuffer<char> send_buffer(setting::encoder_samplerate);
 
-    while (encoder_running)
-    {
-        while (!connected)
-        {
+    while (encoder_running) {
+        while (!connected) {
             boost::this_thread::sleep(boost::posix_time::seconds(10));
             connect();
         }
@@ -262,8 +252,7 @@ void ShoutCastPimpl::reader()
         encoder_output->read(send_buffer.get(), send_buffer.size_bytes());
         shout_sync(cast);
         int err = shout_send(cast, send_buffer.get_uchar(), send_buffer.size_bytes());
-        if (err != SHOUTERR_SUCCESS)
-        {
+        if (err != SHOUTERR_SUCCESS) {
             ERROR("icecast connection dropped, trying to recover(%1%)"), shout_get_error(cast);
             disconnect();
         }
@@ -278,23 +267,19 @@ void ShoutCastPimpl::load_next()
 
     int loadTries = 0;
     bool loaded = false;
-    while (loadTries++ < 3 && !loaded)
-    {
+    while (loadTries++ < 3 && !loaded) {
         get_next_song(song);
         song.forced_length = get_value(song.settings, "length", 0.0);
 
-        if (!fs::exists(song.file))
-        {
+        if (!fs::exists(song.file)) {
             LOG_WARNING("file doesn't exist: %1%"), song.file;
             continue;
         }
 
 #ifdef ENABLE_BASS
-        if (!loaded && (loaded = bassSource->load(song.file, song.settings)))
-        {
+        if (!loaded && (loaded = bassSource->load(song.file, song.settings))) {
             machineStack->add(bassSource, 0);
-            if (song.forced_length > 0)
-            {
+            if (song.forced_length > 0) {
                 bassSource->set_loop_duration(song.forced_length);
             }
             song.samplerate = bassSource->samplerate();
@@ -302,21 +287,18 @@ void ShoutCastPimpl::load_next()
             song.amiga_mode = bassSource->is_amiga_module();
         }
 #endif
-        if (!loaded && (loaded = avSource->load(song.file)))
-        {
+        if (!loaded && (loaded = avSource->load(song.file))) {
             machineStack->add(avSource, 0);
             song.samplerate = avSource->samplerate();
             song.length = avSource->length() / song.samplerate;
         }
 
-        if (!loaded)
-        {
+        if (!loaded) {
             LOG_WARNING("can't decode %1%"), song.file;
         }
     }
 
-    if (loadTries >= 3 && !loaded)
-    {
+    if (loadTries >= 3 && !loaded) {
         LOG_WARNING("loading failed three times, sending a bunch of zeros");
         machineStack->add(zeroSource, 0);
         song.forced_length = 60;
@@ -341,31 +323,23 @@ string get_random_file(string directoryName)
 
 void ShoutCastPimpl::get_next_song(SongInfo& song)
 {
-        if (setting::debug_song.empty())
-        {
+        if (setting::debug_song.empty()) {
             song.settings = sockets.get_next_song();
-        }
-        else
-        {
+        } else {
             song.settings = setting::debug_song;
         }
 
         song.file = get_value(song.settings, "path", "");
 
-        if (song.file.empty())
-        {
-            if (fs::is_regular_file(setting::error_tune))
-            {
+        if (song.file.empty()) {
+            if (fs::is_regular_file(setting::error_tune)) {
                 LOG_WARNING("file name is empty, using error_tune");
                 song.file = setting::error_tune;
             }
-            else if (fs::is_directory(setting::error_fallback_dir))
-            {
+            else if (fs::is_directory(setting::error_fallback_dir)) {
                 LOG_WARNING("file name is empty, using error_fallback_dir");
                 song.file = get_random_file(setting::error_fallback_dir);
-            }
-            else
-            {
+            } else {
                 LOG_WARNING("file name is empty, and your fallback settings suck");
             }
         }
@@ -379,16 +353,14 @@ void ShoutCastPimpl::update_machines(SongInfo& song)
     linearFade->set_enabled(false);
 
     remaining_frames = std::numeric_limits<int64_t>::min();
-    if (song.forced_length > 0)
-    {
+    if (song.forced_length > 0) {
         remaining_frames = -numeric_cast<int>(setting::encoder_samplerate * song.forced_length);
         LOG_DEBUG("song length forced to %1% seconds"), song.forced_length;
     }
 
     string fade_out = get_value(song.settings, "fade_out", "false");
     boost::to_lower(fade_out);
-    if (fade_out == "true" || fade_out == "1")
-    {
+    if (fade_out == "true" || fade_out == "1") {
         double length = song.forced_length > 0 ?
             song.forced_length :
             song.length;
@@ -399,16 +371,14 @@ void ShoutCastPimpl::update_machines(SongInfo& song)
         LOG_DEBUG("song fading out at %1% seconds"), length;
     }
 
-    if (song.samplerate != setting::encoder_samplerate)
-    {
+    if (song.samplerate != setting::encoder_samplerate) {
         resample->set_rates(song.samplerate, setting::encoder_samplerate);
         resample->set_enabled(true);
         LOG_DEBUG("resampling %1% to %2% Hz"), song.samplerate, setting::encoder_samplerate;
     }
 
     bool auto_mix = (get_value(song.settings, "mix", "auto") == "auto");
-    if (setting::encoder_channels == 2 && (!auto_mix || song.amiga_mode))
-    {
+    if (setting::encoder_channels == 2 && (!auto_mix || song.amiga_mode)) {
         double ratio = get_value(song.settings, "mix", 0.4);
         ratio = std::max(ratio, 0.);
         ratio = std::min(ratio, 1.);
@@ -432,13 +402,10 @@ void ShoutCastPimpl::run_encoder()
     string exe = args[0];
     args.erase(args.begin());
 
-    if (!fs::exists(exe)) try
-    {
+    if (!fs::exists(exe)) try {
         exe = bp::find_executable_in_path(exe);
-    }
-    catch (fs::filesystem_error& e)
-    {
-        FATAL("can't locate encoder: %1%"), exe;
+    } catch (fs::filesystem_error& e) {
+        FATAL("can't locate encoder executable: %1%"), exe;
     }
 
     bp::context ctx;
@@ -447,8 +414,7 @@ void ShoutCastPimpl::run_encoder()
     ctx.streams[bp::stderr_id] = bp::behavior::null();
 
     LOG_INFO("starting encoder: %1%"), setting::encoder_command;
-    try
-    {
+    try {
         // launch encoder
         bp::child c = bp::create_child(exe, args, ctx);
         encoder_input = boost::in_place(c.get_handle(bp::stdin_id));
@@ -465,9 +431,7 @@ void ShoutCastPimpl::run_encoder()
         write_tread.interrupt();    // try interrupting any blocking calls
         read_tread.interrupt();     // try interrupting any blocking calls
         ERROR("encoder process stopped, trying to recover");
-    }
-    catch (fs::filesystem_error& e)
-    {
+    } catch (fs::filesystem_error& e) {
         FATAL("failed to launch encoder (%1%)"), e.what();
     }
 }
@@ -498,8 +462,7 @@ void ShoutCastPimpl::connect()
 
     // start
     int err = shout_open(cast);
-    switch (err)
-    {
+    switch (err) {
         case SHOUTERR_SUCCESS:
             LOG_INFO("connected to icecast");
             connected = true;
@@ -530,8 +493,7 @@ string utf8_to_ascii(string utf8_str)
     UnicodeString in_str(utf8_str.c_str(), utf8_str.size(), converter, status);
     ucnv_close(converter);
 
-    if (U_FAILURE(status))
-    {
+    if (U_FAILURE(status)) {
         LOG_WARNING("utf8 conversion failed (%1%)"), u_errorName(status);
         return "";
     }
@@ -540,18 +502,15 @@ string utf8_to_ascii(string utf8_str)
     UnicodeString norm_str;
     Normalizer::normalize(in_str, UNORM_NFKD, 0, norm_str, status);
 
-    if (U_FAILURE(status))
-    {
+    if (U_FAILURE(status)) {
         LOG_WARNING("unicode decomposition failed (%1%)"), u_errorName(status);
         return "";
     }
 
     // NFKD may produce non ascii chars, these are dropped
     string out_str;
-    for (int32_t i = 0; i < norm_str.length(); ++i)
-    {
-        if (norm_str[i] >= ' ' && norm_str[i] <= '~')
-        {
+    for (int32_t i = 0; i < norm_str.length(); ++i) {
+        if (norm_str[i] >= ' ' && norm_str[i] <= '~') {
             out_str.push_back(static_cast<char>(norm_str[i]));
         }
     }
@@ -564,15 +523,12 @@ string create_cast_title(string artist, string title)
     // so unicode decomposition is as a workaround all dashes are removed from artist, because its
     // used as artist-title separator. talk about bad semantics...
     string cast_title = utf8_to_ascii(artist);
-    for (size_t i = 0; i < cast_title.size(); ++i)
-    {
-        if (cast_title[i] == '-')
-        {
+    for (size_t i = 0; i < cast_title.size(); ++i) {
+        if (cast_title[i] == '-') {
             cast_title[i] = ' ';
         }
     }
-    if (cast_title.size() > 0)
-    {
+    if (cast_title.size() > 0) {
         cast_title.append(" - ");
     }
     cast_title.append(utf8_to_ascii(title));
@@ -590,8 +546,7 @@ void ShoutCastPimpl::update_metadata(SongInfo& song)
     shout_metadata_t* metadata = shout_metadata_new();
     shout_metadata_add(metadata, "song", cast_title.c_str());
     int err = shout_set_metadata(cast, metadata);
-    if (err != SHOUTERR_SUCCESS)
-    {
+    if (err != SHOUTERR_SUCCESS) {
         LOG_WARNING("shout_set_metadata: failed with code %1%"), err;
     }
     shout_metadata_free(metadata);

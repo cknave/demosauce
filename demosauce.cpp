@@ -43,29 +43,17 @@
 #include "settings.h"
 #include "shoutcast.h"
 
-#ifdef REVISION_NR
-    #define REVISION -REVISION_NR
-#else
-    #define REVISION
-#endif
-
-#define STR(arg) #arg
-#define EXPAND(arg) STR(arg)
-
 int main(int argc, char* argv[])
 {
-    std::cout << "demosauce 0.3.2" EXPAND(REVISION) " - less BASS, more SHOUT!\n";
-    try
-    {
+    std::cout << "demosauce 0.3.2.1 - less BASS, more SHOUT!\n";
+    try {
         init_settings(argc, argv);
         log_set_console_level(setting::log_console_level);
         log_set_file(setting::log_file, setting::log_file_level);
         ShoutCast cast;
-        std::cout << "streamin' in the wind\n";
+        std::cout << "The spice must flow!\n";
         cast.Run();
-    }
-    catch (std::exception& e)
-    {
+    } catch (std::exception& e) {
         FATAL("%1%"), e.what();
     }
     return EXIT_SUCCESS;

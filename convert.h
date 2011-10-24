@@ -13,8 +13,8 @@
 *   ConvertToInterleaved
 */
 
-#ifndef _H_CONVERT_
-#define _H_CONVERT_
+#ifndef CONVERT_H
+#define CONVERT_H
 
 #include <cassert>
 #include <limits>
@@ -94,8 +94,7 @@ template<> inline void ConvertFromInterleaved<float>
         stream.resize(frames);
     stream.set_frames(frames);
 
-    for (uint_fast32_t chan = 0; chan < _channels; ++chan)
-    {
+    for (uint_fast32_t chan = 0; chan < _channels; ++chan) {
         float const * in = buff.get() + chan;
         float * out = stream.buffer(chan);
         for (uint_fast32_t i = frames; i; --i, in += _channels)
@@ -145,8 +144,7 @@ template<> inline uint32_t ConvertToInterleaved
 {
     uint32_t proc_frames = 0;
 
-    while (proc_frames < frames)
-    {
+    while (proc_frames < frames) {
         source->process(in_stream, frames - proc_frames);
         assert(in_stream.channels() == 1);
         float_to_int16(in_stream.buffer(0), out_samples, in_stream.frames());
@@ -164,8 +162,7 @@ template<> inline uint32_t ConvertToInterleaved
 {
     uint32_t proc_frames = 0;
 
-    while (proc_frames < frames)
-    {
+    while (proc_frames < frames) {
         source->process(in_stream, frames - proc_frames);
         assert(in_stream.channels() == 1);
         memmove(out_samples, in_stream.buffer(0), in_stream.frames() * sizeof(float));
@@ -184,8 +181,7 @@ template<> inline uint32_t ConvertToInterleaved
     uint32_t proc_frames = 0;
     int16_t* out = out_samples;
 
-    while (proc_frames < frames)
-    {
+    while (proc_frames < frames) {
         source->process(in_stream, frames - proc_frames);
         assert(in_stream.channels() == 2);
         uint32_t const in_frames = in_stream.frames();
@@ -198,8 +194,7 @@ template<> inline uint32_t ConvertToInterleaved
         float_to_int16(in_stream.buffer(0), buff0, in_frames);
         float_to_int16(in_stream.buffer(1), buff1, in_frames);
 
-        for (uint_fast32_t i = in_frames; i; --i)
-        {
+        for (uint_fast32_t i = in_frames; i; --i) {
             *out++ = *buff0++;
             *out++ = *buff1++;
         }
@@ -218,8 +213,7 @@ template<> inline uint32_t ConvertToInterleaved
     uint32_t proc_frames = 0;
     float* out = out_samples;
 
-    while (proc_frames < frames)
-    {
+    while (proc_frames < frames) {
         source->process(in_stream, frames - proc_frames);
         assert(in_stream.channels() == 2);
         uint32_t const in_frames = in_stream.frames();
@@ -227,8 +221,7 @@ template<> inline uint32_t ConvertToInterleaved
         float * buff0 = in_stream.buffer(0);
         float * buff1 = in_stream.buffer(1);
 
-        for (uint_fast32_t i = in_frames; i; --i)
-        {
+        for (uint_fast32_t i = in_frames; i; --i) {
             *out++ = *buff0++;
             *out++ = *buff1++;
         }

@@ -20,8 +20,8 @@
 *   unsigned_min
 */
 
-#ifndef _AUDIO_STREAM_H_
-#define _AUDIO_STREAM_H_
+#ifndef AUDIO_STREAM_H
+#define AUDIO_STREAM_H
 
 #include <cassert>
 #include <string>
@@ -120,8 +120,7 @@ public:
 
     bool no_overrun() const
     {
-        if (!_buff)
-        {
+        if (!_buff) {
             return true;
         }
         return *reinterpret_cast<uint32_t*>(reinterpret_cast<char*>(_buff) + _size * sizeof(T)) == MAGIC_NUMBER;
@@ -159,14 +158,12 @@ public:
     void resize(uint32_t frames)
     {
         OVERRUN_ASSERT(no_overrun());
-        if (_max_frames == frames)
-        {
+        if (_max_frames == frames) {
             return;
         }
         _max_frames = frames;
         size_t buffer_size = sizeof(float) * (frames + 1);
-        for (uint32_t i = 0; i < _channels; ++i)
-        {
+        for (uint32_t i = 0; i < _channels; ++i) {
             void* buff = aligned_realloc(_buff[i], buffer_size);
             _buff[i] = reinterpret_cast<float*>(buff);
             _buff[i][_max_frames] = MAGIC_NUMBER;
@@ -203,8 +200,7 @@ public:
     void set_channels(uint32_t const channels)
     {
         assert(channels == 1 || channels == 2);
-        if (channels != _channels)
-        {
+        if (channels != _channels) {
             _channels = channels;
             resize(_max_frames);
         }
@@ -319,11 +315,7 @@ protected:
     MachinePtr source;
 
 private:
-    void set_source_machine(MachinePtr& machine)
-    {
-
-    }
-
+    void set_source_machine(MachinePtr& machine) {}
     bool is_enabled;
 };
 template<class T> inline void Machine::set_source(T& machine)
@@ -368,8 +360,7 @@ public:
 
     void process(AudioStream& stream, uint32_t frames)
     {
-        if (stream.max_frames() < frames)
-        {
+        if (stream.max_frames() < frames) {
             stream.resize(frames);
         }
         stream.zero(0, frames);
@@ -388,8 +379,7 @@ public:
 template<class FrameType, class SampleType, class ByteType, class ChannelType>
 inline FrameType bytes_in_frames(ByteType bytes, ChannelType channels)
 {
-    if (channels == 0)
-    {
+    if (channels == 0) {
         return 0;
     }
     return boost::numeric_cast<FrameType>(bytes / sizeof(SampleType) / channels);

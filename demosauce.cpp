@@ -45,7 +45,7 @@
 
 int main(int argc, char* argv[])
 {
-    std::cout << "demosauce 0.3.2.1 - less BASS, more SHOUT!\n";
+    std::cout << "demosauce 0.3.3 - less BASS, more SHOUT!\n";
     try {
         init_settings(argc, argv);
         log_set_console_level(setting::log_console_level);

@@ -8,8 +8,8 @@
 *   copyright MMXI by maep
 */
 
-#ifndef _AVSOURCE_H_
-#define _AVSOURCE_H_
+#ifndef AVSOURCE_H
+#define AVSOURCE_H
 
 #include <string>
 

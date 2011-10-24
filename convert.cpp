@@ -41,24 +41,19 @@ Resample::~Resample()
 
 void Resample::Pimpl::update_channels(uint32_t channels)
 {
-    if (states.size() == channels)
-    {
+    if (states.size() == channels) {
         return;
     }
 
     free();
 
-    for (size_t i = states.size(); i < channels; ++i)
-    {
+    for (size_t i = states.size(); i < channels; ++i) {
         LOG_DEBUG("[resample] new channel %1%"), i;
         int err = 0;
         SRC_STATE* state = src_new(SRC_SINC_FASTEST, 1, &err);
-        if (err)
-        {
+        if (err) {
             LOG_WARNING("[resample] src_new error: %1%"), src_strerror(err);
-        }
-        else
-        {
+        } else {
             states.push_back(state);
         }
     }
@@ -66,8 +61,7 @@ void Resample::Pimpl::update_channels(uint32_t channels)
 
 void Resample::process(AudioStream& stream, uint32_t const frames)
 {
-    if (pimpl->ratio == 1)
-    {
+    if (pimpl->ratio == 1) {
         return source->process(stream, frames);
     }
 
@@ -77,8 +71,7 @@ void Resample::process(AudioStream& stream, uint32_t const frames)
 
     pimpl->update_channels(in_stream.channels());
     stream.set_channels(in_stream.channels());
-    if (stream.max_frames() < frames)
-    {
+    if (stream.max_frames() < frames) {
         stream.resize(frames);
     }
 
@@ -88,13 +81,11 @@ void Resample::process(AudioStream& stream, uint32_t const frames)
     data.output_frames = frames;
     data.end_of_input = in_stream.end_of_stream ? 1 : 0;
 
-    for (size_t i = 0; i < pimpl->states.size(); i++)
-    {
+    for (size_t i = 0; i < pimpl->states.size(); i++) {
         data.data_in = in_stream.buffer(i);
         data.data_out = stream.buffer(i);
         int const err = src_process(pimpl->states[i], &data);
-        if (err)
-        {
+        if (err) {
             ERROR("[resample] src_process error: %1%"), src_strerror(err);
         }
     }
@@ -104,8 +95,7 @@ void Resample::process(AudioStream& stream, uint32_t const frames)
         && data.output_frames_gen != data.output_frames;
     stream.set_frames(data.output_frames_gen);
 
-    if(stream.end_of_stream)
-    {
+    if(stream.end_of_stream) {
         LOG_DEBUG("[resample] eos %1% frames left"), stream.frames();
     }
 }
@@ -118,8 +108,7 @@ void Resample::set_rates(uint32_t sourceRate, uint32_t outRate)
 
 void Resample::Pimpl::free()
 {
-    for (size_t i = 0; i < states.size(); ++i)
-    {
+    for (size_t i = 0; i < states.size(); ++i) {
         src_delete(states[i]);
     }
     states.clear();

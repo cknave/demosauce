@@ -22,8 +22,7 @@
 #include <boost/optional/optional.hpp>
 #include <boost/numeric/conversion/cast.hpp>
 #include <boost/utility/in_place_factory.hpp>
-// not official yet, maybe never will be. https://github.com/JeffFlinn/boost-process
-#include "boost/process/process.hpp"
+#include <boost/process.hpp> // not official yet, maybe never will be 
 
 #include <unicode/ucnv.h>
 #include <unicode/unistr.h>
@@ -221,6 +220,7 @@ void ShoutCastPimpl::writer()
     while (encoder_running) {
         // decode and read some
         if (decoder_ready) {
+            shout_sync(cast); // I did syncing in the reader but that ccaused problems
             uint32_t frames = converter.process(decode_buffer.get(), decode_frames, channels);
             remaining_frames += frames;
 
@@ -250,7 +250,7 @@ void ShoutCastPimpl::reader()
 
         // blocks if not enough data is available, dunno what happens when the process quits
         encoder_output->read(send_buffer.get(), send_buffer.size_bytes());
-        shout_sync(cast);
+        // shout_sync(cast); syncing moved to writer
         int err = shout_send(cast, send_buffer.get_uchar(), send_buffer.size_bytes());
         if (err != SHOUTERR_SUCCESS) {
             ERROR("icecast connection dropped, trying to recover(%1%)"), shout_get_error(cast);

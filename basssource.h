@@ -8,8 +8,8 @@
 *   copyright MMXI by maep
 */
 
-#ifndef _H_BASSSOURCE_
-#define _H_BASSSOURCE_
+#ifndef BASSSOURCE_H
+#define BASSSOURCE_H
 
 #include <string>
 

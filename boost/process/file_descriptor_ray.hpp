@@ -6,13 +6,14 @@
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt) 
 // 
 
-#ifndef BOOST_PROCESS_CHILD_HPP
-#define BOOST_PROCESS_CHILD_HPP
+#ifndef BOOST_PROCESS_FILE_DESCRIPTOR_RAY_HPP
+#define BOOST_PROCESS_FILE_DESCRIPTOR_RAY_HPP
 
 #include <boost/process/config.hpp>
 
-#include BOOST_PROCESS_PLATFORM_PROMOTE_PATH(child)
+#include BOOST_PROCESS_PLATFORM_PROMOTE_PATH(file_descriptor_ray)
 
-BOOST_PROCESS_PLATFORM_PROMOTE_NAMESPACE(child)
+BOOST_PROCESS_PLATFORM_PROMOTE_NAMESPACE(file_descriptor_ray)
 
-#endif // BOOST_PROCESS_CHILD_HPP
+
+#endif // 

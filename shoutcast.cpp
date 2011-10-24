@@ -68,7 +68,7 @@ namespace fs = ::boost::filesystem;
     -> MapChannels -> Gain -> (LADSPA 0,1,2) -> (LinearFade) -> ShoutCast
 */
 
-typedef int16_t sample_t; // sample type that is fed to encoder
+typedef int16_t sample_t; // sample type for encoder
 
 struct SongInfo
 {

@@ -22,9 +22,8 @@
 #include <boost/optional/optional.hpp>
 #include <boost/numeric/conversion/cast.hpp>
 #include <boost/utility/in_place_factory.hpp>
-
-// not official yet, maybe never will be
-#include "boost/process.hpp"
+// not official yet, maybe never will be. https://github.com/JeffFlinn/boost-process
+#include "boost/process/process.hpp"
 
 #include <unicode/ucnv.h>
 #include <unicode/unistr.h>
@@ -123,6 +122,7 @@ struct ShoutCastPimpl
     bool                        encoder_running;
     bool                        decoder_ready;
     bool                        connected;
+    bool                        reader_blocked;
     int64_t                     remaining_frames;
 };
 

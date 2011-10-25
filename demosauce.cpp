@@ -43,15 +43,17 @@
 #include "settings.h"
 #include "shoutcast.h"
 
+const char* demosauce_version = "demosauce 0.3.3 - less BASS more SHOUT";
+
 int main(int argc, char* argv[])
 {
-    std::cout << "demosauce 0.3.3 - less BASS, more SHOUT!\n";
     try {
         init_settings(argc, argv);
+        std::cout << demosauce_version << "\n";
         log_set_console_level(setting::log_console_level);
         log_set_file(setting::log_file, setting::log_file_level);
         ShoutCast cast;
-        std::cout << "The spice must flow!\n";
+        std::cout << "the spice must flow!\n";
         cast.Run();
     } catch (std::exception& e) {
         FATAL("%1%"), e.what();

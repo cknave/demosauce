@@ -23,15 +23,15 @@ using std::endl;
 using std::cout;
 using std::string;
 using std::ifstream;
-
 using boost::to_lower;
 
 namespace fs = ::boost::filesystem;
 namespace po = ::boost::program_options;
 namespace log = ::logror;
 
-namespace setting
-{
+namespace setting {
+    uint32_t    config_version      = 0;
+
     string      demovibes_host      = "localhost";
     uint32_t    demovibes_port      = 32167;
 
@@ -62,7 +62,6 @@ namespace setting
     log::Level  log_console_level   = log::warning;
 
     string      debug_song;
-
 #ifdef ENABLE_LADSPA
     string      ladspa_plugin0;
     string      ladspa_plugin1;
@@ -75,7 +74,6 @@ namespace setting
     string      ladspa_plugin8;
     string      ladspa_plugin9;
 #endif
-
 }
 
 using namespace setting;
@@ -88,6 +86,8 @@ string logConsoleLevel;
 void build_descriptions(po::options_description& settingsDesc, po::options_description& optionsDesc)
 {
     settingsDesc.add_options()
+    ("config_version", po::value<uint32_t>(&config_version))
+
     ("demovibes_host", po::value<string>(&demovibes_host))
     ("demovibes_port", po::value<uint32_t>(&demovibes_port))
 
@@ -132,10 +132,11 @@ void build_descriptions(po::options_description& settingsDesc, po::options_descr
     ;
 
     optionsDesc.add_options()
-    ("help", "what do you think this flag does? call the police, maybe?")
+    ("version,V", "print program version")
+    ("help", "halt! hammerzeit")
     ("config_file,c", po::value<string>(&configFileName), "use config file, default: demosauce.conf")
-    ("cast_password,p", po::value<string>(&castForcePassword), "password for cast server, overwrites setting from config file")
-    ("debug_song,d", po::value<string>(&debug_song), "force next song command, used for testing and debugging")
+    ("cast_password,p", po::value<string>(&castForcePassword), "password for cast server, outranks config file")
+    ("debug_song,d", po::value<string>(&debug_song), "force next song command for debugging")
     ;
 }
 
@@ -143,60 +144,58 @@ void check_sanity()
 {
     bool err = false;
 
-    if (demovibes_port < 1 || demovibes_port > 65535)
-    {
+    if (config_version != 33) {
+        err = true;
+        cout << "your config file is outdated, need config_version = 33\n";
+    }
+
+    if (demovibes_port < 1 || demovibes_port > 65535) {
         err = true;
         cout << "setting demovibes_port out of range (1-65535)\n";
     }
 
-    if (encoder_samplerate <  8000 || encoder_samplerate > 192000)
-    {
+    if (encoder_samplerate <  8000 || encoder_samplerate > 192000) {
         err = true;
         cout << "setting encoder_samplerate out of range (8000-192000)\n";
     }
 
-    if (encoder_command.empty())
-    {
+    if (encoder_command.empty()) {
         err = true;
         cout << "setting encoder_command is not specified\n";
     }
-
+     
     to_lower(encoder_type);
-    if (encoder_type != "mp3")
-    {
+    if (encoder_type != "mp3") {
         err = true;
         cout << "setting encoder_type must be 'mp3'\n";
     }
 
-    if (encoder_bitrate > 10000)
-    {
+    if (encoder_bitrate > 10000) {
         err = true;
         cout << "setting encoder_bitrate too high >10000\n";
     }
 
-    if (encoder_channels < 1 and encoder_channels > 2)
-    {
+    if (encoder_channels < 1 and encoder_channels > 2) {
         err = true;
         cout << "setting encoder_channels out of range (1-2)\n";
     }
 
-    if (cast_port < 1 || cast_port > 65535)
-    {
+    if (cast_port < 1 || cast_port > 65535) {
         err = true;
         cout << "setting cast_port out of range (1-65535)\n";
     }
 
-    if (decode_buffer_size < 1 || decode_buffer_size > 10000)
-    {
+    if (decode_buffer_size < 1 || decode_buffer_size > 10000) {
         err = true;
         cout << "setting decode_buffer_size out of range (1-10000)\n";
     }
 
-    if (err)
-    {
+    if (err) {
         exit(EXIT_FAILURE);
     }
 }
+
+extern const char* demosauce_version; // declared in demosauce.cpp
 
 void init_settings(int argc, char* argv[])
 {
@@ -205,24 +204,32 @@ void init_settings(int argc, char* argv[])
     build_descriptions(settingsDesc, optionsDesc);
 
     po::variables_map optionsMap;
-    po::store(po::parse_command_line(argc, argv, optionsDesc), optionsMap);
+    try {
+        po::store(po::parse_command_line(argc, argv, optionsDesc), optionsMap);
+    } catch (std::exception& e) {
+        cout << "unknown option\n";
+        exit(EXIT_FAILURE);
+    }
+
     po::notify(optionsMap);
 
-    if (optionsMap.count("help"))
-    {
+    if (optionsMap.count("version")) {
+        cout << demosauce_version << endl;
+        exit(EXIT_SUCCESS);
+    }
+
+    if (optionsMap.count("help")) {
         cout << optionsDesc;
         exit(EXIT_SUCCESS);
     }
 
-    if (!fs::exists(configFileName))
-    {
+    if (!fs::exists(configFileName)) {
         cout << "cannot find config file: " << configFileName << endl;
         exit(EXIT_FAILURE);
     }
 
     ifstream configFile(configFileName.c_str(), ifstream::in);
-    if (configFile.fail())
-    {
+    if (configFile.fail()) {
         cout << "failed to read config file: " << configFileName << endl;
         exit(EXIT_FAILURE);
     }
@@ -232,16 +239,13 @@ void init_settings(int argc, char* argv[])
     po::store(po::parse_config_file(configFile, settingsDesc), settingsMap);
     po::notify(settingsMap);
 
-    if (optionsMap.count("cast_password"))
-    {
+    if (optionsMap.count("cast_password")) {
         cast_password = castForcePassword;
     }
-    if (settingsMap.count("log_file_level") && !log_string_to_level(logFileLevel, log_file_level))
-    {
+    if (settingsMap.count("log_file_level") && !log_string_to_level(logFileLevel, log_file_level)) {
         cout << "setting log_file_level: unknown level\n";
     }
-    if (settingsMap.count("log_console_level") && !log_string_to_level(logConsoleLevel, log_console_level))
-    {
+    if (settingsMap.count("log_console_level") && !log_string_to_level(logConsoleLevel, log_console_level)) {
         cout << "setting log_console_level: unknown level\n";
     }
 

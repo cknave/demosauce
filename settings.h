@@ -19,8 +19,8 @@
 void init_settings(int argc, char* argv[]);
 
 // seddings, actual instances are in settings.cpp
-namespace setting
-{
+namespace setting {
+    
     extern std::string      demovibes_host;
     extern uint32_t         demovibes_port;
 
@@ -51,7 +51,6 @@ namespace setting
     extern logror::Level    log_console_level;
 
     extern std::string      debug_song;
-
 #ifdef ENABLE_LADSPA
     extern std::string      ladspa_plugin0;
     extern std::string      ladspa_plugin1;

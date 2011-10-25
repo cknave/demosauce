@@ -15,8 +15,8 @@
     the socket implementaion we might as well use that (should be more robust). ~meap
 */
 
-#ifndef _H_SOCKETS_
-#define _H_SOCKETS_
+#ifndef SOCKETS_H
+#define _SOCKETS_H
 
 #include <string>
 

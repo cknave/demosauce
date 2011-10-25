@@ -3,7 +3,7 @@ CXX=g++
 CFLAGS="-Wall -O2"
 #remove old ouput files
 rm -f config.h
-rm -f build2.sh
+rm -f makebelieve.sh
 
 check_header() {
     echo -n "checking for $1 ... "
@@ -40,7 +40,9 @@ run_script() {
     old_dir=`pwd`
     if test -n "$2"; then cd $2; fi     
     ./$1
+    result=$?
     cd $old_dir
+    return $result
 }
 
 build() {
@@ -48,9 +50,9 @@ build() {
 }
 
 # requirements
-if ! check_header "<shout/shout.h>"; then exit 1; fi
-if ! check_header "<unicode/ucnv.h>"; then exit 1; fi
-if ! check_header "<boost/version.hpp>"; then exit 1; fi
+if ! check_header "<shout/shout.h>"; then echo 'libshout missing'; exit 1; fi
+if ! check_header "<unicode/ucnv.h>"; then echo 'libicu missing'; exit 1; fi
+if ! check_header "<boost/version.hpp>"; then echo 'libboost missing'; exit 1; fi
 
 build '-c logror.cpp'
 
@@ -66,7 +68,7 @@ fi
 # bass
 check_bass() {
     if check_header '"bass/bass.h"' && check_file "bass/libbass.so"; then
-        if ! check_header "<id3tag.h>"; then exit 1; fi
+        if ! check_header "<id3tag.h>"; then echo 'libid3tag missing'; exit 1; fi
         CFLAGS="$CFLAGS -DENABLE_BASS"
         BASSO="basssource.o"
         BASSL="-Lbass -Wl,-rpath=bass -lbass -lid3tag -lz"
@@ -81,6 +83,21 @@ if ! check_bass; then
         run_script getbass.sh bass
         if ! check_bass; then exit 1; fi
     fi 
+fi
+
+echo "due to problems with libavcodec on some distros you can build a custom"
+echo "version. in general, the distro's libavcodec should be preferable, but"
+echo -n "might be incompatible with demosauce. "
+if ask "use custom libavcodec?"; then
+    run_script build.sh ffmpeg
+    if test $? -ne 0; then echo 'error while building libavcodec'; exit 1; fi
+    AVCODECL="-Lffmpeg -Wl,-rpath=ffmpeg -lavcodec -lavformat"
+    build '-Iffmpeg -c avsource.cpp'
+else
+    if ! check_header '<libavcodec/avcodec.h>'; then echo 'libavcodec missing'; exit 1; fi
+    if ! check_header '<libavformat/avformat.h>'; then echo 'libaformat missing'; exit 1; fi
+    AVCODECL="-lavcodec -lavformat"
+    build '-c avsource.cpp'
 fi
 
 # other build steps
@@ -101,9 +118,9 @@ LIBS="-lshout -lsamplerate -lboost_system-mt -lboost_thread-mt -lboost_filesyste
 build "compile -o demosauce $INPUT $LIBS $BASS $AVCODECL $LDL `icu-config --ldflags`"
 
 # generate build script
-echo -e "#!/bin/sh\n#generated build script\nCFLAGS='$CFLAGS'" >> build2.sh
-echo -e "compile(){\n\techo $CXX \$@\n\tif ! $CXX \$@; then exit 1; fi\n}" >> build2.sh
-echo -e "$BUILD\nrm -f *.o" >> build2.sh
-chmod a+x build2.sh
+echo -e "#!/bin/sh\n#generated build script\nCFLAGS='$CFLAGS'" >> makebelieve.sh
+echo -e "compile(){\n\techo $CXX \$@\n\tif ! $CXX \$@; then exit 1; fi\n}" >> makebelieve.sh
+echo -e "$BUILD\nrm -f *.o" >> makebelieve.sh
+chmod a+x makebelieve.sh
 
 echo "run ./makebelieve to build demosauce"

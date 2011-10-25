@@ -73,7 +73,7 @@ bool Sockets::Pimpl::send_command(string command, string& result)
         LOG_DEBUG("[sockets] command=%1% result=%2%"), command, result;
     }
     catch (std::exception & e) {
-        LOG_WARNING("%1%"), e.what();
+        LOG_WARNING("[sockets] send_command: %1%"), e.what();
         return false;
     }
     return true;
@@ -106,7 +106,7 @@ bool resolve_ip(string host, string& ipAddress)
         ipAddress = ep.address().to_string();
     }
     catch (std::exception& e) {
-        ERROR("%1%"), e.what();
+        ERROR("[resolve_ip] %1%"), e.what();
         return false;
     }
     return true;

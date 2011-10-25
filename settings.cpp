@@ -132,11 +132,11 @@ void build_descriptions(po::options_description& settingsDesc, po::options_descr
     ;
 
     optionsDesc.add_options()
-    ("version,V", "print program version")
     ("help", "halt! hammerzeit")
     ("config_file,c", po::value<string>(&configFileName), "use config file, default: demosauce.conf")
     ("cast_password,p", po::value<string>(&castForcePassword), "password for cast server, outranks config file")
     ("debug_song,d", po::value<string>(&debug_song), "force next song command for debugging")
+    ("version,V", "print program version")
     ;
 }
 

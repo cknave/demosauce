@@ -49,7 +49,6 @@ int main(int argc, char* argv[])
 {
     try {
         init_settings(argc, argv);
-        std::cout << demosauce_version << "\n";
         log_set_console_level(setting::log_console_level);
         log_set_file(setting::log_file, setting::log_file_level);
         ShoutCast cast;

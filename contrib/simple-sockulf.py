@@ -10,7 +10,7 @@ class djDerp(object):
     def __init__(self, root):
         self.pos = 0
         print 'generating playlist ... ',
-        self.playlist = self.crawlldir(root)
+        self.playlist = self.crawldir(root)
         random.shuffle(self.playlist)
         print len(self.playlist), 'files'
         if len(self.playlist) == 0:
@@ -22,7 +22,7 @@ class djDerp(object):
         for dir, dirs, files in os.walk(root):
             for file in files:
                 if file.lower().endswith(".mp3"):
-                    list.append(os.path.join(dir, file)
+                    list.append(os.path.join(dir, file))
         return list
 
     # returns filename, title, artist, gain
@@ -31,7 +31,7 @@ class djDerp(object):
         if self.pos >= len(self.playlist):
             randon.suffle(self.playlist)
             self.pos = 0
-        file = self.palylist[self.pos]
+        file = self.playlist[self.pos]
         return file, os.path.basename(file), '', 0.0
 
 # handles communication with demosauce
@@ -43,15 +43,14 @@ class pyWhisperer(object):
         self.dj = dj
         self.host = host
         self.port = port
-        self.encode = self.encode_newline
-        self.running = True
         self.timeout = timeout
         self.listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.listener.bind((self.host, self.port))
         self.listener.settimeout(timeout)
 
     def listen(self):
-        while self.running:
+        print "listening on %s:%s" % (self.host, self.port)
+        while True:
             self.listener.listen(1)
             self.conn, self.addr = self.listener.accept()
             data = self.conn.recv(1024)
@@ -66,13 +65,14 @@ class pyWhisperer(object):
         self.listener.close()
 
     def command_nextsong(self):
-        path, artist, title, gain = self.dj.nextsong()
+        (path, artist, title, gain) = self.dj.nextsong()
         data = {
-            'path': path
-            'artist': artist
-            'title': title
-            'gain': gain
+            'path': path,
+            'artist': artist,
+            'title': title,
+            'gain': gain,
         }
+        print 'next song:', path
         return self.encode(data)
 
     def encode(self, data):
@@ -83,7 +83,7 @@ class pyWhisperer(object):
 
 if __name__ == '__main__':
     from optparse import OptionParser
-    usage = "usageL %prog [options] path"
+    usage = "usage %prog [options] path"
     parser = OptionParser(usage)
     parser.add_option("-p", "--port", dest="port", default="32167", help = "Which port to listen to")
     parser.add_option("-i", "--ip", dest="ip", default="127.0.0.1", help="What IP address to bind to")
@@ -92,7 +92,6 @@ if __name__ == '__main__':
     if len(args) != 1:
         parser.error("you must specify a path")
 
-    PATH = options.path
     HOST = options.ip
     PORT = int(options.port)
     TIMEOUT = None

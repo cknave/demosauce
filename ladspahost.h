@@ -8,8 +8,8 @@
 *   copyright MMXI by maep
 */
 
-#ifndef _LADSPAHOST_H_
-#define _LADSPAHOST_H_
+#ifndef LADSPAHOST_H
+#define LADSPAHOST_H
 
 #include <string>
 #include <vector>

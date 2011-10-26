@@ -16,7 +16,7 @@
 */
 
 #ifndef SOCKETS_H
-#define _SOCKETS_H
+#define SOCKETS_H
 
 #include <string>
 
@@ -29,13 +29,7 @@ class Sockets : boost::noncopyable
     public:
         Sockets(std::string host, uint32_t port);
         virtual ~Sockets();
-
-        /** Tries to obtain the information from the demovibes host.
-        *   Guarantees to return or fail with style.
-        *   @return string that will contain a list of key/values.
-        */
         std::string get_next_song();
-
     private:
         struct Pimpl;
         boost::scoped_ptr<Pimpl> pimpl;

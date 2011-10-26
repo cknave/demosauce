@@ -75,8 +75,7 @@ template<> inline void ConvertFromInterleaved<int16_t>
     stream.set_frames(frames);
 
     static float const range = 1.0 / -std::numeric_limits<int16_t>::min(); //2's complement
-    for (uint_fast32_t chan = 0; chan < _channels; ++chan)
-    {
+    for (uint_fast32_t chan = 0; chan < _channels; ++chan) {
         int16_t const* in = buff.get() + chan;
         float* out = stream.buffer(chan);
         for (uint_fast32_t i = frames; i; --i, in += _channels)

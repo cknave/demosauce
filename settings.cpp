@@ -219,7 +219,8 @@ void init_settings(int argc, char* argv[])
     }
 
     if (optionsMap.count("help")) {
-        cout << optionsDesc;
+        cout << demosauce_version << endl;
+        cout << optionsDesc << endl;
         exit(EXIT_SUCCESS);
     }
 

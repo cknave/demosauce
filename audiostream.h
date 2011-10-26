@@ -321,8 +321,7 @@ private:
 template<class T> inline void Machine::set_source(T& machine)
 {
     MachinePtr base_machine = boost::static_pointer_cast<Machine>(machine);
-    if (base_machine.get() != this)
-    {
+    if (base_machine.get() != this) {
         source = machine;
     }
 }

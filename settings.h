@@ -8,8 +8,8 @@
 *   copyright MMXI by maep
 */
 
-#ifndef _H_SETTINGS_
-#define _H_SETTINGS_
+#ifndef SETTINGS_H
+#define SETTINGS_H
 
 #include <string>
 #include <boost/cstdint.hpp>

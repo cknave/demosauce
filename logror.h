@@ -37,8 +37,8 @@
     bool log_string_to_level(string level_string, Level& level);
 */
 
-#ifndef _H_LOGROR_
-#define _H_LOGROR_
+#ifndef H_LOGROR
+#define H_LOGROR
 
 #include <string>
 

@@ -8,8 +8,8 @@
 *   copyright MMXI by maep
 */
 
-#ifndef _H_SHOUTCAST_
-#define _H_SHOuTCAST_
+#ifndef SHOUTCAST_H
+#define SHOuTCAST_H
 
 #include <boost/utility.hpp>
 #include <boost/scoped_ptr.hpp>

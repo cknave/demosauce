@@ -39,11 +39,9 @@ using boost::static_pointer_cast;
 void fill_buffer(shared_ptr<Machine>& machine, AudioStream& stream, uint32_t frames)
 {
     machine->process(stream, frames);
-    if (stream.frames() < frames && !stream.end_of_stream)
-    {
+    if (stream.frames() < frames && !stream.end_of_stream) {
         AudioStream helper;
-        while (stream.frames() < frames && !stream.end_of_stream)
-        {
+        while (stream.frames() < frames && !stream.end_of_stream) {
             machine->process(helper, frames - stream.frames());
             stream.append(helper);
         }
@@ -71,35 +69,30 @@ string scan_song(string file_name, bool do_scan)
     decoder = static_pointer_cast<Decoder>(bass_decoder);
 #endif
 
-    if (!bass_loaded)
-    {
+    if (!bass_loaded) {
         shared_ptr<AvSource> av_decoder = make_shared<AvSource>();
         av_loaded = av_decoder->load(file_name);
         bitrate = av_decoder->bitrate();
         decoder = static_pointer_cast<Decoder>(av_decoder);
     }
 
-    if (!av_loaded && !bass_loaded)
-    {
+    if (!av_loaded && !bass_loaded) {
         exit_error("unknown format");
     }
 
     uint32_t chan = decoder->channels();
     uint32_t srate = decoder->samplerate();
 
-    if (srate == 0)
-    {
+    if (srate == 0) {
         exit_error("samplerate is zero");
     }
 
-    if (chan < 1 || chan > 2)
-    {
+    if (chan < 1 || chan > 2) {
         exit_error("unsupported number of channels");
     }
 
     shared_ptr<Machine> source = static_pointer_cast<Machine>(decoder);
-    if (srate != SAMPLERATE)
-    {
+    if (srate != SAMPLERATE) {
         shared_ptr<Resample> resample = make_shared<Resample>();
         resample->set_rates(srate, SAMPLERATE);
         resample->set_source(decoder);
@@ -111,23 +104,19 @@ string scan_song(string file_name, bool do_scan)
     RG_SampleFormat format = {SAMPLERATE, RG_FLOAT_32_BIT, chan, FALSE};
     RG_Context* context = RG_NewContext(&format);
 
-    if (do_scan || av_loaded)
-    {
-        while (!stream.end_of_stream)
-        {
+    if (do_scan || av_loaded) {
+        while (!stream.end_of_stream) {
             fill_buffer(source, stream, 48000);
             float* buffers[2] = {stream.buffer(0), chan == 2 ? stream.buffer(1) : 0};
             // there is a strange bug in the replaygain code that can cause it to report the wrong
             // value if the input buffer has an odd lengh, until the root of the cause is found,
             // this will have to do :(
             uint32_t analyze_frames = stream.frames() - stream.frames() % 2;
-            if (do_scan)
-            {
+            if (do_scan) {
                 RG_Analyze(context, buffers, analyze_frames);
             }
             frames += stream.frames();
-            if (frames > MAX_LENGTH * SAMPLERATE)
-            {
+            if (frames > MAX_LENGTH * SAMPLERATE) {
                 exit_error("too long");
             }
         }
@@ -136,14 +125,12 @@ string scan_song(string file_name, bool do_scan)
     stringstream msg;
 
     string artist = decoder->metadata("artist");
-    if (!artist.empty())
-    {
+    if (!artist.empty()) {
         msg << "artist:" << artist << endl;
     }
 
     string title = decoder->metadata("title");
-    if (!artist.empty())
-    {
+    if (!artist.empty()) {
         msg << "title:" << title << endl;
     }
 
@@ -154,18 +141,15 @@ string scan_song(string file_name, bool do_scan)
         static_cast<double>(decoder->length()) / srate;
     msg << "length:" << duration << endl;
 
-    if (do_scan)
-    {
+    if (do_scan) {
         msg << "replaygain:" << RG_GetTitleGain(context) << endl;
     }
     RG_FreeContext(context);
 
 #ifdef ENABLE_BASS
-    if (bass_decoder->is_module())
-    {
+    if (bass_decoder->is_module()) {
         msg << "loopiness:" << bass_decoder->loopiness() << endl;
-    }
-    else
+    } else
 #endif
     {
         msg << "bitrate:" << bitrate  << endl;
@@ -177,8 +161,7 @@ string scan_song(string file_name, bool do_scan)
 
 int main(int argc, char* argv[])
 {
-    if (argc < 2 || (*argv[1] == '-' && argc < 3))
-    {
+    if (argc < 2 || (*argv[1] == '-' && argc < 3)) {
         cout << "demosauce scan tool 0.3.2\nsyntax: scan [--no-replaygain] file" << endl;
         return EXIT_FAILURE;
     }

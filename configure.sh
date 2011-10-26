@@ -94,8 +94,8 @@ if ask "use custom libavcodec?"; then
     AVCODECL="-Lffmpeg -Wl,-rpath=ffmpeg -lavcodec -lavformat"
     build '-Iffmpeg -c avsource.cpp'
 else
-    if ! check_header '<avcodec.h>'; then echo 'libavcodec missing'; exit 1; fi
-    if ! check_header '<avformat.h>'; then echo 'libaformat missing'; exit 1; fi
+    if ! check_header '<libavcodec/avcodec.h>'; then echo 'libavcodec missing'; exit 1; fi
+    if ! check_header '<libavformat/avformat.h>'; then echo 'libaformat missing'; exit 1; fi
     AVCODECL="-lavcodec -lavformat"
     build "-c avsource.cpp"
 fi

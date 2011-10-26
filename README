@@ -23,7 +23,7 @@ first run configure.sh. it will ask a few questions and generate a simple build 
 
 Linux
 ------------------
-we provide a script to install the required libraries calld installDependencies.sh which you will need to run as root.
+we provide a script (contrib/installDependencies.sh) to install the required libraries which you will need to run as root.
 
 OSX
 ------------------
@@ -39,7 +39,7 @@ you're on your own for now. if you manage to build it, maybe you can share your 
 
 SETUP
 ==================
-copy or rename demosauce.conf.example to demosauce.conf. then edit it. the comments should help you with that.
+copy contrib/demosauce.conf.example to demosauce.conf. then edit it. the comments should help you with that.
 
 LICENSE
 ==================

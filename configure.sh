@@ -123,9 +123,9 @@ LIBS="-lshout -lsamplerate -lboost_system-mt -lboost_thread-mt -lboost_filesyste
 build "-o demosauce $INPUT $LIBS $BASSL $AVCODECL $LDL `icu-config --ldflags`"
 
 # generate build script
-echo -e "#!/bin/sh\n#generated build script\nCFLAGS='$CFLAGS'" >> makebelieve.sh
-echo -e "compile(){\n\techo $CXX \$@\n\tif ! $CXX \$@; then exit 1; fi\n}" >> makebelieve.sh
-echo -e "$BUILD\nrm -f *.o" >> makebelieve.sh
+printf "#!/bin/sh\n#generated build script\nCFLAGS='$CFLAGS'\n" >> makebelieve.sh
+printf "compile(){\n\techo $CXX \$@\n\tif ! $CXX \$@; then exit 1; fi\n}\n" >> makebelieve.sh
+printf "$BUILD\nrm -f *.o" >> makebelieve.sh
 chmod a+x makebelieve.sh
 
 echo "run ./makebelieve to build demosauce"

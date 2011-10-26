@@ -94,10 +94,15 @@ if ask "use custom libavcodec?"; then
     AVCODECL="-Lffmpeg -Wl,-rpath=ffmpeg -lavcodec -lavformat"
     build '-Iffmpeg -c avsource.cpp'
 else
-    if ! check_header '<libavcodec/avcodec.h>'; then echo 'libavcodec missing'; exit 1; fi
-    if ! check_header '<libavformat/avformat.h>'; then echo 'libaformat missing'; exit 1; fi
+    if ! check_header '<avcodec.h>'; then echo 'libavcodec missing'; exit 1; fi
+    if ! check_header '<avformat.h>'; then echo 'libaformat missing'; exit 1; fi
     AVCODECL="-lavcodec -lavformat"
-    build '-c avsource.cpp'
+    build "-c avsource.cpp"
+fi
+
+# replaygain
+if ! check_file 'libreplaygain/libreplaygain.a'; then
+    run_script build.sh libreplaygain
 fi
 
 # other build steps
@@ -111,11 +116,11 @@ build '-c sockets.cpp'
 
 INPUT="scan.o avsource.o effects.o logror.o convert.o $BASSO libreplaygain/libreplaygain.a"
 LIBS="-lsamplerate -lboost_system-mt -lboost_date_time-mt"
-build "-o scan $INPUT $LIBS $AVL $BASSL $AVCODECL"
+build "-o scan $INPUT $LIBS $BASSL $AVCODECL"
 
 INPUT="settings.o demosauce.o avsource.o convert.o effects.o logror.o sockets.o shoutcast.o $BASSO $LADSPAO"
 LIBS="-lshout -lsamplerate -lboost_system-mt -lboost_thread-mt -lboost_filesystem-mt -lboost_program_options-mt -lboost_date_time-mt"
-build "compile -o demosauce $INPUT $LIBS $BASS $AVCODECL $LDL `icu-config --ldflags`"
+build "-o demosauce $INPUT $LIBS $BASSL $AVCODECL $LDL `icu-config --ldflags`"
 
 # generate build script
 echo -e "#!/bin/sh\n#generated build script\nCFLAGS='$CFLAGS'" >> makebelieve.sh

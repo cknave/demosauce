@@ -41,7 +41,6 @@
 #define LOGROR_H
 
 #include <string>
-
 #include <boost/format.hpp>
 
 namespace logror
@@ -49,12 +48,12 @@ namespace logror
 
 enum Level
 {
-    debug,
+    debug = 0,
     info,
-    warning,
+    warn,
     error,
     fatal,
-    nothing = 0
+    nothing
 };
 
 class LogBlob
@@ -88,7 +87,7 @@ LogBlob log_action(Level level, bool take_action, std::string message);
 #endif
 
 #define LOG_INFO(message) logror::log_action(logror::info, false, message)
-#define LOG_WARNING(message) logror::log_action(logror::warning, false, message)
+#define LOG_WARN(message) logror::log_action(logror::warning, false, message)
 #define LOG_ERROR(message) logror::log_action(logror::error, false, message)
 #define LOG_FATAL(message) logror::log_action(logror::fatal, false, message)
 #define ERROR(message) logror::log_action(logror::error, true, message)

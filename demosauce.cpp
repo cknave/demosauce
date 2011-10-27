@@ -55,7 +55,7 @@ int main(int argc, char* argv[])
         std::cout << "the spice must flow!\n";
         cast.Run();
     } catch (std::exception& e) {
-        FATAL("%1%"), e.what();
+        FATAL(e.what());
     }
     return EXIT_SUCCESS;
 }

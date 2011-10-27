@@ -12,7 +12,7 @@
     logging and "error handling" stuff
     to log, use
     LOG_DEBUG, LOG_INFO, LOG_WARNING, LOG_ERROR, LOG_FATAL
-    LOG_DEBUG will only be compiled with DEBUG macro
+    LOG_DEBUG will only be compiled without NDEBUG macro
 
     example:
     LOG_INFO("something unimportant happend");
@@ -37,8 +37,8 @@
     bool log_string_to_level(string level_string, Level& level);
 */
 
-#ifndef H_LOGROR
-#define H_LOGROR
+#ifndef LOGROR_H
+#define LOGROR_H
 
 #include <string>
 
@@ -54,7 +54,7 @@ enum Level
     warning,
     error,
     fatal,
-    nothing
+    nothing = 0
 };
 
 class LogBlob
@@ -81,12 +81,10 @@ LogBlob log_action(Level level, bool take_action, std::string message);
 
 }
 
-#ifdef DEBUG
+#ifndef NDEBUG
     #define LOG_DEBUG(message) logror::log_action(logror::debug, false, message)
 #else
-    // got this idea from http://www.ddj.com/developement-tools/184401612
-    // optimizing compiler should remove dead code
-    #define LOG_DEBUG(message) if(false) logror::log_action(logror::nothing, false, "")
+    #define LOG_DEBUG(message) if(0) logror::log_action(logror::nothing, false, "") 
 #endif
 
 #define LOG_INFO(message) logror::log_action(logror::info, false, message)

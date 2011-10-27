@@ -199,57 +199,52 @@ extern const char* demosauce_version; // declared in demosauce.cpp
 
 void init_settings(int argc, char* argv[])
 {
-    po::options_description settingsDesc("settings");
-    po::options_description optionsDesc("allowed options");
-    build_descriptions(settingsDesc, optionsDesc);
-
-    po::variables_map optionsMap;
     try {
+        po::options_description settingsDesc("settings");
+        po::options_description optionsDesc("allowed options");
+        build_descriptions(settingsDesc, optionsDesc);
+        po::variables_map optionsMap;
         po::store(po::parse_command_line(argc, argv, optionsDesc), optionsMap);
+        po::notify(optionsMap);
+
+        if (optionsMap.count("version")) {
+            cout << demosauce_version << endl;
+            exit(EXIT_SUCCESS);
+        }
+        if (optionsMap.count("help")) {
+            cout << demosauce_version << endl;
+            cout << optionsDesc << endl;
+            exit(EXIT_SUCCESS);
+        }
+        if (!fs::exists(configFileName)) {
+            cout << "cannot find config file: " << configFileName << endl;
+            exit(EXIT_FAILURE);
+        }
+        ifstream configFile(configFileName.c_str(), ifstream::in);
+        if (configFile.fail()) {
+            cout << "failed to read config file: " << configFileName << endl;
+            exit(EXIT_FAILURE);
+        }
+        
+        cout << "reading config file\n";
+        po::variables_map settingsMap;
+        po::store(po::parse_config_file(configFile, settingsDesc), settingsMap);
+        po::notify(settingsMap);
+
+        if (optionsMap.count("cast_password")) {
+            cast_password = castForcePassword;
+        }
+        if (settingsMap.count("log_file_level") && !log_string_to_level(logFileLevel, log_file_level)) {
+            cout << "setting log_file_level: unknown level\n";
+        }
+        if (settingsMap.count("log_console_level") && !log_string_to_level(logConsoleLevel, log_console_level)) {
+            cout << "setting log_console_level: unknown level\n";
+        }
+        check_sanity();
+
     } catch (std::exception& e) {
-        cout << "unknown option\n";
+        cout << e.what() << endl;
         exit(EXIT_FAILURE);
     }
-
-    po::notify(optionsMap);
-
-    if (optionsMap.count("version")) {
-        cout << demosauce_version << endl;
-        exit(EXIT_SUCCESS);
-    }
-
-    if (optionsMap.count("help")) {
-        cout << demosauce_version << endl;
-        cout << optionsDesc << endl;
-        exit(EXIT_SUCCESS);
-    }
-
-    if (!fs::exists(configFileName)) {
-        cout << "cannot find config file: " << configFileName << endl;
-        exit(EXIT_FAILURE);
-    }
-
-    ifstream configFile(configFileName.c_str(), ifstream::in);
-    if (configFile.fail()) {
-        cout << "failed to read config file: " << configFileName << endl;
-        exit(EXIT_FAILURE);
-    }
-
-    cout << "reading config file\n";
-    po::variables_map settingsMap;
-    po::store(po::parse_config_file(configFile, settingsDesc), settingsMap);
-    po::notify(settingsMap);
-
-    if (optionsMap.count("cast_password")) {
-        cast_password = castForcePassword;
-    }
-    if (settingsMap.count("log_file_level") && !log_string_to_level(logFileLevel, log_file_level)) {
-        cout << "setting log_file_level: unknown level\n";
-    }
-    if (settingsMap.count("log_console_level") && !log_string_to_level(logConsoleLevel, log_console_level)) {
-        cout << "setting log_console_level: unknown level\n";
-    }
-
-    check_sanity();
 }
 

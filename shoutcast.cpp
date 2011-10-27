@@ -121,7 +121,6 @@ struct ShoutCastPimpl
     bool                        encoder_running;
     bool                        decoder_ready;
     bool                        connected;
-    bool                        reader_blocked;
     int64_t                     remaining_frames;
 };
 
@@ -228,6 +227,7 @@ void ShoutCastPimpl::writer()
                 LOG_DEBUG("end of stream");
                 decode_buffer.zero_end((decode_frames - frames) * channels);
                 // load next song in separate thread
+                decoder_ready = false;
                 boost::thread thread(bind(&ShoutCastPimpl::load_next, this));
             }
         } else {
@@ -262,7 +262,6 @@ void ShoutCastPimpl::reader()
 // this is called whenever the song is changed
 void ShoutCastPimpl::load_next()
 {
-    decoder_ready = false;
     SongInfo song = {"", "", setting::encoder_samplerate, 0, 0, false};
 
     int loadTries = 0;
@@ -335,8 +334,7 @@ void ShoutCastPimpl::get_next_song(SongInfo& song)
             if (fs::is_regular_file(setting::error_tune)) {
                 LOG_WARNING("file name is empty, using error_tune");
                 song.file = setting::error_tune;
-            }
-            else if (fs::is_directory(setting::error_fallback_dir)) {
+            } else if (fs::is_directory(setting::error_fallback_dir)) {
                 LOG_WARNING("file name is empty, using error_fallback_dir");
                 song.file = get_random_file(setting::error_fallback_dir);
             } else {

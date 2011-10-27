@@ -219,7 +219,6 @@ void ShoutCastPimpl::writer()
     while (encoder_running) {
         // decode and read some
         if (decoder_ready) {
-            shout_sync(cast); // I did syncing in the reader but that ccaused problems
             uint32_t frames = converter.process(decode_buffer.get(), decode_frames, channels);
             remaining_frames += frames;
 
@@ -233,7 +232,7 @@ void ShoutCastPimpl::writer()
         } else {
             decode_buffer.zero();
         }
-        // this should block once internal buffers are full
+        shout_sync(cast); // I did syncing in the reader but that ccaused problems
         encoder_input->write(decode_buffer.get_char(), decode_buffer.size_bytes());
     }
 }

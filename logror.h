@@ -49,12 +49,12 @@ namespace logror
 
 enum Level
 {
-    debug,
+    debug = 0,
     info,
     warning,
     error,
     fatal,
-    nothing = 0
+    nothing
 };
 
 class LogBlob

@@ -54,7 +54,7 @@ enum Level
     warning,
     error,
     fatal,
-    nothing = 0
+    nothing
 };
 
 class LogBlob

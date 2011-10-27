@@ -44,7 +44,7 @@ inline std::string get_value(std::string data, std::string key, std::string fall
     if (!get_value_impl(data, key, value)) {
         return fallback_value;
     }
-    LOG_DEBUG("[get_value] (\"%1%\", \"%2%\"): \"%3%\"", key, fallback_value, value);
+    LOG_DEBUG("[get_value] (\"%1%\", \"%2%\"): \"%3%\""), key, fallback_value, value;
     return value;
 }
 
@@ -63,7 +63,7 @@ template <typename T> T get_value(std::string data, std::string key, T fallback_
     try {
         value = boost::lexical_cast<T>(value_str);
     } catch (boost::bad_lexical_cast&) {}
-    LOG_DEBUG("[get_value] (\"%1%\", \"%2%\"): \"%3%\"", key, fallback_value, value);
+    LOG_DEBUG("[get_value] (\"%1%\", \"%2%\"): \"%3%\""), key, fallback_value, value;
     return value;
 }
 

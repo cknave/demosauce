@@ -1,5 +1,7 @@
 *.o
+*.log
 scan
+ladspainfo
 demosauce
 demosauce.conf
 makebelieve.sh

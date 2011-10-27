@@ -41,6 +41,7 @@
 #define LOGROR_H
 
 #include <string>
+
 #include <boost/format.hpp>
 
 namespace logror
@@ -50,29 +51,28 @@ enum Level
 {
     debug,
     info,
-    warn,
+    warning,
     error,
     fatal,
-    off = 0
+    nothing = 0
 };
 
 class LogBlob
 {
 public:
-    LogBlob(Level level, bool takeAction, std::string message);
-    void flush();
-    template <typename T> LogBlob& operator, (T& right);
+    LogBlob (Level level, bool takeAction, std::string message);
+    virtual ~LogBlob();
+    template<typename T> LogBlob & operator , (T right);
 private:
     Level const level;
     bool take_action;
     boost::format formater;
 };
 
-LogBlob& endlog(LogBlob& lb) { lb.flush(); return lb; }
-
-template <typename T> LogBlob& LogBlob::operator, (T& right)
+template <typename T>
+LogBlob& LogBlob::operator , (T right)
 {
-    if (level != off && right != endlog)
+    if (level != nothing)
         formater % right;
     return *this;
 }
@@ -81,20 +81,18 @@ LogBlob log_action(Level level, bool take_action, std::string message);
 
 }
 
-#define LOG_ACTION(lvl, act, msg, ...) logror::log_action(lvl, act, msg), __VA_ARGS__, logror::endlog
-
 #ifndef NDEBUG
-    #define LOG_DEBUG(...) LOG_ACTION(logror::debug, false, __VA_ARGS__)
+    #define LOG_DEBUG(message) logror::log_action(logror::debug, false, message)
 #else
-    #define LOG_DEBUG(...)
+    #define LOG_DEBUG(message) if(0) logror::log_action(logror::nothing, false, "") 
 #endif
 
-#define LOG_INFO(...)   LOG_ACTION(logror::info, false, __VA_ARGS__)
-#define LOG_WARN(...)   LOG_ACTION(logror::warn, false, __VA_ARGS__)
-#define LOG_ERROR(...)  LOG_ACTION(logror::error, false, __VA_ARGS__)
-#define LOG_FATAL(...)  LOG_ACTION(logror::fatal, false, __VA_ARGS__)
-#define ERROR(...)      LOG_ACTION(logror::error, true, __VA_ARGS__)
-#define FATAL(...)      LOG_ACTION(logror::fatal, true, __VA_ARGS__)
+#define LOG_INFO(message) logror::log_action(logror::info, false, message)
+#define LOG_WARNING(message) logror::log_action(logror::warning, false, message)
+#define LOG_ERROR(message) logror::log_action(logror::error, false, message)
+#define LOG_FATAL(message) logror::log_action(logror::fatal, false, message)
+#define ERROR(message) logror::log_action(logror::error, true, message)
+#define FATAL(message) logror::log_action(logror::fatal, true, message)
 
 void log_set_console_level(logror::Level level);
 void log_set_file_level(logror::Level level);

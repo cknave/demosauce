@@ -21,8 +21,8 @@
 using std::string;
 using namespace boost::posix_time;
 
-logror::Level console_level = logror::off;
-logror::Level file_level = logror::off;
+logror::Level console_level = logror::nothing;
+logror::Level file_level = logror::nothing;
 std::ofstream log_stream;
 std::queue<ptime> error_times;
 
@@ -42,7 +42,8 @@ void log_set_file(string file_name, logror::Level level)
 {
     // don't throw exception if something fails
     log_stream.exceptions(std::ifstream::goodbit);
-    if (level == logror::off) {
+
+    if (level == logror::nothing) {
         return;
     }
 
@@ -66,15 +67,15 @@ namespace logror {
 
 LogBlob log_action(Level level, bool take_action, string message)
 {
-    if (level != off && (level >= file_level || level >= console_level)) {
+    if (level != nothing && (level >= file_level || level >= console_level)) {
         string msg;
         msg.reserve(160); // should be enough for most
         switch (level) {
-            case debug: msg.append("DEBUG\t"); break;
-            case info:  msg.append("INFO \t"); break;
-            case warn:  msg.append("WARN \t"); break;
-            case error: msg.append("ERROR\t"); break;
-            case fatal: msg.append("DOOM \t"); break;
+            case debug:   msg.append("DEBUG\t"); break;
+            case info:    msg.append("INFO \t"); break;
+            case warning: msg.append("WARN \t"); break;
+            case error:   msg.append("ERROR\t"); break;
+            case fatal:   msg.append("DOOM \t"); break;
             default:;
         }
         msg.append(to_simple_string(second_clock::local_time()));
@@ -82,7 +83,7 @@ LogBlob log_action(Level level, bool take_action, string message)
         msg.append(message);
         return LogBlob(level, take_action, msg);
     }
-    return LogBlob(off, false, "");
+    return LogBlob(nothing, take_action, "");
 }
 
 LogBlob::LogBlob (Level level, bool take_action, string message):
@@ -93,7 +94,7 @@ LogBlob::LogBlob (Level level, bool take_action, string message):
     formater.exceptions(boost::io::no_error_bits);
 }
 
-void LogBlob::flush()
+LogBlob::~LogBlob()
 {
     bool fatalQuit = take_action && (level == fatal);
     bool errorQuit = false;
@@ -105,7 +106,7 @@ void LogBlob::flush()
         }
         errorQuit = take_action && (error_times.size() > 9) && (error_times.front() > (now - minutes(10)));
     }
-    if (level != off) {
+    if (level != nothing) {
         string msg = str(formater);
         if (fatalQuit) {
             msg.append("\nterminated (fatal error)");
@@ -136,13 +137,13 @@ bool log_string_to_level(string level_string, logror::Level& level)
     } else if (str == "info") {
         level = logror::info;
     } else if (str == "warn") {
-        level = logror::warn;
+        level = logror::warning;
     } else if (str == "error") {
         level = logror::error;
     } else if (str =="fatal") {
         level = logror::fatal;
     } else if (str =="nothing") {
-        level = logror::off;
+        level = logror::nothing;
     } else {
         return false;
     }

@@ -1,0 +1,5 @@
+*.o
+scan
+demosauce
+demosauce.conf
+makebelieve.sh

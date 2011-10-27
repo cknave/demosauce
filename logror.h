@@ -61,15 +61,14 @@ class LogBlob
 public:
     LogBlob (Level level, bool takeAction, std::string message);
     virtual ~LogBlob();
-    template<typename T> LogBlob & operator , (T right);
+    template<typename T> LogBlob & operator , (T& right);
 private:
     Level const level;
     bool take_action;
     boost::format formater;
 };
 
-template <typename T>
-LogBlob& LogBlob::operator , (T right)
+template <typename T> LogBlob& LogBlob::operator , (T& right)
 {
     if (level != nothing)
         formater % right;
@@ -79,19 +78,21 @@ LogBlob& LogBlob::operator , (T right)
 LogBlob log_action(Level level, bool take_action, std::string message);
 
 }
+// add terminator function like endl
+#define LOG(lvl, act, msg, ...) logror::log_action(lvl, act, msg), __VA_ARGS__
 
 #ifndef NDEBUG
-    #define LOG_DEBUG(message) logror::log_action(logror::debug, false, message)
+    #define LOG_DEBUG(...) LOG(logror::debug, false, __VA_ARGS__, "") 
 #else
-    #define LOG_DEBUG(message) if(0) logror::log_action(logror::nothing, false, "") 
+    #define LOG_DEBUG(...)
 #endif
 
-#define LOG_INFO(message) logror::log_action(logror::info, false, message)
-#define LOG_WARN(message) logror::log_action(logror::warning, false, message)
-#define LOG_ERROR(message) logror::log_action(logror::error, false, message)
-#define LOG_FATAL(message) logror::log_action(logror::fatal, false, message)
-#define ERROR(message) logror::log_action(logror::error, true, message)
-#define FATAL(message) logror::log_action(logror::fatal, true, message)
+#define LOG_INFO(...) LOG(logror::info, false, __VA_ARGS__, "") 
+#define LOG_WARN(...) LOG(logror::warn, false, __VA_ARGS__, "") 
+#define LOG_ERROR(...) LOG(logror::error, false, __VA_ARGS__, "") 
+#define LOG_FATAL(...) LOG(logror::fatal, false, __VA_ARGS__, "") 
+#define ERROR(...) LOG(logror::error, true, __VA_ARGS__, "")
+#define FATAL(...) LOG(logror::fatal, true, __VA_ARGS__, "")
 
 void log_set_console_level(logror::Level level);
 void log_set_file_level(logror::Level level);

@@ -71,11 +71,11 @@ LogBlob log_action(Level level, bool take_action, string message)
         string msg;
         msg.reserve(160); // should be enough for most
         switch (level) {
-            case debug:   msg.append("DEBUG\t"); break;
-            case info:    msg.append("INFO \t"); break;
-            case warning: msg.append("WARN \t"); break;
-            case error:   msg.append("ERROR\t"); break;
-            case fatal:   msg.append("DOOM \t"); break;
+            case debug: msg.append("DEBUG\t"); break;
+            case info:  msg.append("INFO \t"); break;
+            case warn:  msg.append("WARN \t"); break;
+            case error: msg.append("ERROR\t"); break;
+            case fatal: msg.append("DOOM \t"); break;
             default:;
         }
         msg.append(to_simple_string(second_clock::local_time()));
@@ -137,7 +137,7 @@ bool log_string_to_level(string level_string, logror::Level& level)
     } else if (str == "info") {
         level = logror::info;
     } else if (str == "warn") {
-        level = logror::warning;
+        level = logror::warn;
     } else if (str == "error") {
         level = logror::error;
     } else if (str =="fatal") {

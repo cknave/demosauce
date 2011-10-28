@@ -39,7 +39,11 @@ you're on your own for now. if you manage to build it, maybe you can share your 
 
 SETUP
 ==================
-copy contrib/demosauce.conf.example to demosauce.conf. then edit it. the comments should help you with that.
+copy contrib/demosauce.conf.example to demosauce.conf. then edit it. the comments will guide you.  
+RUN
+==================
+you can either run demosauce with a full demovibes server (which demosauce was build for) or provide your own script. that script will listen on a certain port for a command (NEXTSONG) upon which it will return information about the next song to be played. the format is a couple of key-value pairs. if you're using demosauce with demovibes, just run the sockulf.py script in the demobibes directory.  
+for a simple custom example script, check contrib/simple-sockulf.py. it will play all mp3 files in a given directory in a random order. you can use that script as the basis for you own solution. you probably only have to change the djDerp class. 
 
 LICENSE
 ==================

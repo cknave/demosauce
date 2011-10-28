@@ -32,7 +32,7 @@ class djDerp(object):
             randon.suffle(self.playlist)
             self.pos = 0
         file = self.playlist[self.pos]
-        return file, os.path.basename(file), '', 0.0
+        return file, '', os.path.basename(file), 0.0
 
 # handles communication with demosauce
 class pyWhisperer(object):

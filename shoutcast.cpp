@@ -121,7 +121,6 @@ struct ShoutCastPimpl
     bool                        encoder_running;
     bool                        decoder_ready;
     bool                        connected;
-    bool                        reader_blocked;
     int64_t                     remaining_frames;
 };
 
@@ -220,7 +219,6 @@ void ShoutCastPimpl::writer()
     while (encoder_running) {
         // decode and read some
         if (decoder_ready) {
-            shout_sync(cast); // I did syncing in the reader but that ccaused problems
             uint32_t frames = converter.process(decode_buffer.get(), decode_frames, channels);
             remaining_frames += frames;
 
@@ -228,12 +226,13 @@ void ShoutCastPimpl::writer()
                 LOG_DEBUG("end of stream");
                 decode_buffer.zero_end((decode_frames - frames) * channels);
                 // load next song in separate thread
+                decoder_ready = false;
                 boost::thread thread(bind(&ShoutCastPimpl::load_next, this));
             }
         } else {
             decode_buffer.zero();
         }
-        // this should block once internal buffers are full
+        shout_sync(cast); // I did syncing in the reader but that ccaused problems
         encoder_input->write(decode_buffer.get_char(), decode_buffer.size_bytes());
     }
 }
@@ -262,7 +261,6 @@ void ShoutCastPimpl::reader()
 // this is called whenever the song is changed
 void ShoutCastPimpl::load_next()
 {
-    decoder_ready = false;
     SongInfo song = {"", "", setting::encoder_samplerate, 0, 0, false};
 
     int loadTries = 0;
@@ -272,7 +270,7 @@ void ShoutCastPimpl::load_next()
         song.forced_length = get_value(song.settings, "length", 0.0);
 
         if (!fs::exists(song.file)) {
-            LOG_WARNING("file doesn't exist: %1%"), song.file;
+            LOG_WARN("file doesn't exist: %1%", song.file);
             continue;
         }
 
@@ -294,12 +292,12 @@ void ShoutCastPimpl::load_next()
         }
 
         if (!loaded) {
-            LOG_WARNING("can't decode %1%"), song.file;
+            LOG_WARN("can't decode %1%", song.file);
         }
     }
 
     if (loadTries >= 3 && !loaded) {
-        LOG_WARNING("loading failed three times, sending a bunch of zeros");
+        LOG_WARN("loading failed three times, sending a bunch of zeros");
         machineStack->add(zeroSource, 0);
         song.forced_length = 60;
     }
@@ -333,14 +331,13 @@ void ShoutCastPimpl::get_next_song(SongInfo& song)
 
         if (song.file.empty()) {
             if (fs::is_regular_file(setting::error_tune)) {
-                LOG_WARNING("file name is empty, using error_tune");
+                LOG_WARN("file name is empty, using error_tune");
                 song.file = setting::error_tune;
-            }
-            else if (fs::is_directory(setting::error_fallback_dir)) {
-                LOG_WARNING("file name is empty, using error_fallback_dir");
+            } else if (fs::is_directory(setting::error_fallback_dir)) {
+                LOG_WARN("file name is empty, using error_fallback_dir");
                 song.file = get_random_file(setting::error_fallback_dir);
             } else {
-                LOG_WARNING("file name is empty, and your fallback settings suck");
+                LOG_WARN("file name is empty, and your fallback settings suck");
             }
         }
 }
@@ -494,7 +491,7 @@ string utf8_to_ascii(string utf8_str)
     ucnv_close(converter);
 
     if (U_FAILURE(status)) {
-        LOG_WARNING("utf8 conversion failed (%1%)"), u_errorName(status);
+        LOG_WARN("utf8 conversion failed (%1%)", u_errorName(status));
         return "";
     }
 
@@ -503,7 +500,7 @@ string utf8_to_ascii(string utf8_str)
     Normalizer::normalize(in_str, UNORM_NFKD, 0, norm_str, status);
 
     if (U_FAILURE(status)) {
-        LOG_WARNING("unicode decomposition failed (%1%)"), u_errorName(status);
+        LOG_WARN("unicode decomposition failed (%1%)", u_errorName(status));
         return "";
     }
 
@@ -547,7 +544,7 @@ void ShoutCastPimpl::update_metadata(SongInfo& song)
     shout_metadata_add(metadata, "song", cast_title.c_str());
     int err = shout_set_metadata(cast, metadata);
     if (err != SHOUTERR_SUCCESS) {
-        LOG_WARNING("shout_set_metadata: failed with code %1%"), err;
+        LOG_WARN("shout_set_metadata: failed with code %1%", err);
     }
     shout_metadata_free(metadata);
 }

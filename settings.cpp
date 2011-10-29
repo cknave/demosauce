@@ -59,7 +59,7 @@ namespace setting {
 
     string      log_file            = "demosauce.log";
     log::Level  log_file_level      = log::info;
-    log::Level  log_console_level   = log::warning;
+    log::Level  log_console_level   = log::warn;
 
     string      debug_song;
 #ifdef ENABLE_LADSPA

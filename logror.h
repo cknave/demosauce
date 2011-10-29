@@ -53,26 +53,39 @@ enum Level
     warn,
     error,
     fatal,
-    nothing
+    off
 };
 
 class LogBlob
 {
 public:
+    typedef LogBlob& (*Manipulator)(LogBlob&);
     LogBlob (Level level, bool takeAction, std::string message);
-    virtual ~LogBlob();
-    template<typename T> LogBlob & operator , (T& right);
+    void flush();
+    template<typename T> LogBlob& operator,(T&);
+    LogBlob& operator,(Manipulator);
 private:
-    Level const level;
-    bool take_action;
+    const Level level;
+    const bool take_action;
     boost::format formater;
 };
 
-template <typename T> LogBlob& LogBlob::operator , (T& right)
+template <typename T> LogBlob& LogBlob::operator,(T& right)
 {
-    if (level != nothing)
+    if (level != off)
         formater % right;
     return *this;
+}
+
+LogBlob& LogBlob::operator,(Manipulator func)
+{
+    return func(*this);
+}
+
+static LogBlob& flush(LogBlob& blob)
+{
+    blob.flush();
+    return blob;
 }
 
 LogBlob log_action(Level level, bool take_action, std::string message);
@@ -82,17 +95,17 @@ LogBlob log_action(Level level, bool take_action, std::string message);
 #define LOG(lvl, act, msg, ...) logror::log_action(lvl, act, msg), __VA_ARGS__
 
 #ifndef NDEBUG
-    #define LOG_DEBUG(...) LOG(logror::debug, false, __VA_ARGS__, "") 
+    #define LOG_DEBUG(...) LOG(logror::debug, false, __VA_ARGS__, logror::flush)
 #else
     #define LOG_DEBUG(...)
 #endif
 
-#define LOG_INFO(...) LOG(logror::info, false, __VA_ARGS__, "") 
-#define LOG_WARN(...) LOG(logror::warn, false, __VA_ARGS__, "") 
-#define LOG_ERROR(...) LOG(logror::error, false, __VA_ARGS__, "") 
-#define LOG_FATAL(...) LOG(logror::fatal, false, __VA_ARGS__, "") 
-#define ERROR(...) LOG(logror::error, true, __VA_ARGS__, "")
-#define FATAL(...) LOG(logror::fatal, true, __VA_ARGS__, "")
+#define LOG_INFO(...) LOG(logror::info, false, __VA_ARGS__, logror::flush) 
+#define LOG_WARN(...) LOG(logror::warn, false, __VA_ARGS__, logror::flush) 
+#define LOG_ERROR(...) LOG(logror::error, false, __VA_ARGS__, logror::flush) 
+#define LOG_FATAL(...) LOG(logror::fatal, false, __VA_ARGS__, logror::flush) 
+#define ERROR(...) LOG(logror::error, true, __VA_ARGS__, logror::flush)
+#define FATAL(...) LOG(logror::fatal, true, __VA_ARGS__, logror::flush)
 
 void log_set_console_level(logror::Level level);
 void log_set_file_level(logror::Level level);

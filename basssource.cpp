@@ -165,7 +165,7 @@ void BassSource::Pimpl::free()
             BASS_StreamFree(channel);
         }
         if (BASS_ErrorGetCode() != BASS_OK) {
-            LOG_WARN("[basssource] failed to free channel (%1%)", BASS_ErrorGetCode());
+             LOG_WARN("[basssource] failed to free channel (%1%)", BASS_ErrorGetCode());
         }
         channel = 0;
     }

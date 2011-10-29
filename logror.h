@@ -62,15 +62,15 @@ public:
     typedef LogBlob& (*Manipulator)(LogBlob&);
     LogBlob (Level level, bool takeAction, std::string message);
     void flush();
-    template<typename T> LogBlob& operator,(T&);
     LogBlob& operator,(Manipulator);
+    template<typename T> LogBlob& operator,(const T&);
 private:
     const Level level;
     const bool take_action;
     boost::format formater;
 };
 
-template <typename T> LogBlob& LogBlob::operator,(T& right)
+template <typename T> LogBlob& LogBlob::operator,(const T& right)
 {
     if (level != off)
         formater % right;
@@ -91,9 +91,7 @@ static LogBlob& flush(LogBlob& blob)
 LogBlob log_action(Level level, bool take_action, std::string message);
 
 }
-// add terminator function like endl
 #define LOG(lvl, act, msg, ...) logror::log_action(lvl, act, msg), __VA_ARGS__
-
 #ifndef NDEBUG
     #define LOG_DEBUG(...) LOG(logror::debug, false, __VA_ARGS__, logror::flush)
 #else

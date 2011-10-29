@@ -159,6 +159,16 @@ void add_ladspa_plugin(shared_ptr<MachineStack>& machine_stack, string configura
 }
 #endif
 
+const char* cstr(const string& s)
+{
+    return s.empty() ? "<empty>" : s.c_str();
+}
+
+const char* cstr(const char* s)
+{
+    return s && s[0] != 0 ? s : "<empty>";
+}
+
 void ShoutCastPimpl::init_machines()
 {
     machineStack = make_shared<MachineStack>();
@@ -270,7 +280,7 @@ void ShoutCastPimpl::load_next()
         song.forced_length = get_value(song.settings, "length", 0.0);
 
         if (!fs::exists(song.file)) {
-            LOG_WARN("file doesn't exist: %s", song.file.c_str());
+            LOG_WARN("file doesn't exist: %s", cstr(song.file));
             continue;
         }
 
@@ -292,7 +302,7 @@ void ShoutCastPimpl::load_next()
         }
 
         if (!loaded) {
-            LOG_WARN("can't decode %s", song.file.c_str());
+            LOG_WARN("can't decode %s", cstr(song.file));
         }
     }
 
@@ -402,7 +412,7 @@ void ShoutCastPimpl::run_encoder()
     if (!fs::exists(exe)) try {
         exe = bp::find_executable_in_path(exe);
     } catch (fs::filesystem_error& e) {
-        FATAL("can't locate encoder executable: %s", exe.c_str());
+        FATAL("can't locate encoder executable: %s", cstr(exe));
     }
 
     bp::context ctx;
@@ -410,7 +420,7 @@ void ShoutCastPimpl::run_encoder()
     ctx.streams[bp::stdout_id] = bp::behavior::async_pipe();
     ctx.streams[bp::stderr_id] = bp::behavior::null();
 
-    LOG_INFO("starting encoder: %s", setting::encoder_command.c_str());
+    LOG_INFO("starting encoder: %s", cstr(setting::encoder_command));
     try {
         // launch encoder
         bp::child c = bp::create_child(exe, args, ctx);
@@ -480,7 +490,7 @@ void ShoutCastPimpl::disconnect()
     shout_close(cast);
 }
 
-//{ // unicode decompposition
+// unicode decompposition
 string utf8_to_ascii(string utf8_str)
 {
     // BLAST! fromUTF8 requires ics 4.2
@@ -529,7 +539,7 @@ string create_cast_title(string artist, string title)
         cast_title.append(" - ");
     }
     cast_title.append(utf8_to_ascii(title));
-    LOG_DEBUG("[create_cast_title] %s, %s -> %s", artist.c_str(), title.c_str(), cast_title.c_str());
+    LOG_DEBUG("[create_cast_title] %s, %s -> %s", cstr(artist), cstr(title), cstr(cast_title));
     return cast_title;
 }
 

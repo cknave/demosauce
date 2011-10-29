@@ -19,8 +19,6 @@
 #include "logror.h"
 #include "effects.h"
 
-using namespace logror;
-
 double db_to_amp(double db)
 {
     return pow(10, db / 20);
@@ -103,7 +101,7 @@ void MachineStack::update_routing()
     // chain the rest of the machines
     for(; i < machines.size(); ++i) {
         if (machines[i].get() && machines[i]->enabled()) {
-            LOG_DEBUG("connect %1% -> %2%"), source_machine->name(), machines[i]->name();
+            LOG_DEBUG("connect %s -> %s", source_machine->name().c_str(), machines[i]->name().c_str());
             machines[i]->set_source(source_machine);
             source_machine = machines[i];
         }

@@ -27,7 +27,6 @@ using boost::to_lower;
 
 namespace fs = ::boost::filesystem;
 namespace po = ::boost::program_options;
-namespace log = ::logror;
 
 namespace setting {
     uint32_t    config_version      = 0;
@@ -58,8 +57,8 @@ namespace setting {
     string      error_fallback_dir;
 
     string      log_file            = "demosauce.log";
-    log::Level  log_file_level      = log::info;
-    log::Level  log_console_level   = log::warn;
+    LogLevel    log_file_level      = log_info;
+    LogLevel    log_console_level   = log_warn;
 
     string      debug_song;
 #ifdef ENABLE_LADSPA
@@ -234,10 +233,12 @@ void init_settings(int argc, char* argv[])
         if (optionsMap.count("cast_password")) {
             cast_password = castForcePassword;
         }
-        if (settingsMap.count("log_file_level") && !log_string_to_level(logFileLevel, log_file_level)) {
+        if (settingsMap.count("log_file_level") && 
+            !log_string_to_level(logFileLevel.c_str(), &log_file_level)) {
             cout << "setting log_file_level: unknown level\n";
         }
-        if (settingsMap.count("log_console_level") && !log_string_to_level(logConsoleLevel, log_console_level)) {
+        if (settingsMap.count("log_console_level") && 
+            !log_string_to_level(logConsoleLevel.c_str(), &log_console_level)) {
             cout << "setting log_console_level: unknown level\n";
         }
         check_sanity();

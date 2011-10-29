@@ -64,7 +64,7 @@ BassSource::BassSource():
     pimpl->free();
     BASS_SetConfig(BASS_CONFIG_UPDATEPERIOD, 0);
     if (!BASS_Init(0, 44100, 0, 0, NULL) && BASS_ErrorGetCode() != BASS_ERROR_ALREADY) {
-        FATAL("[basssource] init failed (%1%)", BASS_ErrorGetCode());
+        FATAL("[basssource] init failed (%s)", BASS_ErrorGetCode());
     }
 }
 
@@ -130,14 +130,14 @@ bool BassSource::load(string file_name, bool prescan)
     DWORD stream_flags = BASS_STREAM_DECODE | (prescan ? BASS_STREAM_PRESCAN : 0) | FLOAT_FLAG;
     DWORD music_flags = BASS_MUSIC_DECODE | BASS_MUSIC_PRESCAN | FLOAT_FLAG;
 
-    LOG_DEBUG("[basssource] attempting to load %1%", file_name);
+    LOG_DEBUG("[basssource] attempting to load %s", file_name.c_str());
     // brute force attempt, don't rely on extensions
     channel = BASS_StreamCreateFile(FALSE, file_name.c_str(), 0, 0, stream_flags);
     if (!channel) {
         channel = BASS_MusicLoad(FALSE, file_name.c_str(), 0, 0 , music_flags, pimpl->samplerate);
     }
     if (!channel) {
-        LOG_DEBUG("[basssource] can't load %1%", file_name);
+        LOG_DEBUG("[basssource] can't load %s", file_name.c_str());
         return false;
     }
 
@@ -146,12 +146,12 @@ bool BassSource::load(string file_name, bool prescan)
     pimpl->lastFrame = length / (sizeof(sample_t) *  channels());
 
     if (length == static_cast<QWORD>(-1)) {
-        ERROR("[basssource] can't determine duration of %1%", file_name);
+        ERROR("[basssource] can't determine duration of %s", file_name.c_str());
         pimpl->free();
         return false;
     }
 
-    LOG_INFO("[basssource] playing %1%", file_name);
+    LOG_INFO("[basssource] playing %s", file_name.c_str());
 
     return true;
 }
@@ -165,7 +165,7 @@ void BassSource::Pimpl::free()
             BASS_StreamFree(channel);
         }
         if (BASS_ErrorGetCode() != BASS_OK) {
-             LOG_WARN("[basssource] failed to free channel (%1%)", BASS_ErrorGetCode());
+             LOG_WARN("[basssource] failed to free channel (%d)", BASS_ErrorGetCode());
         }
         channel = 0;
     }
@@ -197,7 +197,7 @@ void BassSource::process(AudioStream& stream, uint32_t frames)
     DWORD const bytesRead = BASS_ChannelGetData(pimpl->channel, readBuffer, bytesToRead);
 
     if (bytesRead == static_cast<DWORD>(-1) && BASS_ErrorGetCode() != BASS_ERROR_ENDED) {
-        ERROR("[basssource] failed to read from channel (%1%)"), BASS_ErrorGetCode();
+        ERROR("[basssource] failed to read from channel (%d)"), BASS_ErrorGetCode();
     }
 
     uint32_t framesRead = 0;
@@ -211,7 +211,7 @@ void BassSource::process(AudioStream& stream, uint32_t frames)
 
     stream.end_of_stream = framesRead != framesToRead || pimpl->currentFrame >= pimpl->lastFrame;
     if(stream.end_of_stream) {
-        LOG_DEBUG("[basssource] eos bass %1% frames left", stream.frames());
+        LOG_DEBUG("[basssource] eos bass %lu frames left", stream.frames());
     }
 }
 

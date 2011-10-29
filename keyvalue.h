@@ -40,11 +40,9 @@ bool get_value_impl(std::string data, std::string key, std::string& value)
 
 inline std::string get_value(std::string data, std::string key, std::string fallback_value)
 {
-    std::string value;
-    if (!get_value_impl(data, key, value)) {
-        return fallback_value;
-    }
-    LOG_DEBUG("[get_value] (\"%1%\", \"%2%\"): \"%3%\"", key, fallback_value, value);
+    std::string value = fallback_value;
+    get_value_impl(data, key, value);
+    LOG_DEBUG("[get_value] (\"%s\", \"%s\")", key.c_str(), fallback_value.c_str());
     return value;
 }
 
@@ -56,14 +54,13 @@ inline std::string get_value(std::string data, std::string key, const char* fall
 template <typename T> T get_value(std::string data, std::string key, T fallback_value)
 {
     std::string value_str;
-    if (!get_value_impl(data, key, value_str)) {
-        return fallback_value;
-    }
     T value = fallback_value;
-    try {
-        value = boost::lexical_cast<T>(value_str);
-    } catch (boost::bad_lexical_cast&) {}
-    LOG_DEBUG("[get_value] (\"%1%\", \"%2%\"): \"%3%\"", key, fallback_value, value);
+    if (get_value_impl(data, key, value_str)) {
+        try {
+            value = boost::lexical_cast<T>(value_str);
+        } catch (boost::bad_lexical_cast&) {}
+    }
+    LOG_DEBUG("[get_value] (\"%s\")", key.c_str());
     return value;
 }
 

@@ -252,7 +252,7 @@ void ShoutCastPimpl::reader()
         // shout_sync(cast); syncing moved to writer
         int err = shout_send(cast, send_buffer.get_uchar(), send_buffer.size_bytes());
         if (err != SHOUTERR_SUCCESS) {
-            ERROR("icecast connection dropped, trying to recover(%1%)"), shout_get_error(cast);
+            ERROR("icecast connection dropped, trying to recover(%s)", shout_get_error(cast));
             disconnect();
         }
     }
@@ -270,7 +270,7 @@ void ShoutCastPimpl::load_next()
         song.forced_length = get_value(song.settings, "length", 0.0);
 
         if (!fs::exists(song.file)) {
-            LOG_WARN("file doesn't exist: %1%", song.file);
+            LOG_WARN("file doesn't exist: %s", song.file.c_str());
             continue;
         }
 
@@ -292,7 +292,7 @@ void ShoutCastPimpl::load_next()
         }
 
         if (!loaded) {
-            LOG_WARN("can't decode %1%", song.file);
+            LOG_WARN("can't decode %s", song.file.c_str());
         }
     }
 
@@ -352,7 +352,7 @@ void ShoutCastPimpl::update_machines(SongInfo& song)
     remaining_frames = std::numeric_limits<int64_t>::min();
     if (song.forced_length > 0) {
         remaining_frames = -numeric_cast<int>(setting::encoder_samplerate * song.forced_length);
-        LOG_DEBUG("song length forced to %1% seconds"), song.forced_length;
+        LOG_DEBUG("song length forced to %f seconds", song.forced_length);
     }
 
     string fade_out = get_value(song.settings, "fade_out", "false");
@@ -365,13 +365,13 @@ void ShoutCastPimpl::update_machines(SongInfo& song)
         uint64_t end = numeric_cast<uint64_t>(length  * setting::encoder_samplerate);
         linearFade->set_fade(start, end, 1, 0);
         linearFade->set_enabled(true);
-        LOG_DEBUG("song fading out at %1% seconds"), length;
+        LOG_DEBUG("song fading out at %f seconds", length);
     }
 
     if (song.samplerate != setting::encoder_samplerate) {
         resample->set_rates(song.samplerate, setting::encoder_samplerate);
         resample->set_enabled(true);
-        LOG_DEBUG("resampling %1% to %2% Hz"), song.samplerate, setting::encoder_samplerate;
+        LOG_DEBUG("resampling %u to %u Hz", song.samplerate, setting::encoder_samplerate);
     }
 
     bool auto_mix = (get_value(song.settings, "mix", "auto") == "auto");
@@ -381,12 +381,12 @@ void ShoutCastPimpl::update_machines(SongInfo& song)
         ratio = std::min(ratio, 1.);
         mixChannels->set_mix(1. - ratio, ratio, 1. - ratio, ratio);
         mixChannels->set_enabled(true);
-        LOG_DEBUG("mixing channels with %1% ratio"), ratio;
+        LOG_DEBUG("mixing channels with %f ratio", ratio);
     }
 
     double song_gain = get_value(song.settings, "gain", 0.0);
     gain->set_amp(db_to_amp(song_gain));
-    LOG_DEBUG("applying gain of %1% dB"), song_gain;
+    LOG_DEBUG("applying gain of %f dB", song_gain);
 
     machineStack->update_routing();
 }
@@ -402,7 +402,7 @@ void ShoutCastPimpl::run_encoder()
     if (!fs::exists(exe)) try {
         exe = bp::find_executable_in_path(exe);
     } catch (fs::filesystem_error& e) {
-        FATAL("can't locate encoder executable: %1%"), exe;
+        FATAL("can't locate encoder executable: %s", exe.c_str());
     }
 
     bp::context ctx;
@@ -410,7 +410,7 @@ void ShoutCastPimpl::run_encoder()
     ctx.streams[bp::stdout_id] = bp::behavior::async_pipe();
     ctx.streams[bp::stderr_id] = bp::behavior::null();
 
-    LOG_INFO("starting encoder: %1%"), setting::encoder_command;
+    LOG_INFO("starting encoder: %s", setting::encoder_command.c_str());
     try {
         // launch encoder
         bp::child c = bp::create_child(exe, args, ctx);
@@ -429,7 +429,7 @@ void ShoutCastPimpl::run_encoder()
         read_tread.interrupt();     // try interrupting any blocking calls
         ERROR("encoder process stopped, trying to recover");
     } catch (fs::filesystem_error& e) {
-        FATAL("failed to launch encoder (%1%)"), e.what();
+        FATAL("failed to launch encoder (%s)", e.what());
     }
 }
 
@@ -466,10 +466,10 @@ void ShoutCastPimpl::connect()
             break;
         case SHOUTERR_NOCONNECT:
         case SHOUTERR_SOCKET:
-            ERROR("can't connect to icecast (%1%)"), shout_get_error(cast);
+            ERROR("can't connect to icecast (%s)", shout_get_error(cast));
             break;
         default:
-            FATAL("can't connect to icecast (%1%)"), shout_get_error(cast);
+            FATAL("can't connect to icecast (%s)", shout_get_error(cast));
             break;
     }
 }
@@ -491,7 +491,7 @@ string utf8_to_ascii(string utf8_str)
     ucnv_close(converter);
 
     if (U_FAILURE(status)) {
-        LOG_WARN("utf8 conversion failed (%1%)", u_errorName(status));
+        LOG_WARN("utf8 conversion failed (%s)", u_errorName(status));
         return "";
     }
 
@@ -500,7 +500,7 @@ string utf8_to_ascii(string utf8_str)
     Normalizer::normalize(in_str, UNORM_NFKD, 0, norm_str, status);
 
     if (U_FAILURE(status)) {
-        LOG_WARN("unicode decomposition failed (%1%)", u_errorName(status));
+        LOG_WARN("unicode decomposition failed (%s)", u_errorName(status));
         return "";
     }
 
@@ -529,10 +529,9 @@ string create_cast_title(string artist, string title)
         cast_title.append(" - ");
     }
     cast_title.append(utf8_to_ascii(title));
-    LOG_DEBUG("unicode decomposition: %1%, %2% -> %3%"), artist, title, cast_title;
+    LOG_DEBUG("[create_cast_title] %s, %s -> %s", artist.c_str(), title.c_str(), cast_title.c_str());
     return cast_title;
 }
-//}
 
 void ShoutCastPimpl::update_metadata(SongInfo& song)
 {
@@ -544,7 +543,7 @@ void ShoutCastPimpl::update_metadata(SongInfo& song)
     shout_metadata_add(metadata, "song", cast_title.c_str());
     int err = shout_set_metadata(cast, metadata);
     if (err != SHOUTERR_SUCCESS) {
-        LOG_WARN("shout_set_metadata: failed with code %1%", err);
+        LOG_WARN("[shout_set_metadata] error (%d)", err);
     }
     shout_metadata_free(metadata);
 }

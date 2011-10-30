@@ -159,16 +159,6 @@ void add_ladspa_plugin(shared_ptr<MachineStack>& machine_stack, string configura
 }
 #endif
 
-const char* cstr(const string& s)
-{
-    return s.empty() ? "<empty>" : s.c_str();
-}
-
-const char* cstr(const char* s)
-{
-    return s && s[0] != 0 ? s : "<empty>";
-}
-
 void ShoutCastPimpl::init_machines()
 {
     machineStack = make_shared<MachineStack>();

@@ -1,4 +1,4 @@
-#!/bin/sh
+#i!/bin/sh
 CXX=g++
 CFLAGS="-Wall -O2"
 #remove old ouput files
@@ -24,6 +24,17 @@ check_file() {
     fi
     echo "no"
     return 1
+}
+
+check_exe() {
+    echo -n "checking for $1 ... "
+    which $1 > /dev/null
+    if test $? -ne 0; then
+        echo "no"
+        return 1
+    fi
+    echo "yes"
+    return 0
 }
 
 ask() {
@@ -88,11 +99,11 @@ fi
 
 echo "due to problems with libavcodec on some distros you can build a custom"
 echo "version. in general, the distro's libavcodec should be preferable, but"
-echo -n "might be incompatible with demosauce. "
+echo "might be incompatible with demosauce. you'll need the 'yasm' assember"
 if ask "use custom libavcodec?"; then
     run_script build.sh ffmpeg
     if test $? -ne 0; then echo 'error while building libavcodec'; exit 1; fi
-    AVCODECL="-Lffmpeg -Wl,-rpath=ffmpeg -lavcodec -lavformat"
+    AVCODECL="-Lffmpeg -lavformat -lavcodec  -lavutil"
     build '-Iffmpeg -c avsource.cpp'
 else
     if ! check_header '<libavcodec/avcodec.h>'; then echo 'libavcodec missing'; exit 1; fi
@@ -104,6 +115,10 @@ fi
 # replaygain
 if ! check_file 'libreplaygain/libreplaygain.a'; then
     run_script build.sh libreplaygain
+fi
+
+if check_exe 'ccache'; then
+    CXX="ccache $CXX"
 fi
 
 # other build steps

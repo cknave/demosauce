@@ -76,53 +76,44 @@ bool AvSource::load(string file_name)
 
     LOG_DEBUG("[avsource] attempting to load %1%"), file_name;
 
-    // KHAAAAAAAAAN! FOR SOME REASON THIS IS BROKEN IN EARLIER RELEASES!
-    //~ AVProbeData probe_data = {file_name.c_str(), 0, 0};
-    //~ AVInputFormat* input_format = av_probe_input_format(&probe_data, 0);
-    //~ if (input_format == NULL)
-    //~ {
-        //~ LOG_WARNING("unknown format %1%"), file_name;
-        //~ return false;
-    //~ }
-
-    //    if (av_open_input_file(&pimpl->format_context, file_name.c_str(), input_format, 0, NULL) != 0)
-    if (av_open_input_file(&pimpl->format_context, file_name.c_str(), 0, 0, NULL) != 0)
-    {
+#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(53, 7, 0)
+    if (av_open_input_file(&pimpl->format_context, file_name.c_str(), 0, 0, 0) != 0) {
+#else
+    if (avformat_open_input(&pimpl->format_context, file_name.c_str(), 0, 0) != 0) {
+#endif
         LOG_DEBUG("[avsource] can't load %1%"), file_name;
         return false;
     }
 
-    if (av_find_stream_info(pimpl->format_context) < 0)
-    {
+    if (av_find_stream_info(pimpl->format_context) < 0) {
         LOG_DEBUG("[avsource] no stream information %1%"), file_name;
         return false;
     }
 
-    for (unsigned int i = 0; i < pimpl->format_context->nb_streams; i++) // find first stream
-    {
-        if (pimpl->format_context->streams[i]->codec->codec_type == CODEC_TYPE_AUDIO)
-        {
+    for (unsigned int i = 0; i < pimpl->format_context->nb_streams; i++) {
+#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(53, 7, 0)
+        if (pimpl->format_context->streams[i]->codec->codec_type == CODEC_TYPE_AUDIO) {
+#else
+        if (pimpl->format_context->streams[i]->codec->codec_type == AVMEDIA_TYPE_AUDIO) {
+#endif
             pimpl->audio_stream_index = i;
             break;
         }
     }
 
-    if (pimpl->audio_stream_index == -1)
-    {
+    if (pimpl->audio_stream_index == -1) {
         LOG_DEBUG("[avsource] no audio stream :( %1%"), file_name;
         return false;
     }
 
     pimpl->codec_context = pimpl->format_context->streams[pimpl->audio_stream_index]->codec;
     pimpl->codec = avcodec_find_decoder(pimpl->codec_context->codec_id);
-    if (!pimpl->codec)
-    {
+    if (!pimpl->codec) {
         LOG_DEBUG("[avsource] unsupported codec %1%"), file_name;
         return false;
     }
 
-    if (avcodec_open(pimpl->codec_context, pimpl->codec) < 0)
-    {
+    if (avcodec_open(pimpl->codec_context, pimpl->codec) < 0) {
         LOG_DEBUG("[avsource] failed to open codec %1%"), file_name;
         return false;
     }
@@ -308,10 +299,16 @@ string AvSource::metadata(string key) const
     string value;
     if (key == "codec_type") {
         value = pimpl->codec_type();
+#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(53, 7, 0)
     } else if (key == "artist") {
         value = pimpl->format_context->author;
     } else if (key == "title") {
         value = pimpl->format_context->title;
+#else
+    } else {
+        AVDictionary* d = pimpl->format_context->metadata;
+        value = av_dict_get(d, key.c_str(), 0, 0)->value;
+#endif
     }
     boost::trim(value);
     return value;
@@ -338,12 +335,14 @@ string AvSource::Pimpl::codec_type()
         case CODEC_ID_WMAV2:
         case CODEC_ID_WMAVOICE:
         case CODEC_ID_WMAPRO:
-        case CODEC_ID_WMALOSSLESS: return "wma";
+        case CODEC_ID_WMALOSSLESS:
+                                return "wma";
         case CODEC_ID_FLAC:     return "flac";
         case CODEC_ID_WAVPACK:  return "wavpack";
         case CODEC_ID_APE:      return "monkey";
         case CODEC_ID_MUSEPACK7:
-        case CODEC_ID_MUSEPACK8: return "musepack";
+        case CODEC_ID_MUSEPACK8: 
+                                return "musepack";
         case CODEC_ID_MP1:      return "mp1";
 // TODO not sure this is the right revision number
 #if LIBAVCODEC_VERSION_INT > AV_VERSION_INT(52, 26, 0)

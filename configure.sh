@@ -70,8 +70,9 @@ check_bass() {
     if check_header '"bass/bass.h"' && check_file "bass/libbass.so"; then
         if ! check_header "<id3tag.h>"; then echo 'libid3tag missing'; exit 1; fi
         CFLAGS="$CFLAGS -DENABLE_BASS"
-        BASSO="basssource.o"
-        BASSL="-Lbass -Wl,-rpath=bass -lbass -lid3tag -lz"
+        BASSO="libbass.o basssource.o"
+        BASSL="-ldl -lid3tag -lz"
+        build '-c libbass.c'
         build '-c basssource.cpp'
         return 0
     fi

@@ -12,10 +12,8 @@
 #define BASSSOURCE_H
 
 #include <string>
-
 #include <boost/cstdint.hpp>
 #include <boost/scoped_ptr.hpp>
-
 #include "audiostream.h"
 
 class BassSource : public Decoder
@@ -57,4 +55,12 @@ private:
     boost::scoped_ptr<Pimpl> pimpl;
 };
 
+#if defined(__linux__) && defined(ENABLE_BASS)
+    extern "C" { void libbass_load(char** argv); }
+    #define LIBBASS_LOAD(argv) libbass_load(argv)
+#else
+    #define LIBBASS_LOAD(argv)
 #endif
+
+#endif
+

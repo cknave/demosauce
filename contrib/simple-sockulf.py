@@ -37,7 +37,7 @@ class djDerp(object):
     def nextsong(self):
         self.pos += 1
         if self.pos >= len(self.playlist):
-            randon.suffle(self.playlist)
+            random.suffle(self.playlist)
             self.pos = 0
         file = self.playlist[self.pos]
         return file, '', os.path.basename(file), 0.0

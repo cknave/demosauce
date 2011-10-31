@@ -1,4 +1,4 @@
-#!/bin/sh
+#i!/bin/sh
 CXX=g++
 CFLAGS="-Wall -O2"
 #remove old ouput files
@@ -24,6 +24,17 @@ check_file() {
     fi
     echo "no"
     return 1
+}
+
+check_exe() {
+    echo -n "checking for $1 ... "
+    which $1 > /dev/null
+    if test $? -ne 0; then
+        echo "no"
+        return 1
+    fi
+    echo "yes"
+    return 0
 }
 
 ask() {
@@ -59,7 +70,6 @@ build '-c logror.cpp'
 # ladspa
 if check_header '<ladspa.h>'; then
     CFLAGS="$CFLAGS -DENABLE_LADSPA"
-    LDL="-ldl"
     LADSPAO="ladspahost.o"
     build '-c ladspahost.cpp'
     build '-o ladspainfo ladspainfo.cpp logror.o ladspahost.o -ldl -lboost_filesystem-mt -lboost_date_time-mt'
@@ -70,8 +80,9 @@ check_bass() {
     if check_header '"bass/bass.h"' && check_file "bass/libbass.so"; then
         if ! check_header "<id3tag.h>"; then echo 'libid3tag missing'; exit 1; fi
         CFLAGS="$CFLAGS -DENABLE_BASS"
-        BASSO="basssource.o"
-        BASSL="-Lbass -Wl,-rpath=bass -lbass -lid3tag -lz"
+        BASSO="libbass.o basssource.o"
+        BASSL="-ldl -lid3tag -lz"
+        build '-c libbass.c'
         build '-c basssource.cpp'
         return 0
     fi
@@ -87,22 +98,26 @@ fi
 
 echo "due to problems with libavcodec on some distros you can build a custom"
 echo "version. in general, the distro's libavcodec should be preferable, but"
-echo -n "might be incompatible with demosauce. "
+echo "might be incompatible with demosauce. you'll need the 'yasm' assember"
 if ask "use custom libavcodec?"; then
     run_script build.sh ffmpeg
     if test $? -ne 0; then echo 'error while building libavcodec'; exit 1; fi
-    AVCODECL="-Lffmpeg -Wl,-rpath=ffmpeg -lavcodec -lavformat"
+    AVCODECL="-Lffmpeg -lavformat -lavcodec -lavutil"
     build '-Iffmpeg -c avsource.cpp'
 else
     if ! check_header '<libavcodec/avcodec.h>'; then echo 'libavcodec missing'; exit 1; fi
     if ! check_header '<libavformat/avformat.h>'; then echo 'libaformat missing'; exit 1; fi
-    AVCODECL="-lavcodec -lavformat"
+    AVCODECL="-lavformat -lavcodec" 
     build "-c avsource.cpp"
 fi
 
 # replaygain
 if ! check_file 'libreplaygain/libreplaygain.a'; then
     run_script build.sh libreplaygain
+fi
+
+if check_exe 'ccache'; then
+    CXX="ccache $CXX"
 fi
 
 # other build steps
@@ -120,7 +135,7 @@ build "-o scan $INPUT $LIBS $BASSL $AVCODECL"
 
 INPUT="settings.o demosauce.o avsource.o convert.o effects.o logror.o sockets.o shoutcast.o $BASSO $LADSPAO"
 LIBS="-lshout -lsamplerate -lboost_system-mt -lboost_thread-mt -lboost_filesystem-mt -lboost_program_options-mt"
-build "-o demosauce $INPUT $LIBS $BASSL $AVCODECL $LDL `icu-config --ldflags`"
+build "-o demosauce $INPUT $LIBS $BASSL $AVCODECL `icu-config --ldflags`"
 
 # generate build script
 printf "#!/bin/sh\n#generated build script\nCFLAGS='$CFLAGS'\n" >> makebelieve.sh

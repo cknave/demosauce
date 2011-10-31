@@ -73,31 +73,28 @@ bool AvSource::load(string file_name)
 {
     pimpl->free();
     pimpl->file_name = file_name;
-
     LOG_DEBUG("[avsource] attempting to load %s", file_name.c_str());
 
-    // KHAAAAAAAAAN! FOR SOME REASON THIS IS BROKEN IN EARLIER RELEASES!
-    //~ AVProbeData probe_data = {file_name.c_str(), 0, 0};
-    //~ AVInputFormat* input_format = av_probe_input_format(&probe_data, 0);
-    //~ if (input_format == NULL)
-    //~ {
-        //~ LOG_WARNING("unknown format %1%"), file_name;
-        //~ return false;
-    //~ }
-
-    //    if (av_open_input_file(&pimpl->format_context, file_name.c_str(), input_format, 0, NULL) != 0)
-    if (av_open_input_file(&pimpl->format_context, file_name.c_str(), 0, 0, NULL) != 0) {
+#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(53, 7, 0)
+    if (av_open_input_file(&pimpl->format_context, file_name.c_str(), 0, 0, 0) != 0) {
+#else
+    if (avformat_open_input(&pimpl->format_context, file_name.c_str(), 0, 0) != 0) {
+#endif
         LOG_DEBUG("[avsource] can't load %s", file_name.c_str());
         return false;
     }
 
     if (av_find_stream_info(pimpl->format_context) < 0) {
-        LOG_DEBUG("[avsource] no stream information %s"), file_name.c_str();
+        LOG_DEBUG("[avsource] no stream information %s", file_name.c_str());
         return false;
     }
 
-    for (unsigned int i = 0; i < pimpl->format_context->nb_streams; i++) { // find first stream {
+    for (unsigned int i = 0; i < pimpl->format_context->nb_streams; i++) {
+#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(53, 7, 0)
         if (pimpl->format_context->streams[i]->codec->codec_type == CODEC_TYPE_AUDIO) {
+#else
+        if (pimpl->format_context->streams[i]->codec->codec_type == AVMEDIA_TYPE_AUDIO) {
+#endif
             pimpl->audio_stream_index = i;
             break;
         }
@@ -301,10 +298,16 @@ string AvSource::metadata(string key) const
     string value;
     if (key == "codec_type") {
         value = pimpl->codec_type();
+#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(53, 7, 0)
     } else if (key == "artist") {
         value = pimpl->format_context->author;
     } else if (key == "title") {
         value = pimpl->format_context->title;
+#else
+    } else {
+        AVDictionary* d = pimpl->format_context->metadata;
+        value = av_dict_get(d, key.c_str(), 0, 0)->value;
+#endif
     }
     boost::trim(value);
     return value;

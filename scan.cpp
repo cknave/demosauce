@@ -16,11 +16,7 @@
 #include <boost/make_shared.hpp>
 
 #include "libreplaygain/replay_gain.h"
-
-#ifdef ENABLE_BASS
-    #include "basssource.h"
-#endif
-
+#include "basssource.h"
 #include "avsource.h"
 #include "convert.h"
 
@@ -161,6 +157,7 @@ string scan_song(string file_name, bool do_scan)
 
 int main(int argc, char* argv[])
 {
+    LIBBASS_LOAD(argv);
     if (argc < 2 || (*argv[1] == '-' && argc < 3)) {
         cout << "demosauce scan tool 0.3.2\nsyntax: scan [--no-replaygain] file" << endl;
         return EXIT_FAILURE;

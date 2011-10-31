@@ -1,5 +1,6 @@
 *.o
 *.log
+*.swp
 scan
 ladspainfo
 demosauce

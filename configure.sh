@@ -70,7 +70,6 @@ build '-c logror.cpp'
 # ladspa
 if check_header '<ladspa.h>'; then
     CFLAGS="$CFLAGS -DENABLE_LADSPA"
-    LDL="-ldl"
     LADSPAO="ladspahost.o"
     build '-c ladspahost.cpp'
     build '-o ladspainfo ladspainfo.cpp logror.o ladspahost.o -ldl -lboost_filesystem-mt -lboost_date_time-mt'
@@ -103,7 +102,7 @@ echo "might be incompatible with demosauce. you'll need the 'yasm' assember"
 if ask "use custom libavcodec?"; then
     run_script build.sh ffmpeg
     if test $? -ne 0; then echo 'error while building libavcodec'; exit 1; fi
-    AVCODECL="-Lffmpeg -lavformat -lavcodec  -lavutil"
+    AVCODECL="-Lffmpeg -lavformat -lavcodec -lavutil"
     build '-Iffmpeg -c avsource.cpp'
 else
     if ! check_header '<libavcodec/avcodec.h>'; then echo 'libavcodec missing'; exit 1; fi
@@ -136,7 +135,7 @@ build "-o scan $INPUT $LIBS $BASSL $AVCODECL"
 
 INPUT="settings.o demosauce.o avsource.o convert.o effects.o logror.o sockets.o shoutcast.o $BASSO $LADSPAO"
 LIBS="-lshout -lsamplerate -lboost_system-mt -lboost_thread-mt -lboost_filesystem-mt -lboost_program_options-mt -lboost_date_time-mt"
-build "-o demosauce $INPUT $LIBS $BASSL $AVCODECL $LDL `icu-config --ldflags`"
+build "-o demosauce $INPUT $LIBS $BASSL $AVCODECL `icu-config --ldflags`"
 
 # generate build script
 printf "#!/bin/sh\n#generated build script\nCFLAGS='$CFLAGS'\n" >> makebelieve.sh

@@ -9,6 +9,7 @@ flags_configure="--disable-debug --enable-static --enable-gpl --enable-nonfree -
 if test -f "$source_tar" -a -f "libavcodec.a"; then exit 0; fi
 
 if test ! -f "$source_tar"; then
+        rm -rf *.a
 	echo "attempting to download $source_url"
 	wget "$source_url"
 	if test $? -ne 0; then exit 1; fi
@@ -29,4 +30,4 @@ if test $? -ne 0; then exit 1; fi
 
 cd ..
 
-#rm -rf $dir_ffmpeg
+rm -rf $dir_ffmpeg

@@ -27,12 +27,12 @@ def scan(file):
     p = subprocess.Popen([program, file], stdout = subprocess.PIPE)
     output = p.communicate()[0]
     if p.returncode != 0:
-        return (False, "", "", 0)
-    author = gv(output, r'author:(.*)')
+        return (False, "", "", "0")
+    artist = gv(output, r'artist:(.*)')
     title = gv(output, r'title:(.*)')
     gain = gv(output, r'replaygain:(-?\d*\.?\d+)')
-    print file, author, title, gain, "dB"
-    return (True, title, author, gain)
+    print file, artist, title, gain, "dB"
+    return (True, title, artist, gain)
     
 # a very simple database
 class songDb(object):
@@ -84,7 +84,10 @@ class djDerp(object):
             random.suffle(self.playlist)
             self.pos = 0
         file = self.playlist[self.pos]
-        return file, '', os.path.basename(file), 0.0
+        foo, title, artist, gain = self.db.get(file)
+        if not title:
+            title = os.path.basename(file)
+        return file, artist, title, gain
 
 # handles communication with demosauce
 class pyWhisperer(object):

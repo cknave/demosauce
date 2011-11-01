@@ -308,14 +308,12 @@ void ShoutCastPimpl::load_next()
     decoder_ready = true;
 }
 
-string get_random_file(string directoryName)
+string get_random_file(string dir_name)
 {
-    // I don't think this is a good idea, enumerating >30k files won't be fast
-    fs::path dir(directoryName);
-    size_t numFiles = std::distance(dir.begin(), dir.end());
-    size_t randIndex = (rand() * numFiles) / RAND_MAX;
+    fs::path dir(dir_name);
+    size_t files = std::distance(fs::directory_iterator(dir), fs::directory_iterator());
     fs::directory_iterator it(dir);
-    std::advance(it, randIndex);
+    std::advance(it, rand() / files);
     return it->path().string();
 }
 

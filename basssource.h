@@ -24,11 +24,8 @@ public:
     static bool probe_name(std::string file_name);
 
     // manipulators
-    // only applies to modules
-    void set_samplerate(uint32_t samplerate);
-    // only applies to modules
-    void set_loop_duration(double duration);
-    bool load(std::string fileName, bool prescan);
+    void set_samplerate(uint32_t samplerate); // only applies to modules
+    void set_loop_duration(double duration); // only applies to modules
     bool load(std::string file_name, std::string playback_settings);
 
     // manipulators from AbstractSource

@@ -45,12 +45,13 @@ namespace fs = ::boost::filesystem;
 
 struct BassSource::Pimpl
 {
+    bool load(string file_name, bool prescan);
     void free();
     string codec_type() const;
     ConvertFromInterleaved<sample_t> converter;
-    string file_name;
     DWORD channel;
     BASS_CHANNELINFO channelInfo;
+    string file_name;
     uint32_t samplerate;
     uint64_t currentFrame;
     uint64_t lastFrame;
@@ -75,7 +76,7 @@ BassSource::~BassSource()
 
 bool BassSource::load(string file_name)
 {
-    bool loaded = load(file_name, false);
+    bool loaded = pimpl->load(file_name, false);
 
     static DWORD const amiga_flags = BASS_MUSIC_NONINTER | BASS_MUSIC_PT1MOD;
     if (is_amiga_module()) {
@@ -87,15 +88,15 @@ bool BassSource::load(string file_name)
     return loaded;
 }
 
-bool BassSource::load(string file_name, string playback_settings)
+bool BassSource::load(string file_name, string options)
 {
-    bool loaded = load(file_name, false);
-    if (!is_module()) {
+    bool prescan = get_value(options, "bass_prescan", false);
+    bool loaded = pimpl->load(file_name, prescan);
+    if (!is_module()) 
         return loaded;
-    }
 
     // interpolation, values: auto, auto, off, linear, sinc (bass uses linear as default)
-    string inter_str = get_value(playback_settings, "bass_inter", "auto");
+    string inter_str = get_value(options, "bass_inter", "auto");
     if ((is_amiga_module() && inter_str == "auto") || inter_str == "off") {
         BASS_ChannelFlags(pimpl->channel, BASS_MUSIC_NONINTER, BASS_MUSIC_NONINTER);
     }
@@ -104,7 +105,7 @@ bool BassSource::load(string file_name, string playback_settings)
     }
 
     // ramping, values: auto, normal, sensitive
-    string ramp_str = get_value(playback_settings, "bass_ramp", "auto");
+    string ramp_str = get_value(options, "bass_ramp", "auto");
     if ((!is_amiga_module() && ramp_str == "auto") || inter_str == "normal") {
         BASS_ChannelFlags(pimpl->channel, BASS_MUSIC_RAMP, BASS_MUSIC_RAMP);
     } else if (ramp_str == "sensitive") {
@@ -112,7 +113,7 @@ bool BassSource::load(string file_name, string playback_settings)
     }
 
     // playback mode, values: auto, bass, pt1, ft2 (bass is default)
-    string mode_str = get_value(playback_settings, "bass_mode", "auto");
+    string mode_str = get_value(options, "bass_mode", "auto");
     if ((is_amiga_module() && mode_str == "auto") || mode_str == "pt1") {
         BASS_ChannelFlags(pimpl->channel, BASS_MUSIC_PT1MOD, BASS_MUSIC_PT1MOD);
     } else if (mode_str == "ft2") {
@@ -122,37 +123,33 @@ bool BassSource::load(string file_name, string playback_settings)
     return loaded;
 }
 
-bool BassSource::load(string file_name, bool prescan)
+bool BassSource::Pimpl::load(string file_name, bool prescan)
 {
-    pimpl->free();
-    pimpl->file_name = file_name;
-    DWORD& channel = pimpl->channel;
+    free();
     DWORD stream_flags = BASS_STREAM_DECODE | (prescan ? BASS_STREAM_PRESCAN : 0) | FLOAT_FLAG;
     DWORD music_flags = BASS_MUSIC_DECODE | BASS_MUSIC_PRESCAN | FLOAT_FLAG;
 
     LOG_DEBUG("[basssource] attempting to load %1%"), file_name;
-    // brute force attempt, don't rely on extensions
     channel = BASS_StreamCreateFile(FALSE, file_name.c_str(), 0, 0, stream_flags);
     if (!channel) {
-        channel = BASS_MusicLoad(FALSE, file_name.c_str(), 0, 0 , music_flags, pimpl->samplerate);
+        channel = BASS_MusicLoad(FALSE, file_name.c_str(), 0, 0 , music_flags, samplerate);
     }
     if (!channel) {
         LOG_DEBUG("[basssource] can't load %1%"), file_name;
         return false;
     }
 
-    BASS_ChannelGetInfo(channel, &pimpl->channelInfo);
+    BASS_ChannelGetInfo(channel, &channelInfo);
     const QWORD length = BASS_ChannelGetLength(channel, BASS_POS_BYTE);
-    pimpl->lastFrame = length / (sizeof(sample_t) *  channels());
+    lastFrame = length / (sizeof(sample_t) * channelInfo.chans);
 
     if (length == static_cast<QWORD>(-1)) {
         ERROR("[basssource] can't determine duration of %1%"), file_name;
-        pimpl->free();
+        free();
         return false;
     }
-
+    this->file_name = file_name;
     LOG_INFO("[basssource] playing %1%"), file_name;
-
     return true;
 }
 
@@ -282,9 +279,8 @@ bool BassSource::probe_name(string file_name)
     fs::path file(file_name);
     string name = file.filename();
 
-    static size_t const elements = 18;
-    char const * ext[elements] = {".mp3", ".ogg", ".m4a", ".flac", ".acc", ".mp4", ".mp2", ".mp1",
-        ".wav", ".aiff", ".xm", ".mod", ".s3m", ".it", ".mtm", ".umx", ".mo3", ".fst"};
+    static size_t const elements = 14;
+    char const * ext[elements] = {".mp3", ".ogg", ".mp2", ".mp1", ".wav", ".aiff", ".xm", ".mod", ".s3m", ".it", ".mtm", ".umx", ".mo3", ".fst"};
     for (size_t i = 0; i < elements; ++i) {
         if (iends_with(name, ext[i])) {
             return true;

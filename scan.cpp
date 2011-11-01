@@ -60,7 +60,7 @@ string scan_song(string file_name, bool do_scan)
 
 #ifdef ENABLE_BASS
     shared_ptr<BassSource> bass_decoder = make_shared<BassSource>();
-    bass_loaded = bass_decoder->load(file_name, true);
+    bass_loaded = bass_decoder->load(file_name, "prescan=true");
     bitrate = bass_decoder->bitrate();
     decoder = static_pointer_cast<Decoder>(bass_decoder);
 #endif
@@ -162,7 +162,6 @@ int main(int argc, char* argv[])
         cout << "demosauce scan tool 0.3.2\nsyntax: scan [--no-replaygain] file" << endl;
         return EXIT_FAILURE;
     }
-
     string file_name = argv[argc - 1];
     bool do_replay_gain = string(argv[1]) != "--no-replaygain";
     cout << scan_song(file_name, do_replay_gain);

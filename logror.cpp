@@ -59,20 +59,17 @@ void log_set_file(const char* file_name, LogLevel level)
         file_level = level;
 }
 
-static void flog(FILE* f, LogLevel lvl, const char* fmt, ...)
+static void fvlog(FILE* f, LogLevel lvl, const char* fmt, va_list args)
 {
     static const char* levels[] = {"DEBUG", "INFO ", "WARN ", "ERROR", "ERROR", "DOOOM", "DOOOM"};
-    va_list args;
     time_t rawtime;
     char buf[30] = {0};
-    va_start(args, fmt);
     time(&rawtime);
     if (!strftime(buf, 30, "%d.%m.%Y %X", localtime(&rawtime)))
         buf[0] = 0;
     fprintf(f, "%s %s ", levels[lvl], buf);
     vfprintf(f, fmt, args);
     fputc('\n', f);
-    va_end(args);
 }
 
 #define TENMIN (CLOCKS_PER_SEC * 60 * 60)
@@ -93,9 +90,9 @@ void log_log(LogLevel lvl, const char* fmt, ...)
         va_list args;
         va_start(args, fmt);
         if (lvl >= console_level)
-            flog(stdout, lvl, fmt, args); 
+            fvlog(stdout, lvl, fmt, args); 
         if (lvl >= file_level)
-            flog(logfile, lvl, fmt, args);
+            fvlog(logfile, lvl, fmt, args);
         va_end(args);
     }
     if (quit) {

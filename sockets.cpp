@@ -70,7 +70,7 @@ bool Sockets::Pimpl::send_command(string command, string& result)
                 throw boost::system::system_error(error); // Some other error.
             result.append(buf.data(), len);
         }
-        LOG_DEBUG("[sockets] send_command(\n%s\n)", command.c_str());
+        LOG_DEBUG("[sockets] send_command(%s)", command.c_str());
     }
     catch (std::exception & e) {
         LOG_WARN("[sockets] send_command: %i", e.what());

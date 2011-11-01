@@ -18,8 +18,8 @@
 *   // logs "DEBUG <time> i see 10 mongo-moose!"
 *
 *   for error "handling", use ERROR and FATAL macros:
-*   ERROR("DOOOOOM!! /o\ message: %1%"), error_message;
-*   FATAL("FFFFFFFFUUUUUUUUUUUUUUUUUUUU %1%"), reason;
+*   ERROR("DOOOOOM!! /o\ message: %1%", error_message);
+*   FATAL("FFFFFFFFUUUUUUUUUUUUUUUUUUUU %1%", reason);
 *
 *   ERROR keeps track of the last errors and calls exit(1) after
 *   after more than 10 errors in less than 10 minutes
@@ -56,8 +56,8 @@ enum LogLevel
 
 #define LOG_INFO(...) log_log(log_info, __VA_ARGS__) 
 #define LOG_WARN(...) log_log(log_warn, __VA_ARGS__) 
-#define LOG_ERROR(...) log_log(log_error __VA_ARGS__) 
-#define LOG_FATAL(...) log_log(log_fatal __VA_ARGS__) 
+#define LOG_ERROR(...) log_log(log_error, __VA_ARGS__) 
+#define LOG_FATAL(...) log_log(log_fatal, __VA_ARGS__) 
 #define ERROR(...) log_log(log_error_quit, __VA_ARGS__)
 #define FATAL(...) log_log(log_fatal_quit, __VA_ARGS__)
 

@@ -20,12 +20,12 @@ namespace {
 
 const char* cstr(std::string& s)
 {
-    return s.empty() ? "<empty>" : s.c_str();
+    return s.empty() ? "{}" : s.c_str();
 }
 
 const char* cstr(const char* s)
 {
-    return s && s[0] != 0 ? s : "<empty>";
+    return s && s[0] != 0 ? s : "{}";
 }
 
 bool get_value_impl(std::string data, std::string key, std::string& value)
@@ -52,7 +52,7 @@ inline std::string get_value(std::string data, std::string key, std::string fall
 {
     std::string value = fallback_value;
     get_value_impl(data, key, value);
-    LOG_DEBUG("[get_value] %s=%s", cstr(key), cstr(value));
+    LOG_DEBUG("[get_value] %s = %s", cstr(key), cstr(value));
     return value;
 }
 
@@ -73,7 +73,7 @@ template <typename T> T get_value(std::string data, std::string key, T fallback_
 #ifndef NDEBUG
     try {
         value_str = boost::lexical_cast<std::string>(value);
-        LOG_DEBUG("[get_value] %s=%s)", cstr(key), cstr(value_str));
+        LOG_DEBUG("[get_value] %s = %s", cstr(key), cstr(value_str));
     } catch (boost::bad_lexical_cast&) {}
 #endif
     return value;

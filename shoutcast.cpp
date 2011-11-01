@@ -223,7 +223,7 @@ void ShoutCastPimpl::writer()
             remaining_frames += frames;
 
             if (frames != decode_frames || remaining_frames > 0) { // end of song 
-                LOG_DEBUG("end of stream");
+                LOG_DEBUG("[writer] end of stream");
                 decode_buffer.zero_end((decode_frames - frames) * channels);
                 // load next song in separate thread
                 decoder_ready = false;
@@ -252,7 +252,7 @@ void ShoutCastPimpl::reader()
         // shout_sync(cast); syncing moved to writer
         int err = shout_send(cast, send_buffer.get_uchar(), send_buffer.size_bytes());
         if (err != SHOUTERR_SUCCESS) {
-            ERROR("icecast connection dropped, trying to recover(%s)", shout_get_error(cast));
+            LOG_ERROR("[reader] icecast connection dropped, trying to recover(%s)", shout_get_error(cast));
             disconnect();
         }
     }
@@ -270,7 +270,7 @@ void ShoutCastPimpl::load_next()
         song.forced_length = get_value(song.settings, "length", 0.0);
 
         if (!fs::exists(song.file)) {
-            LOG_WARN("file doesn't exist: %s", cstr(song.file));
+            LOG_WARN("[load_next] file doesn't exist: %s", cstr(song.file));
             continue;
         }
 
@@ -292,12 +292,12 @@ void ShoutCastPimpl::load_next()
         }
 
         if (!loaded) {
-            LOG_WARN("can't decode %s", cstr(song.file));
+            LOG_WARN("[load_next] can't decode %s", cstr(song.file));
         }
     }
 
     if (loadTries >= 3 && !loaded) {
-        LOG_WARN("loading failed three times, sending a bunch of zeros");
+        LOG_WARN("[load_next] loading failed three times, sending a bunch of zeros");
         machineStack->add(zeroSource, 0);
         song.forced_length = 60;
     }
@@ -331,13 +331,13 @@ void ShoutCastPimpl::get_next_song(SongInfo& song)
 
         if (song.file.empty()) {
             if (fs::is_regular_file(setting::error_tune)) {
-                LOG_WARN("file name is empty, using error_tune");
+                LOG_WARN("[get_next_song] file name is empty, using error_tune");
                 song.file = setting::error_tune;
             } else if (fs::is_directory(setting::error_fallback_dir)) {
-                LOG_WARN("file name is empty, using error_fallback_dir");
+                LOG_WARN("[get_next_song] file name is empty, using error_fallback_dir");
                 song.file = get_random_file(setting::error_fallback_dir);
             } else {
-                LOG_WARN("file name is empty, and your fallback settings suck");
+                LOG_WARN("[get_next_song] file name is empty, and your fallback settings suck");
             }
         }
 }
@@ -352,7 +352,7 @@ void ShoutCastPimpl::update_machines(SongInfo& song)
     remaining_frames = std::numeric_limits<int64_t>::min();
     if (song.forced_length > 0) {
         remaining_frames = -numeric_cast<int>(setting::encoder_samplerate * song.forced_length);
-        LOG_DEBUG("song length forced to %f seconds", song.forced_length);
+        LOG_DEBUG("[update_machines] song length forced to %f seconds", song.forced_length);
     }
 
     string fade_out = get_value(song.settings, "fade_out", "false");
@@ -365,13 +365,13 @@ void ShoutCastPimpl::update_machines(SongInfo& song)
         uint64_t end = numeric_cast<uint64_t>(length  * setting::encoder_samplerate);
         linearFade->set_fade(start, end, 1, 0);
         linearFade->set_enabled(true);
-        LOG_DEBUG("song fading out at %f seconds", length);
+        LOG_DEBUG("[update_machines] song fading out at %f seconds", length);
     }
 
     if (song.samplerate != setting::encoder_samplerate) {
         resample->set_rates(song.samplerate, setting::encoder_samplerate);
         resample->set_enabled(true);
-        LOG_DEBUG("resampling %u to %u Hz", song.samplerate, setting::encoder_samplerate);
+        LOG_DEBUG("[update_machines] resampling %u to %u Hz", song.samplerate, setting::encoder_samplerate);
     }
 
     bool auto_mix = (get_value(song.settings, "mix", "auto") == "auto");
@@ -381,12 +381,12 @@ void ShoutCastPimpl::update_machines(SongInfo& song)
         ratio = std::min(ratio, 1.);
         mixChannels->set_mix(1. - ratio, ratio, 1. - ratio, ratio);
         mixChannels->set_enabled(true);
-        LOG_DEBUG("mixing channels with %f ratio", ratio);
+        LOG_DEBUG("[update_machines] mixing channels with %f ratio", ratio);
     }
 
     double song_gain = get_value(song.settings, "gain", 0.0);
     gain->set_amp(db_to_amp(song_gain));
-    LOG_DEBUG("applying gain of %f dB", song_gain);
+    LOG_DEBUG("[update_machines] applying gain of %f dB", song_gain);
 
     machineStack->update_routing();
 }
@@ -402,7 +402,7 @@ void ShoutCastPimpl::run_encoder()
     if (!fs::exists(exe)) try {
         exe = bp::find_executable_in_path(exe);
     } catch (fs::filesystem_error& e) {
-        FATAL("can't locate encoder executable: %s", cstr(exe));
+        FATAL("[run_encoder] can't locate encoder executable: %s", cstr(exe));
     }
 
     bp::context ctx;
@@ -410,7 +410,7 @@ void ShoutCastPimpl::run_encoder()
     ctx.streams[bp::stdout_id] = bp::behavior::async_pipe();
     ctx.streams[bp::stderr_id] = bp::behavior::null();
 
-    LOG_INFO("starting encoder: %s", cstr(setting::encoder_command));
+    LOG_INFO("[run_encoder] starting encoder: %s", cstr(setting::encoder_command));
     try {
         // launch encoder
         bp::child c = bp::create_child(exe, args, ctx);
@@ -427,9 +427,9 @@ void ShoutCastPimpl::run_encoder()
         encoder_running = false;
         write_tread.interrupt();    // try interrupting any blocking calls
         read_tread.interrupt();     // try interrupting any blocking calls
-        ERROR("encoder process stopped, trying to recover");
+        LOG_ERROR("[run_encoder] encoder process stopped, trying to recover");
     } catch (fs::filesystem_error& e) {
-        FATAL("failed to launch encoder (%s)", e.what());
+        FATAL("[run_encoder] failed to launch encoder (%s)", e.what());
     }
 }
 
@@ -461,15 +461,15 @@ void ShoutCastPimpl::connect()
     int err = shout_open(cast);
     switch (err) {
         case SHOUTERR_SUCCESS:
-            LOG_INFO("connected to icecast");
+            LOG_INFO("[connect] connected to icecast");
             connected = true;
             break;
         case SHOUTERR_NOCONNECT:
         case SHOUTERR_SOCKET:
-            ERROR("can't connect to icecast (%s)", shout_get_error(cast));
+            LOG_ERROR("[connect] can't connect to icecast (%s)", shout_get_error(cast));
             break;
         default:
-            FATAL("can't connect to icecast (%s)", shout_get_error(cast));
+            FATAL("[connect] can't connect to icecast (%s)", shout_get_error(cast));
             break;
     }
 }
@@ -491,7 +491,7 @@ string utf8_to_ascii(string utf8_str)
     ucnv_close(converter);
 
     if (U_FAILURE(status)) {
-        LOG_WARN("utf8 conversion failed (%s)", u_errorName(status));
+        LOG_WARN("[utf8_to_ascii] conversion failed (%s)", u_errorName(status));
         return "";
     }
 
@@ -500,7 +500,7 @@ string utf8_to_ascii(string utf8_str)
     Normalizer::normalize(in_str, UNORM_NFKD, 0, norm_str, status);
 
     if (U_FAILURE(status)) {
-        LOG_WARN("unicode decomposition failed (%s)", u_errorName(status));
+        LOG_WARN("[utf8_to_ascii] decomposition failed (%s)", u_errorName(status));
         return "";
     }
 

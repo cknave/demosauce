@@ -101,7 +101,7 @@ void MachineStack::update_routing()
     // chain the rest of the machines
     for(; i < machines.size(); ++i) {
         if (machines[i].get() && machines[i]->enabled()) {
-            LOG_DEBUG("connect %s -> %s", source_machine->name().c_str(), machines[i]->name().c_str());
+            LOG_DEBUG("[machine_stack] connect %s -> %s", source_machine->name().c_str(), machines[i]->name().c_str());
             machines[i]->set_source(source_machine);
             source_machine = machines[i];
         }

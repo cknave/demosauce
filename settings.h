@@ -47,8 +47,8 @@ namespace setting {
     extern std::string      error_fallback_dir;
 
     extern std::string      log_file;
-    extern logror::Level    log_file_level;
-    extern logror::Level    log_console_level;
+    extern LogLevel         log_file_level;
+    extern LogLevel         log_console_level;
 
     extern std::string      debug_song;
 #ifdef ENABLE_LADSPA

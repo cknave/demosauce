@@ -52,7 +52,7 @@ int main(int argc, char* argv[])
     try {
         init_settings(argc, argv);
         log_set_console_level(setting::log_console_level);
-        log_set_file(setting::log_file, setting::log_file_level);
+        log_set_file(setting::log_file.c_str(), setting::log_file_level);
         ShoutCast cast;
         std::cout << "the spice must flow!\n";
         cast.Run();

@@ -70,10 +70,10 @@ bool Sockets::Pimpl::send_command(string command, string& result)
                 throw boost::system::system_error(error); // Some other error.
             result.append(buf.data(), len);
         }
-        LOG_DEBUG("[sockets] command=%1% result=%2%"), command, result;
+        LOG_DEBUG("[sockets] send_command(%s)", command.c_str());
     }
     catch (std::exception & e) {
-        LOG_WARNING("[sockets] send_command: %1%"), e.what();
+        LOG_WARN("[sockets] send_command: %i", e.what());
         return false;
     }
     return true;
@@ -82,12 +82,9 @@ bool Sockets::Pimpl::send_command(string command, string& result)
 string Sockets::get_next_song()
 {
     string result;
-
     if (!pimpl->send_command("NEXTSONG", result)) {
         ERROR("[sockets] command NEXTSONG failed");
     }
-
-    LOG_DEBUG("[sockets] get_next_song: %1%"), result;
     return result;
 }
 
@@ -106,7 +103,7 @@ bool resolve_ip(string host, string& ipAddress)
         ipAddress = ep.address().to_string();
     }
     catch (std::exception& e) {
-        ERROR("[resolve_ip] %1%"), e.what();
+        ERROR("[resolve_ip] %s", e.what());
         return false;
     }
     return true;

@@ -9,8 +9,8 @@ fi
 
 # Debian (and Ubuntu obviously)
 if [ -f /etc/debian_version ] ; then
+	aptitude -y install g++ yasm lame ladspa-sdk libsamplerate-dev libshout-dev libid3tag0-dev libicu-dev libboost-dev libboost-system-dev libboost-thread-dev libboost-filesystem-dev libboost-program-options-dev
         echo 'note: older debian distros have ancient boost packages. usually there is a newer package available, like libboost1.40-dev'
-	aptitude -y install g++ yasm lame ladspa-sdk libsamplerate-dev libshout-dev libid3tag0-dev libicu-dev libboost-dev libboost-system-dev libboost-date-time-dev libboost-thread-dev libboost-filesystem-dev libboost-program-options-dev
 	exit
 fi
 
@@ -22,6 +22,7 @@ fi
 
 # Slackware
 if [ -f /etc/slackware-version ] ; then
+        echo "I don't even know if Slackware has a package manager...  pls fix"
 	exit
 fi
 

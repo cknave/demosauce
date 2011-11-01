@@ -9,143 +9,110 @@
 */
 
 #include <cstdlib>
-#include <queue>
+#include <ctime>
 #include <fstream>
-#include <iostream>
+#include <cstdarg>
+#include <queue>
 
+#include <boost/format.hpp>
 #include <boost/algorithm/string.hpp>
-#include <boost/date_time/posix_time/posix_time.hpp>
 
 #include "logror.h"
 
 using std::string;
-using namespace boost::posix_time;
 
-logror::Level console_level = logror::nothing;
-logror::Level file_level = logror::nothing;
-std::ofstream log_stream;
-std::queue<ptime> error_times;
+static LogLevel console_level = log_off;
+static LogLevel file_level = log_off;
+static FILE* logfile = 0;
+static std::queue<time_t> error_times;
 
-void log_set_console_level(logror::Level level)
+void log_set_console_level(LogLevel level)
 {
     console_level = level;
 }
 
-void log_set_file_level(logror::Level level)
+void log_set_file_level(LogLevel level)
 {
-    if (log_stream.is_open() && !log_stream.fail()) {
-        file_level = level;
-    }
+    file_level = level;
 }
 
-void log_set_file(string file_name, logror::Level level)
+void log_set_file(const char* file_name, LogLevel level)
 {
-    // don't throw exception if something fails
-    log_stream.exceptions(std::ifstream::goodbit);
-
-    if (level == logror::nothing) {
+    time_t rawtime;
+    char buf[30] = {0};
+    if (level == log_off)
         return;
-    }
 
-    string time = to_simple_string(second_clock::local_time());
+    time(&rawtime);
+    if (!strftime(buf, 30, "%d.%m.Y %H:%M", localtime(&rawtime)))
+        buf[0] = 0;
     string tmp_name = file_name;
     boost::replace_all(tmp_name, "%date%", "%1%");
-
     boost::format formater(tmp_name);
     formater.exceptions(boost::io::no_error_bits);
-    tmp_name = str(formater % time);
+    tmp_name = str(formater % buf);
 
-    log_stream.open(tmp_name.c_str());
-    if (log_stream.fail()) {
-        std::cout << "WARNING: could not open log file\n";
-    } else {
+    logfile = fopen(tmp_name.c_str(), "w");
+    if (!logfile)
+        puts("WARNING: could not open log file");
+    else 
         file_level = level;
-    }
 }
 
-namespace logror {
-
-LogBlob log_action(Level level, bool take_action, string message)
+static void fvlog(FILE* f, LogLevel lvl, const char* fmt, va_list args)
 {
-    if (level != nothing && (level >= file_level || level >= console_level)) {
-        string msg;
-        msg.reserve(160); // should be enough for most
-        switch (level) {
-            case debug:   msg.append("DEBUG "); break;
-            case info:    msg.append("INFO  "); break;
-            case warning: msg.append("WARN  "); break;
-            case error:   msg.append("ERROR "); break;
-            case fatal:   msg.append("DOOM  "); break;
-            default:;
-        }
-        msg.append(to_simple_string(second_clock::local_time()));
-        msg.append(" ");
-        msg.append(message);
-        return LogBlob(level, take_action, msg);
-    }
-    return LogBlob(nothing, take_action, "");
+    static const char* levels[] = {"DEBUG", "INFO ", "WARN ", "ERROR", "ERROR", "DOOOM", "DOOOM"};
+    time_t rawtime;
+    char buf[30] = {0};
+    time(&rawtime);
+    if (!strftime(buf, 30, "%d.%m.%Y %X", localtime(&rawtime)))
+        buf[0] = 0;
+    fprintf(f, "%s %s ", levels[lvl], buf);
+    vfprintf(f, fmt, args);
+    fputc('\n', f);
 }
 
-LogBlob::LogBlob (Level level, bool take_action, string message):
-    level(level),
-    take_action(take_action),
-    formater(message)
+#define TENMIN (CLOCKS_PER_SEC * 60 * 60)
+void log_log(LogLevel lvl, const char* fmt, ...)
 {
-    formater.exceptions(boost::io::no_error_bits);
-}
+    if (lvl == log_off || (lvl < file_level && lvl < console_level)) 
+        return;
 
-LogBlob::~LogBlob()
-{
-    bool fatalQuit = take_action && (level == fatal);
-    bool errorQuit = false;
-    if (level == error) {
-        ptime now = second_clock::local_time();
+    bool quit = (lvl == log_fatal_quit);
+    if (lvl == log_error_quit) {
+        time_t now = clock();
         error_times.push(now);
-        if (error_times.size() > 10) {
+        if (error_times.size() > 10)
             error_times.pop();
-        }
-        errorQuit = take_action && (error_times.size() > 9) && (error_times.front() > (now - minutes(10)));
+        quit |= (error_times.size() >= 10) && (error_times.front() > now - TENMIN);
     }
-    if (level != nothing) {
-        string msg = str(formater);
-        if (fatalQuit) {
-            msg.append("\nterminated (fatal error)");
-        }
-        if (errorQuit) {
-            msg.append("\nterminated (too many errors)");
-        }
-        if (level >= console_level) {
-            std::cout <<  msg << std::endl;
-        }
-        if (level >= file_level) {
-            log_stream << msg << std::endl;
-        }
+    if (lvl != log_off) {
+        va_list args;
+        va_start(args, fmt);
+        if (lvl >= console_level)
+            fvlog(stdout, lvl, fmt, args); 
+        if (lvl >= file_level)
+            fvlog(logfile, lvl, fmt, args);
+        va_end(args);
     }
-    if (fatalQuit || errorQuit) {
+    if (quit) {
+        puts("terminted\n");
+        if (logfile) fputs("terminated\n", logfile);
         exit(EXIT_FAILURE);
     }
 }
 
-}
-
-bool log_string_to_level(string level_string, logror::Level& level)
+bool log_string_to_level(const char* name, LogLevel* level)
 {
-    string str = level_string;
+    static const char* lstr[] = {"debug", "info", "warn", "error", "fatal", "off", "nothing"};
+    static const LogLevel llvl[] = {log_debug, log_info, log_warn, log_error, log_fatal, log_off, log_off};
+    string str = name;
     boost::to_lower(str);
-    if (str == "debug") {
-        level = logror::debug;
-    } else if (str == "info") {
-        level = logror::info;
-    } else if (str == "warn") {
-        level = logror::warning;
-    } else if (str == "error") {
-        level = logror::error;
-    } else if (str =="fatal") {
-        level = logror::fatal;
-    } else if (str =="nothing") {
-        level = logror::nothing;
-    } else {
-        return false;
+    for (int i = 0; i < 7; i++) {
+        if (str == lstr[i]) {
+            *level = llvl[i];
+            return true;
+        }
     }
-    return true;
+    return false;
 }

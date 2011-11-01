@@ -107,7 +107,7 @@ if ask "use custom libavcodec?"; then
 else
     if ! check_header '<libavcodec/avcodec.h>'; then echo 'libavcodec missing'; exit 1; fi
     if ! check_header '<libavformat/avformat.h>'; then echo 'libaformat missing'; exit 1; fi
-    AVCODECL="-lavcodec -lavformat"
+    AVCODECL="-lavformat -lavcodec" 
     build "-c avsource.cpp"
 fi
 
@@ -130,11 +130,11 @@ build '-c effects.cpp'
 build '-c sockets.cpp'
 
 INPUT="scan.o avsource.o effects.o logror.o convert.o $BASSO libreplaygain/libreplaygain.a"
-LIBS="-lsamplerate -lboost_system-mt -lboost_date_time-mt"
+LIBS="-lsamplerate -lboost_system-mt"
 build "-o scan $INPUT $LIBS $BASSL $AVCODECL"
 
 INPUT="settings.o demosauce.o avsource.o convert.o effects.o logror.o sockets.o shoutcast.o $BASSO $LADSPAO"
-LIBS="-lshout -lsamplerate -lboost_system-mt -lboost_thread-mt -lboost_filesystem-mt -lboost_program_options-mt -lboost_date_time-mt"
+LIBS="-lshout -lsamplerate -lboost_system-mt -lboost_thread-mt -lboost_filesystem-mt -lboost_program_options-mt"
 build "-o demosauce $INPUT $LIBS $BASSL $AVCODECL `icu-config --ldflags`"
 
 # generate build script

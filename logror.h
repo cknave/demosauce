@@ -6,97 +6,65 @@
 *   also, this is beerware! you are strongly encouraged to invite the
 *   authors of this software to a beer when you happen to meet them.
 *   copyright MMXI by maep
-*/
-
-/*
-    logging and "error handling" stuff
-    to log, use
-    LOG_DEBUG, LOG_INFO, LOG_WARNING, LOG_ERROR, LOG_FATAL
-    LOG_DEBUG will only be compiled without NDEBUG macro
-
-    example:
-    LOG_INFO("something unimportant happend");
-    int foo = 10;
-    string bar = mongo-moose
-    LOG_DEBUG("i see %1% %2%!"), foo, bar; // prints "i see 10 mongo-moose!"
-
-    for error "handling", use
-    ERROR, FATAL
-    example:
-    ERROR("DOOOOOM!! /o\ message: %1%"), error_message;
-    FATAL("FFFFFFFFUUUUUUUUUUUUUUUUUUUU %1%"), reason;
-
-    ERROR keeps track of the last errors and calls exit(1) if too many errors appear
-    (currently 10 errors in less than 10 minutes)
-    FATAL logs the message and then calls exit(1).
-
-    other functions you might need:
-    void log_set_console_level(Level level);
-    void log_set_file_level(Level level);
-    void log_set_file(string file_name, Level level);
-    bool log_string_to_level(string level_string, Level& level);
+*
+*   logging and "error handling" stuff. to log use macros:
+*   LOG_DEBUG, LOG_INFO, LOG_WARNING, LOG_ERROR, LOG_FATAL
+*   LOG_DEBUG will only be compiled without NDEBUG macro
+*
+*   you can use it like printf:
+*   LOG_INFO("foo"); // logs "INFO  <time> foo"
+*   int foo = 10; string bar = mongo-moose
+*   LOG_DEBUG("i see %1% %2%!", foo, bar.s_str());
+*   // logs "DEBUG <time> i see 10 mongo-moose!"
+*
+*   for error "handling", use ERROR and FATAL macros:
+*   ERROR("DOOOOOM!! /o\ message: %1%", error_message);
+*   FATAL("FFFFFFFFUUUUUUUUUUUUUUUUUUUU %1%", reason);
+*
+*   ERROR keeps track of the last errors and calls exit(1) after
+*   after more than 10 errors in less than 10 minutes
+*   FATAL will exit immediateloy after logging
+*
+*   functions for changing logging behaviour:
+*   void log_set_console_level(Level level);
+*   void log_set_file_level(Level level);
+*   void log_set_file(string file_name, Level level);
+*   function for converting a string to log level
+*   bool log_string_to_level(string level_string, Level* level);
 */
 
 #ifndef LOGROR_H
 #define LOGROR_H
 
-#include <string>
-
-#include <boost/format.hpp>
-
-namespace logror
+enum LogLevel
 {
-
-enum Level
-{
-    debug = 0,
-    info,
-    warning,
-    error,
-    fatal,
-    nothing
+    log_debug = 0,
+    log_info,
+    log_warn,
+    log_error,
+    log_error_quit,
+    log_fatal,
+    log_fatal_quit,
+    log_off
 };
-
-class LogBlob
-{
-public:
-    LogBlob (Level level, bool takeAction, std::string message);
-    virtual ~LogBlob();
-    template<typename T> LogBlob & operator , (T right);
-private:
-    Level const level;
-    bool take_action;
-    boost::format formater;
-};
-
-template <typename T>
-LogBlob& LogBlob::operator , (T right)
-{
-    if (level != nothing)
-        formater % right;
-    return *this;
-}
-
-LogBlob log_action(Level level, bool take_action, std::string message);
-
-}
 
 #ifndef NDEBUG
-    #define LOG_DEBUG(message) logror::log_action(logror::debug, false, message)
+    #define LOG_DEBUG(...) log_log(log_debug, __VA_ARGS__)
 #else
-    #define LOG_DEBUG(message) if(0) logror::log_action(logror::nothing, false, "") 
+    #define LOG_DEBUG(...)
 #endif
 
-#define LOG_INFO(message) logror::log_action(logror::info, false, message)
-#define LOG_WARNING(message) logror::log_action(logror::warning, false, message)
-#define LOG_ERROR(message) logror::log_action(logror::error, false, message)
-#define LOG_FATAL(message) logror::log_action(logror::fatal, false, message)
-#define ERROR(message) logror::log_action(logror::error, true, message)
-#define FATAL(message) logror::log_action(logror::fatal, true, message)
+#define LOG_INFO(...) log_log(log_info, __VA_ARGS__) 
+#define LOG_WARN(...) log_log(log_warn, __VA_ARGS__) 
+#define LOG_ERROR(...) log_log(log_error, __VA_ARGS__) 
+#define LOG_FATAL(...) log_log(log_fatal, __VA_ARGS__) 
+#define ERROR(...) log_log(log_error_quit, __VA_ARGS__)
+#define FATAL(...) log_log(log_fatal_quit, __VA_ARGS__)
 
-void log_set_console_level(logror::Level level);
-void log_set_file_level(logror::Level level);
-void log_set_file(std::string fileName, logror::Level level = logror::info);
-bool log_string_to_level(std::string levelString, logror::Level& level);
+void log_log(LogLevel lvl, const char* fmt, ...);
+void log_set_console_level(LogLevel level);
+void log_set_file_level(LogLevel level);
+void log_set_file(const char* file, LogLevel level);
+bool log_string_to_level(const char* name, LogLevel* level);
 
 #endif

@@ -48,11 +48,11 @@ void Resample::Pimpl::update_channels(uint32_t channels)
     free();
 
     for (size_t i = states.size(); i < channels; ++i) {
-        LOG_DEBUG("[resample] new channel %1%"), i;
+        LOG_DEBUG("[resample] new channel %u", i);
         int err = 0;
         SRC_STATE* state = src_new(SRC_SINC_FASTEST, 1, &err);
         if (err) {
-            LOG_WARNING("[resample] src_new error: %1%"), src_strerror(err);
+            LOG_WARN("[resample] src_new error (%s)", src_strerror(err));
         } else {
             states.push_back(state);
         }
@@ -86,7 +86,7 @@ void Resample::process(AudioStream& stream, uint32_t const frames)
         data.data_out = stream.buffer(i);
         int const err = src_process(pimpl->states[i], &data);
         if (err) {
-            ERROR("[resample] src_process error: %1%"), src_strerror(err);
+            ERROR("[resample] src_process error (%s)", src_strerror(err));
         }
     }
 
@@ -96,7 +96,7 @@ void Resample::process(AudioStream& stream, uint32_t const frames)
     stream.set_frames(data.output_frames_gen);
 
     if(stream.end_of_stream) {
-        LOG_DEBUG("[resample] eos %1% frames left"), stream.frames();
+        LOG_DEBUG("[resample] eos %lu frames left", stream.frames());
     }
 }
 

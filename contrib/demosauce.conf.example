@@ -42,7 +42,7 @@ error_fallback_dir      = /dir/to/songs
 
 # to prevent old logs from being overwritten, a %date% token in the log file
 # name will be replaced by the current date-time
-# the log level can be debug, info, warn, error, fatal, nothing
+# the log level can be debug, info, warn, error, fatal, off/nothing ('nothing' is deprecated)
 log_file                = demosauce_%date%.log
 log_file_level          = warn
 log_console_level       = warn

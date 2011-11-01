@@ -73,20 +73,19 @@ bool AvSource::load(string file_name)
 {
     pimpl->free();
     pimpl->file_name = file_name;
-
-    LOG_DEBUG("[avsource] attempting to load %1%"), file_name;
+    LOG_DEBUG("[avsource] attempting to load %s", file_name.c_str());
 
 #if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(53, 7, 0)
     if (av_open_input_file(&pimpl->format_context, file_name.c_str(), 0, 0, 0) != 0) {
 #else
     if (avformat_open_input(&pimpl->format_context, file_name.c_str(), 0, 0) != 0) {
 #endif
-        LOG_DEBUG("[avsource] can't load %1%"), file_name;
+        LOG_DEBUG("[avsource] can't load %s", file_name.c_str());
         return false;
     }
 
     if (av_find_stream_info(pimpl->format_context) < 0) {
-        LOG_DEBUG("[avsource] no stream information %1%"), file_name;
+        LOG_DEBUG("[avsource] no stream information %s", file_name.c_str());
         return false;
     }
 
@@ -102,26 +101,26 @@ bool AvSource::load(string file_name)
     }
 
     if (pimpl->audio_stream_index == -1) {
-        LOG_DEBUG("[avsource] no audio stream :( %1%"), file_name;
+        LOG_DEBUG("[avsource] no audio stream :( %s", file_name.c_str());
         return false;
     }
 
     pimpl->codec_context = pimpl->format_context->streams[pimpl->audio_stream_index]->codec;
     pimpl->codec = avcodec_find_decoder(pimpl->codec_context->codec_id);
     if (!pimpl->codec) {
-        LOG_DEBUG("[avsource] unsupported codec %1%"), file_name;
+        LOG_DEBUG("[avsource] unsupported codec %s", file_name.c_str());
         return false;
     }
 
     if (avcodec_open(pimpl->codec_context, pimpl->codec) < 0) {
-        LOG_DEBUG("[avsource] failed to open codec %1%"), file_name;
+        LOG_DEBUG("[avsource] failed to open codec %s", file_name.c_str());
         return false;
     }
 
     pimpl->length = numeric_cast<uint64_t>(pimpl->format_context->duration *
         (static_cast<double>(pimpl->codec_context->sample_rate) / AV_TIME_BASE));
 
-    LOG_INFO("[avsource] playing %1%"), file_name;
+    LOG_INFO("[avsource] playing %s", file_name.c_str());
 
     return true;
 }
@@ -164,7 +163,7 @@ void AvSource::Pimpl::process(AudioStream& stream, uint32_t frames)
 {
     uint32_t const channels = numeric_cast<uint32_t>(codec_context->channels);
     if (packet_buffer_pos < 0 || channels < 1) {
-        ERROR("[avsource] strange state");
+        ERROR("[avsource] dirr tidledi derp");
         stream.zero(0, frames);
         stream.end_of_stream = true;
         return;
@@ -207,7 +206,7 @@ void AvSource::Pimpl::process(AudioStream& stream, uint32_t frames)
     packet_buffer_pos -= used_bytes;
 
     if (stream.end_of_stream) {
-        LOG_DEBUG("[avsource] eos avcodec %1% frames left"), stream.frames();
+        LOG_DEBUG("[avsource] eos avcodec %lu frames left", stream.frames());
     }
 }
 
@@ -335,7 +334,7 @@ string AvSource::Pimpl::codec_type()
         case CODEC_ID_WMAV2:
         case CODEC_ID_WMAVOICE:
         case CODEC_ID_WMAPRO:
-        case CODEC_ID_WMALOSSLESS:
+        case CODEC_ID_WMALOSSLESS: 
                                 return "wma";
         case CODEC_ID_FLAC:     return "flac";
         case CODEC_ID_WAVPACK:  return "wavpack";

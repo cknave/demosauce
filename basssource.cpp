@@ -65,7 +65,7 @@ BassSource::BassSource():
     pimpl->free();
     BASS_SetConfig(BASS_CONFIG_UPDATEPERIOD, 0);
     if (!BASS_Init(0, 44100, 0, 0, NULL) && BASS_ErrorGetCode() != BASS_ERROR_ALREADY) {
-        FATAL("[basssource] init failed (%1%)"), BASS_ErrorGetCode();
+        FATAL("[basssource] init failed (%s)", BASS_ErrorGetCode());
     }
 }
 
@@ -129,13 +129,13 @@ bool BassSource::Pimpl::load(string file_name, bool prescan)
     DWORD stream_flags = BASS_STREAM_DECODE | (prescan ? BASS_STREAM_PRESCAN : 0) | FLOAT_FLAG;
     DWORD music_flags = BASS_MUSIC_DECODE | BASS_MUSIC_PRESCAN | FLOAT_FLAG;
 
-    LOG_DEBUG("[basssource] attempting to load %1%"), file_name;
+    LOG_DEBUG("[basssource] attempting to load %s", file_name.c_str());
     channel = BASS_StreamCreateFile(FALSE, file_name.c_str(), 0, 0, stream_flags);
     if (!channel) {
         channel = BASS_MusicLoad(FALSE, file_name.c_str(), 0, 0 , music_flags, samplerate);
     }
     if (!channel) {
-        LOG_DEBUG("[basssource] can't load %1%"), file_name;
+        LOG_DEBUG("[basssource] can't load %s", file_name.c_str());
         return false;
     }
 
@@ -144,12 +144,11 @@ bool BassSource::Pimpl::load(string file_name, bool prescan)
     lastFrame = length / (sizeof(sample_t) * channelInfo.chans);
 
     if (length == static_cast<QWORD>(-1)) {
-        ERROR("[basssource] can't determine duration of %1%"), file_name;
         free();
         return false;
     }
     this->file_name = file_name;
-    LOG_INFO("[basssource] playing %1%"), file_name;
+    LOG_INFO("[basssource] playing %s", file_name.c_str());
     return true;
 }
 
@@ -162,7 +161,7 @@ void BassSource::Pimpl::free()
             BASS_StreamFree(channel);
         }
         if (BASS_ErrorGetCode() != BASS_OK) {
-            LOG_WARNING("[basssource] failed to free channel (%1%)"), BASS_ErrorGetCode();
+             LOG_WARN("[basssource] failed to free channel (%d)", BASS_ErrorGetCode());
         }
         channel = 0;
     }
@@ -176,7 +175,7 @@ void BassSource::process(AudioStream& stream, uint32_t frames)
 {
     uint32_t const chan = channels();
     if (chan != 2 && chan != 1) {
-        ERROR("[basssource] usupported number of channels");
+        ERROR("[basssource] unsupported number of channels");
         stream.end_of_stream = true;
         stream.set_frames(0);
         return;
@@ -194,7 +193,7 @@ void BassSource::process(AudioStream& stream, uint32_t frames)
     DWORD const bytesRead = BASS_ChannelGetData(pimpl->channel, readBuffer, bytesToRead);
 
     if (bytesRead == static_cast<DWORD>(-1) && BASS_ErrorGetCode() != BASS_ERROR_ENDED) {
-        ERROR("[basssource] failed to read from channel (%1%)"), BASS_ErrorGetCode();
+        ERROR("[basssource] failed to read from channel (%d)"), BASS_ErrorGetCode();
     }
 
     uint32_t framesRead = 0;
@@ -208,7 +207,7 @@ void BassSource::process(AudioStream& stream, uint32_t frames)
 
     stream.end_of_stream = framesRead != framesToRead || pimpl->currentFrame >= pimpl->lastFrame;
     if(stream.end_of_stream) {
-        LOG_DEBUG("[basssource] eos bass %1% frames left"), stream.frames();
+        LOG_DEBUG("[basssource] eos bass %lu frames left", stream.frames());
     }
 }
 
@@ -480,3 +479,4 @@ float BassSource::loopiness() const
 
     return static_cast<float>(accu) / check_frames / -numeric_limits<int16_t>::min();
 }
+

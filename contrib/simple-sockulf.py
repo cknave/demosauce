@@ -9,28 +9,72 @@
 # this stuff is worth it, you can buy me a beer in return 
 # ----------------------------------------------------------------------------
 
-import socket
-import os
-import random
+import os, socket, random
+import cPickle
+import re, sys
+import subprocess
+
+def gv(data, exp):
+    r = re.compile(exp)
+    try:
+        v = r.search(data).group(1)
+    except:
+        v = ""
+    return v
+
+def scan(file):
+    program = '../scan'
+    p = subprocess.Popen([program, file], stdout = subprocess.PIPE)
+    output = p.communicate()[0]
+    if p.returncode != 0:
+        return (False, "", "", 0)
+    author = gv(output, r'author:(.*)')
+    title = gv(output, r'title:(.*)')
+    gain = gv(output, r'replaygain:(-?\d*\.?\d+)')
+    print file, author, title, gain, "dB"
+    return (True, title, author, gain)
+    
+# a very simple database
+class songDb(object):
+    def __init__(self, file):
+        self.dict = {}
+        self.file = file
+        print 'loading db ', file
+        if os.path.isfile(file):
+            self.dict = cPickle.load(open(file))
+
+    def save(self):
+        cPickle.dump(self.dict, open(self.file, 'w'))
+    
+    def add(self, file):
+        if not file in self.dict:
+            self.dict[file] = scan(file)
+        return self.dict[file][0]
+
+    def get(self, file):
+        return self.dict[file]
 
 # a very primitive dj
 class djDerp(object):
     def __init__(self, root):
         self.pos = 0
-        print 'generating playlist ... ',
+        self.db = songDb(os.path.join(os.path.expanduser('~'), 'sockulf.db'))
         self.playlist = self.crawldir(root)
+        self.db.save()
         random.shuffle(self.playlist)
-        print len(self.playlist), 'files'
+        print len(self.playlist), 'songs in playlist'
         if len(self.playlist) == 0:
-            print 'directory is empty!'
+            print 'directory is empty, nothing to play'
             exit(1)
 
     def crawldir(self, root):
         list = []
+        print 'scanning files'
         for dir, dirs, files in os.walk(root):
             for file in files:
-                if file.lower().endswith(".mp3"):
-                    list.append(os.path.join(dir, file))
+                path = os.path.join(dir, file)
+                if self.db.add(path):
+                    list.append(path)
         return list
 
     # returns filename, title, artist, gain

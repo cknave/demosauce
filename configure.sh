@@ -1,18 +1,32 @@
-#i!/bin/sh
+#!/bin/sh
 CXX=g++
-CFLAGS="-Wall -O2"
+CFLAGS="-Wall -O2 -g"
 #remove old ouput files
 rm -f config.h
 rm -f makebelieve.sh
 
-check_header() {
+have_lib() {
     echo -n "checking for $1 ... "
-    echo "#include $1" | $CXX -E -xc++ -o /dev/null - > /dev/null 2> /dev/null
-    if test $? -ne 0; then
+    if ! pkg-config "--exists" $1; then
         echo "no"
         return 1
     fi
     echo "yes"
+    return 0
+}
+
+check_lib() {
+    if ! have_lib "$1"; then 
+        echo "missing lib: $1"
+        exit 1
+    fi
+}
+
+check_version() {
+    if ! pkg-config "--atleast-version=$2" "$1"; then
+        echo "need $2, got `pkg-config --modversion $1`"
+        exit 1
+    fi
     return 0
 }
 
@@ -60,55 +74,69 @@ build() {
     BUILD="${BUILD}compile \$CFLAGS $1\n"
 }
 
-# requirements
-if ! check_header "<shout/shout.h>"; then echo 'libshout missing'; exit 1; fi
-if ! check_header "<unicode/ucnv.h>"; then echo 'libicu missing'; exit 1; fi
-if ! check_header "<boost/version.hpp>"; then echo 'libboost missing'; exit 1; fi
+# boost
+echo -n 'checking for boost ... '
+echo '#include <boost/version.hpp>' | $CXX -E -xc++ -o /dev/null - > /dev/null 2> /dev/null
+if test $? -ne 0; then echo "no\nboost missing\n"; exit 1; fi
+echo 'yes'
+# libshout 
+check_lib 'shout'
+check_version 'shout' '2.2.2'
+# libsamplerate 
+check_lib 'samplerate'
+# libicu
+echo -n 'checking for icu ... '
+if ! which icu-config > /dev/null; then printf "no\nlibicu missing\n"; exit 1; fi
+echo 'yes'
 
 build '-c logror.cpp'
 
 # ladspa
-if check_header '<ladspa.h>'; then
+echo -n 'checking for ladspa-sdk ... '
+if which listplugins > /dev/null; then
+    echo 'yes'
     CFLAGS="$CFLAGS -DENABLE_LADSPA"
-    LADSPAO="ladspahost.o"
+    LADSPAO='ladspahost.o'
     build '-c ladspahost.cpp'
-    build '-o ladspainfo ladspainfo.cpp logror.o ladspahost.o -ldl -lboost_filesystem-mt -lboost_date_time-mt'
+    build '-c ladspainfo.cpp'
+    build 'ladspainfo.o logror.o ladspahost.o -ldl -lboost_filesystem-mt -lboost_date_time-mt -o ladspainfo'
+else
+    echo 'no'
 fi
 
 # bass
 check_bass() {
-    if check_header '"bass/bass.h"' && check_file "bass/libbass.so"; then
-        if ! check_header "<id3tag.h>"; then echo 'libid3tag missing'; exit 1; fi
+    if check_file 'bass/bass.h' && check_file 'bass/libbass.so'; then
+        check_lib 'id3tag'
         CFLAGS="$CFLAGS -DENABLE_BASS"
-        BASSO="libbass.o basssource.o"
-        BASSL="-ldl -lid3tag -lz"
+        BASSO='libbass.o basssource.o'
+        BASSL="`pkg-config --libs id3tag` -ldl -lz"
         build '-c libbass.c'
-        build '-c basssource.cpp'
+        build "`pkg-config --cflags id3tag` -c basssource.cpp"
         return 0
     fi
     return 1
 }
 
 if ! check_bass; then
-    if ask "download BASS for mod playback?"; then
+    if ask '==> download BASS for mod playback?'; then
         run_script getbass.sh bass
         if ! check_bass; then exit 1; fi
     fi 
 fi
 
-echo "due to problems with libavcodec on some distros you can build a custom"
-echo "version. in general, the distro's libavcodec should be preferable, but"
-echo "might be incompatible with demosauce. you'll need the 'yasm' assember"
-if ask "use custom libavcodec?"; then
+#ffmpeg
+echo "==>  due to problems with libavcodec on some distros you can build a custom version. in general, the distro's libavcodec should be preferable, but might be incompatible with demosauce. you'll need the 'yasm' assember."
+if ask "==> use custom libavcodec?"; then
     run_script build.sh ffmpeg
     if test $? -ne 0; then echo 'error while building libavcodec'; exit 1; fi
     AVCODECL="-Lffmpeg -lavformat -lavcodec -lavutil"
     build '-Iffmpeg -c avsource.cpp'
 else
-    if ! check_header '<libavcodec/avcodec.h>'; then echo 'libavcodec missing'; exit 1; fi
-    if ! check_header '<libavformat/avformat.h>'; then echo 'libaformat missing'; exit 1; fi
-    AVCODECL="-lavformat -lavcodec" 
-    build "-c avsource.cpp"
+    if ! check_lib 'libavcodec'; then echo 'libavcodec missing'; exit 1; fi
+    if ! check_lib 'libavformat'; then echo 'libaformat missing'; exit 1; fi
+    AVCODECL=`pkg-config --libs libavformat libavcodec` 
+    build "`pkg-config --cflags libavformat libavcodec` -c avsource.cpp"
 fi
 
 # replaygain
@@ -121,26 +149,24 @@ if check_exe 'ccache'; then
 fi
 
 # other build steps
-build '-c demosauce.cpp'
-build '-I. -c shoutcast.cpp'
-build '-c scan.cpp'
-build '-c settings.cpp'
-build '-c convert.cpp'
+build "-c demosauce.cpp"
+build "`pkg-config --cflags shout` -I. -c shoutcast.cpp"
+build "`pkg-config --cflags samplerate` -c scan.cpp"
+build " -c settings.cpp"
+build "`pkg-config --cflags samplerate` -c convert.cpp"
 build '-c effects.cpp'
 build '-c sockets.cpp'
 
-INPUT="scan.o avsource.o effects.o logror.o convert.o $BASSO libreplaygain/libreplaygain.a"
-LIBS="-lsamplerate -lboost_system-mt"
-build "-o scan $INPUT $LIBS $BASSL $AVCODECL"
+INPUT="scan.o avsource.o effects.o logror.o convert.o $BASSO"
+LIBS="-Llibreplaygain -lreplaygain -lboost_system-mt"
+build "$INPUT $LIBS $BASSL $AVCODECL `pkg-config --libs samplerate` -o scan"
 
 INPUT="settings.o demosauce.o avsource.o convert.o effects.o logror.o sockets.o shoutcast.o $BASSO $LADSPAO"
-LIBS="-lshout -lsamplerate -lboost_system-mt -lboost_thread-mt -lboost_filesystem-mt -lboost_program_options-mt"
-build "-o demosauce $INPUT $LIBS $BASSL $AVCODECL `icu-config --ldflags`"
+LIBS="-lboost_system-mt -lboost_thread-mt -lboost_filesystem-mt -lboost_program_options-mt"
+build "$INPUT $LIBS $BASSL $AVCODECL `pkg-config --libs shout samplerate` `icu-config --ldflags` -o demosauce"
 
 # generate build script
-printf "#!/bin/sh\n#generated build script\nCFLAGS='$CFLAGS'\n" >> makebelieve.sh
-printf "compile(){\n\techo $CXX \$@\n\tif ! $CXX \$@; then exit 1; fi\n}\n" >> makebelieve.sh
-printf "$BUILD\nrm -f *.o" >> makebelieve.sh
+printf "#!/bin/sh\n#generated build script\nCFLAGS='$CFLAGS'\ncompile(){\n\techo $CXX \$@\n\tif ! $CXX \$@; then exit 1; fi\n}\n$BUILD\nrm -f *.o" >> makebelieve.sh
 chmod a+x makebelieve.sh
 
 echo "run ./makebelieve to build demosauce"

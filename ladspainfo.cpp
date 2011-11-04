@@ -101,15 +101,12 @@ void list_ports(string plugin)
 
 int main(int argc, char* argv[])
 {
-    log_set_file_level(logror::nothing);
-
     if (argc == 1) {
         list_plugins();
     }
     else if (argc == 2 && strcmp(argv[1], "--help")) {
         list_ports(argv[1]);
-    }
-    else {
+    } else {
         cout << "ladspainfo 0.1\nsyntax: ladspainfo - lists all plugins\n"
             "        ladspainfo <plugin label> - list ports of a plugin\n";
     }

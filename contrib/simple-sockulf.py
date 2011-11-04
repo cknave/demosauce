@@ -81,7 +81,7 @@ class djDerp(object):
     def nextsong(self):
         self.pos += 1
         if self.pos >= len(self.playlist):
-            random.suffle(self.playlist)
+            random.shuffle(self.playlist)
             self.pos = 0
         file = self.playlist[self.pos]
         foo, title, artist, gain = self.db.get(file)

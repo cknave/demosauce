@@ -1,8 +1,7 @@
 #!/bin/sh
 CXX=g++
 CFLAGS="-Wall -O2 -g"
-#remove old ouput files
-rm -f config.h
+# remove old output files
 rm -f makebelieve.sh
 
 have_lib() {
@@ -79,16 +78,20 @@ echo -n 'checking for boost ... '
 echo '#include <boost/version.hpp>' | $CXX -E -xc++ -o /dev/null - > /dev/null 2> /dev/null
 if test $? -ne 0; then echo "no\nboost missing\n"; exit 1; fi
 echo 'yes'
+
 # libshout 
 check_lib 'shout'
 check_version 'shout' '2.2.2'
+
 # libsamplerate 
 check_lib 'samplerate'
+
 # libicu
 echo -n 'checking for icu ... '
 if ! which icu-config > /dev/null; then printf "no\nlibicu missing\n"; exit 1; fi
 echo 'yes'
 
+# logger
 build '-c logror.cpp'
 
 # ladspa
@@ -148,7 +151,7 @@ if check_exe 'ccache'; then
     CXX="ccache $CXX"
 fi
 
-# other build steps
+# compile rest
 build "-c demosauce.cpp"
 build "`pkg-config --cflags shout` -I. -c shoutcast.cpp"
 build "`pkg-config --cflags samplerate` -c scan.cpp"
@@ -157,6 +160,7 @@ build "`pkg-config --cflags samplerate` -c convert.cpp"
 build '-c effects.cpp'
 build '-c sockets.cpp'
 
+# link
 INPUT="scan.o avsource.o effects.o logror.o convert.o $BASSO"
 LIBS="-Llibreplaygain -lreplaygain -lboost_system-mt"
 build "$INPUT $LIBS $BASSL $AVCODECL `pkg-config --libs samplerate` -o scan"

@@ -193,7 +193,7 @@ void BassSource::process(AudioStream& stream, uint32_t frames)
     DWORD const bytesRead = BASS_ChannelGetData(pimpl->channel, readBuffer, bytesToRead);
 
     if (bytesRead == static_cast<DWORD>(-1) && BASS_ErrorGetCode() != BASS_ERROR_ENDED) {
-        ERROR("[basssource] failed to read from channel (%d)"), BASS_ErrorGetCode();
+        ERROR("[basssource] failed to read from channel (%d)", BASS_ErrorGetCode());
     }
 
     uint32_t framesRead = 0;

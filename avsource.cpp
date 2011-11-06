@@ -6,6 +6,10 @@
 *   also, this is beerware! you are strongly encouraged to invite the
 *   authors of this software to a beer when you happen to meet them.
 *   copyright MMXI by maep
+*
+*   there are some version check in this file that might be a bit off,
+*   because I don't know exactly which verisons added support for them.
+*   if you encounter errors, feel plase send me a patch or contact me.
 */
 
 // fix missing UINT64_C macro
@@ -22,9 +26,18 @@
 #include "avsource.h"
 
 extern "C" {
-#include <libavcodec/avcodec.h>
-#include <libavformat/avformat.h>
+#ifdef AVCODEC_FIX0
+    #include <avcodec.h>
+    #include <avformat.h>
+#else
+    #include <libavcodec/avcodec.h>
+    #include <libavformat/avformat.h>
+#endif
 }
+
+#ifndef AV_VERSION_INT 
+    #define AV_VERSION_INT(a, b, c) (a<<16 | b<<8 | c)
+#endif
 
 using std::string;
 using boost::numeric_cast;
@@ -332,9 +345,11 @@ string AvSource::Pimpl::codec_type()
         case CODEC_ID_VORBIS:   return "vorbis";
         case CODEC_ID_WMAV1:
         case CODEC_ID_WMAV2:
+#if LIBAVCODEC_VERSION_INT > AV_VERSION_INT(51, 50, 0)
         case CODEC_ID_WMAVOICE:
         case CODEC_ID_WMAPRO:
         case CODEC_ID_WMALOSSLESS: 
+#endif
                                 return "wma";
         case CODEC_ID_FLAC:     return "flac";
         case CODEC_ID_WAVPACK:  return "wavpack";
@@ -342,7 +357,9 @@ string AvSource::Pimpl::codec_type()
         case CODEC_ID_MUSEPACK7:
         case CODEC_ID_MUSEPACK8: 
                                 return "musepack";
+#if LIBAVCODEC_VERSION_INT > AV_VERSION_INT(51, 50, 0)
         case CODEC_ID_MP1:      return "mp1";
+#endif
 // TODO not sure this is the right revision number
 #if LIBAVCODEC_VERSION_INT > AV_VERSION_INT(52, 26, 0)
         case CODEC_ID_MP4ALS:   return "mp4";

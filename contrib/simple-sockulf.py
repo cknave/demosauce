@@ -11,7 +11,7 @@
 
 import os, socket, random
 import cPickle
-import re, sys
+import re, sys, signal
 import subprocess
 
 def gv(data, exp):
@@ -136,6 +136,9 @@ class pyWhisperer(object):
             l.append("%s=%s" % (k, v))
         return "\n".join(l)
 
+def signal_handler(signal, frame):
+    sys.exit(0)
+
 if __name__ == '__main__':
     from optparse import OptionParser
     usage = "usage %prog [options] path"
@@ -147,10 +150,13 @@ if __name__ == '__main__':
     if len(args) != 1:
         parser.error("you must specify a path")
 
+    signal.signal(signal.SIGINT, signal_handler)
+    
     HOST = options.ip
     PORT = int(options.port)
     TIMEOUT = None
 
     server = pyWhisperer(djDerp(args[0]), HOST, PORT, TIMEOUT)
+    print "press ctrl-c to quit"
     server.listen()
 

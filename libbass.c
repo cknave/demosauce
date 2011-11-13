@@ -155,7 +155,7 @@ void libbass_load(char** argv)
     char path[4096];
     char* path_end = 0;
     if (strlen(argv[0]) > 4000) {
-        puts("path is too log\n");
+        puts("path is too log");
         exit(EXIT_FAILURE);
     }
 

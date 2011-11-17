@@ -129,6 +129,7 @@ fi
 #ffmpeg
 echo "==>  due to problems with libavcodec on some distros you can build a custom version. in general, the distro's libavcodec should be preferable, but might be incompatible with demosauce. you'll need the 'yasm' assember."
 if ask "==> use custom libavcodec?"; then
+    if ! have_exe 'yasm'; then echo "yasm missing"; exit 1; fi
     run_script build.sh ffmpeg
     if test $? -ne 0; then echo 'error while building libavcodec'; exit 1; fi
     AVCODECL="-Lffmpeg -lavformat -lavcodec -lavutil"

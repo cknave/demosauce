@@ -79,24 +79,25 @@ void ladspa_enumerate_plugins(vector<string>& list)
     vector<string> search_dirs;
 
     char* ladspa_path = getenv("LADSPA_PATH");
-    if (ladspa_path != 0) {
+    if (ladspa_path != 0)
         boost::split(search_dirs, ladspa_path, boost::is_any_of(PATHENV_SEPARATOR));
-    }
 
 #ifdef SEARCH_DIR_0
     search_dirs.push_back(SEARCH_DIR_0);
 #endif
 
     BOOST_FOREACH(string dir_name, search_dirs) {
-        if (!fs::is_directory(dir_name)) {
+        if (!fs::is_directory(dir_name))
             continue;
-        }
 
         for (fs::directory_iterator f = fs::directory_iterator(dir_name); f != fs::directory_iterator(); ++f) {
+#if BOOST_FILESYSTEM_VERSION > 2
+            string file_name = f->path().string();
+#else
             string file_name = f->string();
-            if (fs::is_regular_file(file_name) && iends_with(file_name, PLUGIN_EXTENSION)) {
+#endif
+            if (fs::is_regular_file(file_name) && iends_with(file_name, PLUGIN_EXTENSION))
                 list.push_back(file_name);
-            }
         }
     }
 }

@@ -293,13 +293,10 @@ bool AvSource::seekable() const
 
 bool AvSource::probe_name(string file_name)
 {
-    fs::path file(file_name);
-    string name = file.string();
-    static const size_t elements = 17;
-    const char* ext[elements] = {".mp3", ".ogg", ".m4a", ".wma", ".acc", ".flac", ".mp4", ".ac3",
+    const char* ext[] = {".mp3", ".ogg", ".m4a", ".wma", ".acc", ".flac", ".mp4", ".ac3",
         ".wav", ".ape", ".wv", ".mpc", ".mp+", ".mpp", ".ra", ".mp2", ".mp1"};
-    for (size_t i = 0; i < elements; ++i) {
-        if (boost::iends_with(name, ext[i])) {
+    for (int i = 0; i < boost::size(ext); i++) {
+        if (boost::iends_with(file_name, ext[i])) {
             return true;
         }
     }

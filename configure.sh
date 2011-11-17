@@ -102,7 +102,7 @@ if have_exe 'listplugins'; then
     LADSPAO='ladspahost.o'
     build '-c ladspahost.cpp'
     build '-c ladspainfo.cpp'
-    build 'ladspainfo.o logror.o ladspahost.o -ldl -lboost_filesystem-mt -lboost_date_time-mt -o ladspainfo'
+    build 'ladspainfo.o logror.o ladspahost.o -ldl -lboost_system-mt -lboost_filesystem-mt -lboost_date_time-mt -o ladspainfo'
 fi
 
 # bass

@@ -275,21 +275,24 @@ bool BassSource::seekable() const
 
 bool BassSource::probe_name(string file_name)
 {
+    // boost keeps changing their filesystem api :(
     fs::path file(file_name);
+#if BOOST_FILESYSTEM_VERSION > 2
+    string name = file.filename().string();
+#else
     string name = file.filename();
+#endif
 
-    static size_t const elements = 14;
-    char const * ext[elements] = {".mp3", ".ogg", ".mp2", ".mp1", ".wav", ".aiff", ".xm", ".mod", ".s3m", ".it", ".mtm", ".umx", ".mo3", ".fst"};
-    for (size_t i = 0; i < elements; ++i) {
+    const char* ext[] = {".mp3", ".ogg", ".mp2", ".mp1", ".wav", ".aiff", ".xm", ".mod", ".s3m", ".it", ".mtm", ".umx", ".mo3", ".fst"};
+    for (int i = 0; i < boost::size(ext); i++) {
         if (iends_with(name, ext[i])) {
             return true;
         }
     }
 
     // extrawurst for AMP :D
-    static size_t const elements_amp = 8;
-    char const * ext_amp[elements_amp] = {"xm.", "mod.", "s3m.", "it.", "mtm.", "umx.", "mo3.", "fst."};
-    for (size_t i = 0; i < elements_amp; ++i) {
+    const char* ext_amp[] = {"xm.", "mod.", "s3m.", "it.", "mtm.", "umx.", "mo3.", "fst."};
+    for (int i = 0; i < boost::size(ext_amp); i++) {
         if (istarts_with(name, ext_amp[i])) {
             return true;
         }

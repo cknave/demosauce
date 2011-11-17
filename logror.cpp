@@ -19,6 +19,8 @@
 
 #include "logror.h"
 
+#define TEN_MINUTES ((time_t)CLOCKS_PER_SEC * 60u * 60u)
+
 using std::string;
 
 static LogLevel console_level = log_off;
@@ -72,7 +74,6 @@ static void fvlog(FILE* f, LogLevel lvl, const char* fmt, va_list args)
     fputc('\n', f);
 }
 
-#define TENMIN (CLOCKS_PER_SEC * 60 * 60)
 void log_log(LogLevel lvl, const char* fmt, ...)
 {
     if (lvl == log_off || (lvl < file_level && lvl < console_level)) 
@@ -84,7 +85,7 @@ void log_log(LogLevel lvl, const char* fmt, ...)
         error_times.push(now);
         if (error_times.size() > 10)
             error_times.pop();
-        quit |= (error_times.size() >= 10) && (error_times.front() > now - TENMIN);
+        quit |= (error_times.size() >= 10) && (error_times.front() > (now - TEN_MINUTES));
     }
     if (lvl != log_off) {
         va_list args;

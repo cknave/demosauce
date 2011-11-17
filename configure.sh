@@ -14,14 +14,14 @@ have_lib() {
     return 0
 }
 
-check_lib() {
+assert_lib() {
     if ! have_lib "$1"; then 
         echo "missing lib: $1"
         exit 1
     fi
 }
 
-check_version() {
+assert_version() {
     if ! pkg-config "--atleast-version=$2" "$1"; then
         echo "need $2, got `pkg-config --modversion $1`"
         exit 1
@@ -29,7 +29,7 @@ check_version() {
     return 0
 }
 
-check_file() {
+have_file() {
     echo -n "checking for $1 ... "
     if test -e "$1"; then
         echo "yes"
@@ -39,9 +39,9 @@ check_file() {
     return 1
 }
 
-check_exe() {
+have_exe() {
     echo -n "checking for $1 ... "
-    which $1 > /dev/null
+    which $1 &> /dev/null
     if test $? -ne 0; then
         echo "no"
         return 1
@@ -73,47 +73,45 @@ build() {
     BUILD="${BUILD}compile \$CFLAGS $1\n"
 }
 
+# build environment
+if ! have_exe "$CXX"; then echo "$CXX missing"; exit 1; fi
+if ! have_exe "pkg-config"; then echo "pgk-config missing"; exit 1; fi
+
 # boost
 echo -n 'checking for boost ... '
-echo '#include <boost/version.hpp>' | $CXX -E -xc++ -o /dev/null - > /dev/null 2> /dev/null
+echo '#include <boost/version.hpp>' | $CXX -E -xc++ -o /dev/null - &> /dev/null
 if test $? -ne 0; then echo "no\nboost missing\n"; exit 1; fi
 echo 'yes'
 
 # libshout 
-check_lib 'shout'
-check_version 'shout' '2.2.2'
+assert_lib 'shout'
+assert_version 'shout' '2.2.2'
 
 # libsamplerate 
-check_lib 'samplerate'
+assert_lib 'samplerate'
 
 # libicu
-echo -n 'checking for icu ... '
-if ! which icu-config > /dev/null; then printf "no\nlibicu missing\n"; exit 1; fi
-echo 'yes'
+if ! have_exe 'icu-config'; then echo "libicu missing"; exit 1; fi
 
 # logger
 build '-c logror.cpp'
 
 # ladspa
-echo -n 'checking for ladspa-sdk ... '
-if which listplugins > /dev/null; then
-    echo 'yes'
+if have_exe 'listplugins'; then
     CFLAGS="$CFLAGS -DENABLE_LADSPA"
     LADSPAO='ladspahost.o'
     build '-c ladspahost.cpp'
     build '-c ladspainfo.cpp'
     build 'ladspainfo.o logror.o ladspahost.o -ldl -lboost_filesystem-mt -lboost_date_time-mt -o ladspainfo'
-else
-    echo 'no'
 fi
 
 # bass
 check_bass() {
-    if check_file 'bass/bass.h' && check_file 'bass/libbass.so'; then
-        check_lib 'id3tag'
+    if have_file 'bass/bass.h' && have_file 'bass/libbass.so'; then
+        assert_lib 'id3tag'
         CFLAGS="$CFLAGS -DENABLE_BASS"
         BASSO='libbass.o basssource.o'
-        BASSL="`pkg-config --libs id3tag` -ldl -lz"
+        BASSL="`pkg-config --libs id3tag` -ldl"
         build '-c libbass.c'
         build "`pkg-config --cflags id3tag` -c basssource.cpp"
         return 0
@@ -136,18 +134,19 @@ if ask "==> use custom libavcodec?"; then
     AVCODECL="-Lffmpeg -lavformat -lavcodec -lavutil"
     build '-Iffmpeg -c avsource.cpp'
 else
-    if ! check_lib 'libavcodec'; then echo 'libavcodec missing'; exit 1; fi
-    if ! check_lib 'libavformat'; then echo 'libaformat missing'; exit 1; fi
-    AVCODECL=`pkg-config --libs libavformat libavcodec` 
-    build "`pkg-config --cflags libavformat libavcodec` -c avsource.cpp"
+    assert_lib 'libavcodec'
+    assert_lib 'libavformat'
+    assert_lib 'libavutil'
+    AVCODECL=`pkg-config --libs libavformat libavcodec libavutil` 
+    build "`pkg-config --cflags libavformat libavcodec libavutil` -c avsource.cpp"
 fi
 
 # replaygain
-if ! check_file 'libreplaygain/libreplaygain.a'; then
+if ! have_file 'libreplaygain/libreplaygain.a'; then
     run_script build.sh libreplaygain
 fi
 
-if check_exe 'ccache'; then
+if have_exe 'ccache'; then
     CXX="ccache $CXX"
 fi
 
@@ -162,7 +161,7 @@ build '-c sockets.cpp'
 
 # link
 INPUT="scan.o avsource.o effects.o logror.o convert.o $BASSO"
-LIBS="-Llibreplaygain -lreplaygain -lboost_system-mt"
+LIBS="-Llibreplaygain -lreplaygain -lboost_system -lboost_filesystem-mt"
 build "$INPUT $LIBS $BASSL $AVCODECL `pkg-config --libs samplerate` -o scan"
 
 INPUT="settings.o demosauce.o avsource.o convert.o effects.o logror.o sockets.o shoutcast.o $BASSO $LADSPAO"

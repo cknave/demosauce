@@ -23,7 +23,7 @@ fi
 # openSUSE
 if [ -d /etc/YaST2 ] ; then
 	echo "you need to enable the Pacman repository"
-	zypper install gcc-c++ yasm lame ladspa ladspa-devel libsamplerate-devel libshout-devel libid3tag-devel libicu-devel boost-devel
+	zypper install gcc-c++ make yasm lame ladspa ladspa-devel libsamplerate-devel libshout-devel libid3tag-devel libicu-devel boost-devel
 	exit
 fi
 

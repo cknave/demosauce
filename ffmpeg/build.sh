@@ -3,8 +3,7 @@ source_tar='ffmpeg-0.8.5.tar.bz2'
 source_url="http://www.ffmpeg.org/releases/$source_tar"
 dir_ffmpeg='ffmpeg-0.8.5'
 dir_install=`pwd`
-#--disable-debug --disable-sse --disable-ssse3
-flags_configure="--disable-debug --enable-static --enable-gpl --enable-nonfree --disable-doc --disable-ffmpeg --disable-ffplay --disable-ffprobe --disable-ffserver --disable-avdevice --disable-swscale --disable-network --disable-encoders --disable-muxers --disable-devices --disable-filters"
+flags_configure="--disable-debug --enable-static --enable-gpl --enable-nonfree --disable-doc --disable-ffmpeg --disable-ffplay --disable-ffprobe --disable-ffserver --disable-avdevice --disable-swscale --disable-network --disable-encoders --disable-muxers --disable-devices --disable-filters --disable-vaapi"
 
 if test -f "$source_tar" -a -f "libavcodec.a"; then exit 0; fi
 

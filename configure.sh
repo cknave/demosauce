@@ -111,7 +111,7 @@ check_bass() {
         assert_lib 'id3tag'
         CFLAGS="$CFLAGS -DENABLE_BASS"
         BASSO='libbass.o basssource.o'
-        BASSL="`pkg-config --libs id3tag` -ldl"
+        BASSL="`pkg-config --libs id3tag` -ldl -lz"
         build '-c libbass.c'
         build "`pkg-config --cflags id3tag` -c basssource.cpp"
         return 0
@@ -130,9 +130,10 @@ fi
 echo "==>  due to problems with libavcodec on some distros you can build a custom version. in general, the distro's libavcodec should be preferable, but might be incompatible with demosauce. you'll need the 'yasm' assember."
 if ask "==> use custom libavcodec?"; then
     if ! have_exe 'yasm'; then echo "yasm missing"; exit 1; fi
+    if ! have_exe 'make'; then echo "make missing"; exit 1; fi
     run_script build.sh ffmpeg
     if test $? -ne 0; then echo 'error while building libavcodec'; exit 1; fi
-    AVCODECL="-Lffmpeg -lavformat -lavcodec -lavutil"
+    AVCODECL="-Lffmpeg -pthread -lavformat -lavcodec -lavutil"
     build '-Iffmpeg -c avsource.cpp'
 else
     assert_lib 'libavcodec'

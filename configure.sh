@@ -139,8 +139,11 @@ else
     assert_lib 'libavcodec'
     assert_lib 'libavformat'
     assert_lib 'libavutil'
-    AVCODECL=`pkg-config --libs libavformat libavcodec libavutil` 
-    build "`pkg-config --cflags libavformat libavcodec libavutil` -c avsource.cpp"
+    AVCFLAGS="`pkg-config --cflags libavformat libavcodec libavutil`"
+    AVCODECL="`pkg-config --libs libavformat libavcodec libavutil`"
+    echo '#include <avcodec.h>' | $CXX $AVCFLAGS -E -xc++ -o /dev/null - &> /dev/null
+    if test $? -eq 0; then AVCFLAGS="-DAVCODEC_FIX0 $AVCFLAGS"; fi
+    build "$AVCFLAGS -c avsource.cpp"
 fi
 
 # replaygain

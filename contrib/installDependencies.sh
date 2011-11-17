@@ -20,6 +20,13 @@ if [ -f /etc/redhat-release ] ; then
 	exit
 fi
 
+# openSUSE
+if [ -d /etc/YaST2 ] ; then
+	echo "you need to enable the Pacman repository"
+	zypper install gcc-c++ yasm lame ladspa ladspa-devel libsamplerate-devel libshout-devel libid3tag-devel libicu-devel boost-devel
+	exit
+fi
+
 # Slackware
 if [ -f /etc/slackware-version ] ; then
         echo "I don't even know if Slackware has a package manager...  pls fix"

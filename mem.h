@@ -11,16 +11,29 @@
 #ifndef MEM_H
 #define MEM_H
 
-#include <malloc.h>
 #include <cassert>
 #include <cstring>
 
 #if defined(_WIN32)
+	#include <malloc.h>
     #define aligned_malloc(alignment, size) _aligned_malloc(size, alignment)
-#elif defined(__unix__)
-    #define aligned_malloc(alignment, size) memalign(alignment, size)
+#elif defined(_POSIX_VERSION)
+	#include <stdlib.h>
 #else
     #error "don't have aligned malloc for your system"
+#endif
+
+#ifdef __cplusplus
+namespace {	// local namespace
+#endif
+    
+#if defined(_POSIX_VERSION)
+static void* aligned_malloc(size_t alignment, size_t size)
+{
+    void* ptr = 0;
+    int r = posix_memalign(&ptr, alignment, size);
+    return r ? ptr : 0;
+}    
 #endif
 
 // ffmpeg/sse needs mem aligned to 16 byete bounds
@@ -42,4 +55,8 @@ static void* aligned_realloc(void* ptr, size_t size)
     return ptr;
 }
 
-#endif // _H_MEM_
+#ifdef __cplusplus
+}	// local namespace
+#endif
+
+#endif // H_MEM_

@@ -1,12 +1,13 @@
 #!/bin/sh
 CXX=g++
-CFLAGS="-Wall -O2 -g"
+CFLAGS='-Wall -O2'
+LDIR=''
 # remove old output files
 rm -f makebelieve.sh
 
 have_lib() {
     echo -n "checking for $1 ... "
-    if ! pkg-config "--exists" $1; then
+    if ! pkg-config "--exists" $1 2>/dev/null; then
         echo "no"
         return 1
     fi
@@ -23,7 +24,7 @@ assert_lib() {
 
 assert_version() {
     if ! pkg-config "--atleast-version=$2" "$1"; then
-        echo "need $2, got `pkg-config --modversion $1`"
+        echo "need $1 $2, have `pkg-config --modversion $1`"
         exit 1
     fi
     return 0
@@ -41,7 +42,7 @@ have_file() {
 
 have_exe() {
     echo -n "checking for $1 ... "
-    which $1 &> /dev/null
+    which $1 >/dev/null
     if test $? -ne 0; then
         echo "no"
         return 1
@@ -74,13 +75,19 @@ build() {
 }
 
 # build environment
-if ! have_exe "$CXX"; then echo "$CXX missing"; exit 1; fi
-if ! have_exe "pkg-config"; then echo "pgk-config missing"; exit 1; fi
+if ! have_exe "$CXX"; then echo "missing: $CXX"; exit 1; fi
+if ! have_exe "pkg-config"; then echo "missing: pgk-config"; exit 1; fi
 
-# boost
+# in case there is local stuff
+if test -d "/usr/local/include"; then CFLAGS="$CFLAGS -I/usr/local/include"; fi
+if test -d '/usr/local/lib'; then LDIR='-L/usr/local/lib'; fi
+
+# boost boost boost. y u no have pkg-config /o\ ?
 echo -n 'checking for boost ... '
-echo '#include <boost/version.hpp>' | $CXX -E -xc++ -o /dev/null - &> /dev/null
-if test $? -ne 0; then echo "no\nboost missing\n"; exit 1; fi
+echo '#include <boost/version.hpp>' | $CXX $CFLAGS -E -xc++ -o /dev/null - 2>/dev/null
+if test $? -ne 0; then printf "no\nmissing lib: boost\n"; exit 1; fi
+echo 'main(){}' | $CXX $LDIR -xc++ -lboost_system-mt -o /dev/null - 2>/dev/null
+if test $? -eq 0; then BS='-mt'; fi
 echo 'yes'
 
 # libshout 
@@ -91,7 +98,7 @@ assert_version 'shout' '2.2.2'
 assert_lib 'samplerate'
 
 # libicu
-if ! have_exe 'icu-config'; then echo "libicu missing"; exit 1; fi
+if ! have_exe 'icu-config'; then echo "missing lib: icu"; exit 1; fi
 
 # logger
 build '-c logror.cpp'
@@ -102,7 +109,7 @@ if have_exe 'listplugins'; then
     LADSPAO='ladspahost.o'
     build '-c ladspahost.cpp'
     build '-c ladspainfo.cpp'
-    build 'ladspainfo.o logror.o ladspahost.o -ldl -lboost_system-mt -lboost_filesystem-mt -lboost_date_time-mt -o ladspainfo'
+    build 'ladspainfo.o logror.o ladspahost.o -ldl -lboost_system$BS -lboost_filesystem$BS -lboost_date_time$BS -o ladspainfo'
 fi
 
 # bass
@@ -119,7 +126,8 @@ check_bass() {
     return 1
 }
 
-if ! check_bass; then
+# only for linux
+if test `uname -s` = 'Linux' && ! check_bass; then
     if ask '==> download BASS for mod playback?'; then
         run_script getbass.sh bass
         if ! check_bass; then exit 1; fi
@@ -129,8 +137,8 @@ fi
 #ffmpeg
 echo "==>  due to problems with libavcodec on some distros you can build a custom version. in general, the distro's libavcodec should be preferable, but might be incompatible with demosauce. you'll need the 'yasm' assember."
 if ask "==> use custom libavcodec?"; then
-    if ! have_exe 'yasm'; then echo "yasm missing"; exit 1; fi
-    if ! have_exe 'make'; then echo "make missing"; exit 1; fi
+    if ! have_exe 'yasm'; then echo "missing: yasm"; exit 1; fi
+    if ! have_exe 'make'; then echo "missing: make"; exit 1; fi
     run_script build.sh ffmpeg
     if test $? -ne 0; then echo 'error while building libavcodec'; exit 1; fi
     AVCODECL="-Lffmpeg -pthread -lavformat -lavcodec -lavutil"
@@ -141,7 +149,7 @@ else
     assert_lib 'libavutil'
     AVCFLAGS="`pkg-config --cflags libavformat libavcodec libavutil`"
     AVCODECL="`pkg-config --libs libavformat libavcodec libavutil`"
-    echo '#include <avcodec.h>' | $CXX $AVCFLAGS -E -xc++ -o /dev/null - &> /dev/null
+    echo '#include <avcodec.h>' | $CXX $CFLAGS $AVCFLAGS -E -xc++ -o /dev/null - 2> /dev/null
     if test $? -eq 0; then AVCFLAGS="-DAVCODEC_FIX0 $AVCFLAGS"; fi
     build "$AVCFLAGS -c avsource.cpp"
 fi
@@ -166,12 +174,12 @@ build '-c sockets.cpp'
 
 # link
 INPUT="scan.o avsource.o effects.o logror.o convert.o $BASSO"
-LIBS="-Llibreplaygain -lreplaygain -lboost_system -lboost_filesystem-mt"
-build "$INPUT $LIBS $BASSL $AVCODECL `pkg-config --libs samplerate` -o scan"
+LIBS="-Llibreplaygain -lreplaygain -lboost_system$BS -lboost_filesystem$BS"
+build "$LDIR $INPUT $LIBS $BASSL $AVCODECL `pkg-config --libs samplerate` -o scan"
 
 INPUT="settings.o demosauce.o avsource.o convert.o effects.o logror.o sockets.o shoutcast.o $BASSO $LADSPAO"
-LIBS="-lboost_system-mt -lboost_thread-mt -lboost_filesystem-mt -lboost_program_options-mt"
-build "$INPUT $LIBS $BASSL $AVCODECL `pkg-config --libs shout samplerate` `icu-config --ldflags` -o demosauce"
+LIBS="-lboost_system$BS -lboost_thread$BS -lboost_filesystem$BS -lboost_program_options$BS"
+build "$LDIR $INPUT $LIBS $BASSL $AVCODECL `pkg-config --libs shout samplerate` `icu-config --ldflags` -o demosauce"
 
 # generate build script
 printf "#!/bin/sh\n#generated build script\nCFLAGS='$CFLAGS'\ncompile(){\n\techo $CXX \$@\n\tif ! $CXX \$@; then exit 1; fi\n}\n$BUILD\nrm -f *.o" >> makebelieve.sh

@@ -39,3 +39,8 @@ if [ -f /etc/gentoo-release ] ; then
 	emerge -avuDN yasm lame ladspa-sdk libshout libsamplerate libid3tag icu boost
 	exit
 fi
+
+# FreeBSD
+if [ `uname -s` = 'FreeBSD' ] ; then
+	pkg_add -r gcc46 yasm lame ladspa libshout2 libsamplerate icu boost-libs
+fi

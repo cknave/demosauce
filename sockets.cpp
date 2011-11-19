@@ -16,17 +16,18 @@
 #include "logror.h"
 #include "sockets.h"
 
-using namespace std;
-using namespace boost;
-using namespace boost::asio;
+using std::string;
 using boost::asio::ip::tcp;
+
+namespace aio = ::boost::asio;
+namespace sys = ::boost::system;
 
 struct Sockets::Pimpl
 {
     bool send_command(string command, string& result);
     string host;
     uint32_t port;
-    io_service io;
+    aio::io_service io;
 };
 
 Sockets::Sockets(string host, uint32_t port):
@@ -42,37 +43,37 @@ bool Sockets::Pimpl::send_command(string command, string& result)
     try {
         // create endpoint for address + port
         tcp::resolver resolver(io);
-        tcp::resolver::query query(host, lexical_cast<string>(port));
+        tcp::resolver::query query(host, boost::lexical_cast<string>(port));
         tcp::resolver::iterator endpoint_iterator = resolver.resolve(query);
         tcp::resolver::iterator end;
         tcp::socket socket(io);
         // find first suitable endpoint
-        system::error_code error = boost::asio::error::host_not_found;
+        sys::error_code error = aio::error::host_not_found;
         while (error && endpoint_iterator != end) {
             socket.close();
             socket.connect(*endpoint_iterator++, error);
         }
         if (error) {
-            throw boost::system::system_error(error);
+            throw sys::system_error(error);
         }
         // write command to socket
-        write(socket, buffer(command), transfer_all(), error);
+        aio::write(socket, aio::buffer(command), aio::transfer_all(), error);
         if (error) {
-            throw boost::system::system_error(error);
+            throw sys::system_error(error);
         }
         for (;;) {
             boost::array<char, 256> buf;
-            boost::system::error_code error;
-            size_t len = socket.read_some(boost::asio::buffer(buf), error);
-            if (error == boost::asio::error::eof)
+            sys::error_code error;
+            size_t len = socket.read_some(aio::buffer(buf), error);
+            if (error == aio::error::eof)
                 break; // Connection closed cleanly by peer.
             else if (error)
-                throw boost::system::system_error(error); // Some other error.
+                throw sys::system_error(error); // Some other error.
             result.append(buf.data(), len);
         }
         LOG_DEBUG("[sockets] send_command(%s)", command.c_str());
     }
-    catch (std::exception & e) {
+    catch (std::exception& e) {
         LOG_WARN("[sockets] send_command: %i", e.what());
         return false;
     }
@@ -91,14 +92,13 @@ string Sockets::get_next_song()
 bool resolve_ip(string host, string& ipAddress)
 {
     try {
-        io_service io;
+        aio::io_service io;
         tcp::resolver resolver(io);
         tcp::resolver::query query(tcp::v4(), host, "0");
         tcp::resolver::iterator endpoint_iterator = resolver.resolve(query);
         tcp::resolver::iterator end;
-        if (endpoint_iterator == end) {
+        if (endpoint_iterator == end)
             return false;
-        }
         tcp::endpoint ep = *endpoint_iterator;
         ipAddress = ep.address().to_string();
     }

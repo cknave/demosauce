@@ -42,7 +42,7 @@ have_file() {
 
 have_exe() {
     echo -n "checking for $1 ... "
-    which $1 >/dev/null
+    which $1 >/dev/null 2>/dev/null
     if test $? -ne 0; then
         echo "no"
         return 1

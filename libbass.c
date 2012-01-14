@@ -22,23 +22,23 @@
 
 static void* dl_handle = 0;
 
-static BOOL (*SetConfig)(BOOL, DWORD) = 0;
-static BOOL (*Init)(int, DWORD, DWORD, void*, void *) = 0;
-static int (*ErrorGetCode)() = 0;
+static BOOL     (*SetConfig)(BOOL, DWORD) = 0;
+static BOOL     (*Init)(int, DWORD, DWORD, void*, void *) = 0;
+static int      (*ErrorGetCode)() = 0;
 
-static HSTREAM (*StreamCreateFile)(BOOL, const void*, QWORD, QWORD, DWORD) = 0;
-static BOOL (*StreamFree)(HSTREAM) = 0;
-static QWORD (*StreamGetFilePosition)(HSTREAM, DWORD) = 0;
+static HSTREAM  (*StreamCreateFile)(BOOL, const void*, QWORD, QWORD, DWORD) = 0;
+static BOOL     (*StreamFree)(HSTREAM) = 0;
+static QWORD    (*StreamGetFilePosition)(HSTREAM, DWORD) = 0;
 
-static HMUSIC (*MusicLoad)(BOOL, const void*, QWORD, DWORD, DWORD, DWORD) = 0;
-static BOOL (*MusicFree)(HMUSIC) = 0;
+static HMUSIC   (*MusicLoad)(BOOL, const void*, QWORD, DWORD, DWORD, DWORD) = 0;
+static BOOL     (*MusicFree)(HMUSIC) = 0;
 
-static DWORD (*ChannelFlags)(DWORD, DWORD, DWORD) = 0;
-static BOOL (*ChannelGetInfo)(DWORD, BASS_CHANNELINFO*) = 0;
-static QWORD (*ChannelGetLength)(DWORD, DWORD) = 0;
-static DWORD (*ChannelGetData)(DWORD, void*, DWORD) = 0;
+static DWORD    (*ChannelFlags)(DWORD, DWORD, DWORD) = 0;
+static BOOL     (*ChannelGetInfo)(DWORD, BASS_CHANNELINFO*) = 0;
+static QWORD    (*ChannelGetLength)(DWORD, DWORD) = 0;
+static DWORD    (*ChannelGetData)(DWORD, void*, DWORD) = 0;
+static BOOL     (*ChannelSetPosition)(DWORD, QWORD, DWORD) = 0;
 static const char* (*ChannelGetTags)(DWORD, DWORD) = 0;
-static BOOL (*ChannelSetPosition)(DWORD, QWORD, DWORD) = 0;
 
 static void* bind(const char* symbol)
 {
@@ -161,15 +161,16 @@ void libbass_load(char** argv)
 
     strcpy(path, argv[0]);
     path_end = strrchr(path, '/') + 1;
-    strcpy(path_end, "bass/libbass.so");
 
+    strcpy(path_end, "libbass.so");
     if (load(path))
         return;
-    strcpy(path_end, "libbass.so");
+    strcpy(path_end, "bass/libbass.so");
     if (load(path))
         return;
     if (load("/usr/local/lib/libbass.so"))
         return;
+    
     puts("can't find libbass.so");
     exit(EXIT_FAILURE);
 }

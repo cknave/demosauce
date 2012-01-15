@@ -51,6 +51,13 @@ have_exe() {
     return 0
 }
 
+assert_exe() {
+   if ! have_exe $1; then
+       echo "missing: $1"
+       exit 1
+   fi
+}
+
 ask() {
     while true; do
         read -p "$1 [y/n] " reply
@@ -75,8 +82,8 @@ build() {
 }
 
 # build environment
-if ! have_exe "$CXX"; then echo "missing: $CXX"; exit 1; fi
-if ! have_exe "pkg-config"; then echo "missing: pgk-config"; exit 1; fi
+assert_exe "$CXX"
+assert_exe "pkg-config"
 
 # in case there is local stuff
 if test -d "/usr/local/include"; then CFLAGS="$CFLAGS -I/usr/local/include"; fi
@@ -98,7 +105,7 @@ assert_version 'shout' '2.2.2'
 assert_lib 'samplerate'
 
 # libicu
-if ! have_exe 'icu-config'; then echo "missing lib: icu"; exit 1; fi
+assert_exe 'icu-config'
 
 # logger
 build '-c logror.cpp'
@@ -129,6 +136,8 @@ check_bass() {
 # only for linux
 if test `uname -s` = 'Linux' && ! check_bass; then
     if ask '==> download BASS for mod playback?'; then
+        assert_exe 'wget'
+        assert_exe 'unzip'
         run_script getbass.sh bass
         if ! check_bass; then exit 1; fi
     fi 
@@ -137,8 +146,8 @@ fi
 #ffmpeg
 echo "==>  due to problems with libavcodec on some distros you can build a custom version. in general, the distro's libavcodec should be preferable, but might be incompatible with demosauce. you'll need the 'yasm' assember."
 if ask "==> use custom libavcodec?"; then
-    if ! have_exe 'yasm'; then echo "missing: yasm"; exit 1; fi
-    if ! have_exe 'make'; then echo "missing: make"; exit 1; fi
+    assert_exe 'yasm'
+    assert_exe 'make'
     run_script build.sh ffmpeg
     if test $? -ne 0; then echo 'error while building libavcodec'; exit 1; fi
     AVCODECL="-Lffmpeg -pthread -lavformat -lavcodec -lavutil"

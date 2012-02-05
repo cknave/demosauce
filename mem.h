@@ -15,10 +15,10 @@
 #include <cstring>
 
 #if defined(_WIN32)
-	#include <malloc.h>
+    #include <malloc.h>
     #define aligned_malloc(alignment, size) _aligned_malloc(size, alignment)
 #elif defined(_POSIX_VERSION)
-	#include <stdlib.h>
+    #include <stdlib.h>
 #else
     #error "don't have aligned malloc for your system"
 #endif
@@ -32,7 +32,7 @@ static void* aligned_malloc(size_t alignment, size_t size)
 {
     void* ptr = 0;
     int r = posix_memalign(&ptr, alignment, size);
-    return r ? ptr : 0;
+    return r ? 0 : ptr;
 }    
 #endif
 

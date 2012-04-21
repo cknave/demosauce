@@ -87,15 +87,23 @@ void log_log(LogLevel lvl, const char* fmt, ...)
             error_times.pop();
         quit |= (error_times.size() >= 10) && (error_times.front() > (now - TEN_MINUTES));
     }
+
     if (lvl != log_off) {
         va_list args;
-        va_start(args, fmt);
-        if (lvl >= console_level)
-            fvlog(stdout, lvl, fmt, args); 
-        if (lvl >= file_level)
+
+        if (lvl >= console_level) {
+            va_start(args, fmt);
+            fvlog(stdout, lvl, fmt, args);
+            va_end(args);
+        }
+
+        if (lvl >= file_level) {
+            va_start(args, fmt);
             fvlog(logfile, lvl, fmt, args);
-        va_end(args);
+            va_end(args);
+        }
     }
+
     if (quit) {
         puts("terminted\n");
         if (logfile) fputs("terminated\n", logfile);

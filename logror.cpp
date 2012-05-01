@@ -72,6 +72,7 @@ static void fvlog(FILE* f, LogLevel lvl, const char* fmt, va_list args)
     fprintf(f, "%s %s ", levels[lvl], buf);
     vfprintf(f, fmt, args);
     fputc('\n', f);
+    fflush(f);
 }
 
 void log_log(LogLevel lvl, const char* fmt, ...)

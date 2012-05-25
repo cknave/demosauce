@@ -62,8 +62,9 @@ namespace bp = ::boost::process;
 namespace fs = ::boost::filesystem;
 
 /*  current processing stack layout, machines in () may be disabled depending on input
-    NoiseSource / BassSource / AVCodecSource -> (Resample) -> (MixChannels) ->
-    -> MapChannels -> Gain -> (LADSPA 0,1,2) -> (LinearFade) -> ShoutCast
+    machines in [] may be disabled depending on build configuration
+    ZeroSource / [BassSource] / AVCodecSource -> (Resample) -> (MixChannels) ->
+    -> MapChannels -> Gain -> [LADSPA] -> (LinearFade) -> ShoutCast
 */
 
 typedef int16_t sample_t; // sample type for encoder
@@ -210,8 +211,7 @@ void ShoutCast::Run()
 void ShoutCastPimpl::writer()
 {
     uint32_t const channels = setting::encoder_channels;
-    uint32_t const decode_frames = (setting::encoder_samplerate
-        * setting::decode_buffer_size) / 1000;
+    uint32_t const decode_frames = (setting::encoder_samplerate * setting::decode_buffer_size) / 1000;
 
     // decode buffer size = sizeof(sample_t) * decode_frames * channels
     AlignedBuffer<sample_t> decode_buffer(decode_frames * channels);
@@ -270,19 +270,17 @@ void ShoutCastPimpl::load_next()
         song.forced_length = get_value(song.settings, "length", 0.0);
 
         if (!fs::exists(song.file)) {
-            LOG_WARN("[load_next] file doesn't exist: %s", cstr(song.file));
+            LOG_ERROR("[load_next] file doesn't exist: %s", cstr(song.file));
             continue;
         }
 
 #ifdef ENABLE_BASS
         if (!loaded && (loaded = bassSource->load(song.file, song.settings))) {
             machineStack->add(bassSource, 0);
-            if (song.forced_length > 0) {
+            if (song.forced_length > 0) 
                 bassSource->set_loop_duration(song.forced_length);
-            }
             song.samplerate = bassSource->samplerate();
             song.length = bassSource->length() / song.samplerate;
-            song.amiga_mode = bassSource->is_amiga_module();
         }
 #endif
         if (!loaded && (loaded = avSource->load(song.file))) {
@@ -291,12 +289,14 @@ void ShoutCastPimpl::load_next()
             song.length = avSource->length() / song.samplerate;
         }
 
-        if (!loaded) {
-            LOG_WARN("[load_next] can't decode %s", cstr(song.file));
-        }
+        if (!loaded) 
+            LOG_ERROR("[load_next] can't decode %s", cstr(song.file));
     }
 
-    if (loadTries >= 3 && !loaded) {
+    if (loaded && song.length == 0)
+        LOG_WARN("[load_next] has zero legth: %s", cstr(song.file));
+
+    if (!loaded) {
         LOG_WARN("[load_next] loading failed three times, sending a bunch of zeros");
         machineStack->add(zeroSource, 0);
         song.forced_length = 60;
@@ -319,12 +319,11 @@ string get_random_file(string dir_name)
 
 void ShoutCastPimpl::get_next_song(SongInfo& song)
 {
-        if (setting::debug_song.empty()) {
+        if (setting::debug_song.empty()) 
             song.settings = sockets.get_next_song();
-        } else {
+        else 
             song.settings = setting::debug_song;
-        }
-
+        
         song.file = get_value(song.settings, "path", "");
 
         if (song.file.empty()) {
@@ -357,8 +356,8 @@ void ShoutCastPimpl::update_machines(SongInfo& song)
         double length = song.forced_length > 0 ?
             song.forced_length :
             song.length;
-        uint64_t start = numeric_cast<uint64_t>((length  - 5) * setting::encoder_samplerate);
-        uint64_t end = numeric_cast<uint64_t>(length  * setting::encoder_samplerate);
+        uint64_t start = numeric_cast<uint64_t>((length - 5) * setting::encoder_samplerate);
+        uint64_t end = numeric_cast<uint64_t>(length * setting::encoder_samplerate);
         linearFade->set_fade(start, end, 1, 0);
         linearFade->set_enabled(true);
         LOG_DEBUG("[update_machines] song fading out at %f seconds", length);
@@ -373,9 +372,9 @@ void ShoutCastPimpl::update_machines(SongInfo& song)
     bool auto_mix = (get_value(song.settings, "mix", "auto") == "auto");
     if (setting::encoder_channels == 2 && (!auto_mix || song.amiga_mode)) {
         double ratio = get_value(song.settings, "mix", 0.4);
-        ratio = std::max(ratio, 0.);
-        ratio = std::min(ratio, 1.);
-        mixChannels->set_mix(1. - ratio, ratio, 1. - ratio, ratio);
+        ratio = std::max(ratio, 0.0);
+        ratio = std::min(ratio, 1.0);
+        mixChannels->set_mix(1.0 - ratio, ratio, 1.0 - ratio, ratio);
         mixChannels->set_enabled(true);
         LOG_DEBUG("[update_machines] mixing channels with %f ratio", ratio);
     }
@@ -454,19 +453,11 @@ void ShoutCastPimpl::connect()
     shout_set_audio_info(cast, SHOUT_AI_CHANNELS, channels.c_str());
 
     // start
-    int err = shout_open(cast);
-    switch (err) {
-        case SHOUTERR_SUCCESS:
-            LOG_INFO("[connect] connected to icecast");
-            connected = true;
-            break;
-        case SHOUTERR_NOCONNECT:
-        case SHOUTERR_SOCKET:
-            LOG_ERROR("[connect] can't connect to icecast (%s)", shout_get_error(cast));
-            break;
-        default:
-            FATAL("[connect] can't connect to icecast (%s)", shout_get_error(cast));
-            break;
+    if (shout_open(cast) != SHOUTERR_SUCCESS) {
+        LOG_ERROR("[connect] can't connect to icecast (%s)", shout_get_error(cast));
+    } else {
+        LOG_INFO("[connect] connected to icecast");
+        connected = true;
     }
 }
 
@@ -516,16 +507,13 @@ string create_cast_title(string artist, string title)
     // so unicode decomposition is as a workaround all dashes are removed from artist, because its
     // used as artist-title separator. talk about bad semantics...
     string cast_title = utf8_to_ascii(artist);
-    for (size_t i = 0; i < cast_title.size(); ++i) {
-        if (cast_title[i] == '-') {
+    for (size_t i = 0; i < cast_title.size(); ++i) 
+        if (cast_title[i] == '-') 
             cast_title[i] = ' ';
-        }
-    }
-    if (cast_title.size() > 0) {
+    if (cast_title.size() > 0) 
         cast_title.append(" - ");
-    }
     cast_title.append(utf8_to_ascii(title));
-    LOG_DEBUG("[create_cast_title] %s, %s -> %s", cstr(artist), cstr(title), cstr(cast_title));
+    LOG_DEBUG("[create_cast_title] '%s', '%s' -> '%s'", cstr(artist), cstr(title), cstr(cast_title));
     return cast_title;
 }
 
@@ -538,9 +526,9 @@ void ShoutCastPimpl::update_metadata(SongInfo& song)
     shout_metadata_t* metadata = shout_metadata_new();
     shout_metadata_add(metadata, "song", cast_title.c_str());
     int err = shout_set_metadata(cast, metadata);
-    if (err != SHOUTERR_SUCCESS) {
-        LOG_WARN("[shout_set_metadata] error (%d)", err);
-    }
+    if (err != SHOUTERR_SUCCESS) 
+        LOG_WARN("[update_metadata] error (%d)", err);
+    
     shout_metadata_free(metadata);
 }
 

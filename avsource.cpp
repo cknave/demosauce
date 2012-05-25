@@ -36,7 +36,7 @@ extern "C" {
 }
 
 #ifndef AV_VERSION_INT 
-    #define AV_VERSION_INT(a, b, c) (a<<16 | b<<8 | c)
+    #define AV_VERSION_INT(a, b, c) (a << 16 | b << 8 | c)
 #endif
 
 using std::string;
@@ -47,7 +47,6 @@ typedef int16_t sample_t;
 
 struct AvSource::Pimpl
 {
-
     Pimpl() :
         format_context(0),
         codec_context(0),
@@ -129,8 +128,9 @@ bool AvSource::load(string file_name)
         LOG_DEBUG("[avsource] failed to open codec %s", file_name.c_str());
         return false;
     }
-
-    pimpl->length = numeric_cast<uint64_t>(pimpl->format_context->duration *
+    
+    if (pimpl->format_context->duration > 0) 
+        pimpl->length = numeric_cast<uint64_t>(pimpl->format_context->duration *
         (static_cast<double>(pimpl->codec_context->sample_rate) / AV_TIME_BASE));
 
     LOG_INFO("[avsource] playing %s", file_name.c_str());
@@ -193,20 +193,18 @@ void AvSource::Pimpl::process(AudioStream& stream, uint32_t frames)
 
     AVPacket packet;
     while (packet_buffer_pos < min_bytes) {
-        if (av_read_frame(format_context, &packet) < 0) { // demux/read packet
+        if (av_read_frame(format_context, &packet) < 0) // demux/read packet
             break; // end of stream
-        }
-        if (packet.stream_index != audio_stream_index) {
+        if (packet.stream_index != audio_stream_index) 
             continue;
-        }
         packet_buffer_pos += decode_frame(packet, packet_buffer.get() + packet_buffer_pos, buffer_size);
     }
 
     // according to the docs, av_free_packet should be called at some point after av_read_frame
     // without these checks, mysterious segfaults start appearing with small buffers. stable my ass!
-     if (packet.data != 0 && packet.size != 0) { // && packet.stream_index == audio_stream_index
+     if (packet.data != 0 && packet.size != 0)  // && packet.stream_index == audio_stream_index
         av_free_packet(&packet);
-     }
+     
 
     stream.end_of_stream = packet_buffer_pos < need_bytes;
     size_t used_bytes = std::min(need_bytes, packet_buffer_pos);
@@ -218,9 +216,8 @@ void AvSource::Pimpl::process(AudioStream& stream, uint32_t frames)
     memmove(packet_buffer.get(), packet_buffer.get() + used_bytes, packet_buffer_pos - used_bytes);
     packet_buffer_pos -= used_bytes;
 
-    if (stream.end_of_stream) {
+    if (stream.end_of_stream) 
         LOG_DEBUG("[avsource] eos avcodec %lu frames left", stream.frames());
-    }
 }
 
 void AvSource::seek(uint64_t frame)
@@ -275,8 +272,7 @@ uint32_t AvSource::AvSource::samplerate() const
 
 float AvSource::bitrate() const
 {
-    float br = (pimpl->codec_context == 0) ?
-        0 :
+    float br = (pimpl->codec_context == 0) ? 0 :
         numeric_cast<float>(pimpl->codec_context->bit_rate) / 1000;
     return  br;
 }

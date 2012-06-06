@@ -1,9 +1,9 @@
 #!/bin/sh
 CXX=g++
-CFLAGS='-Wall -O2'
+CFLAGS='-Wall -O2 -s'
 LDIR=''
 # remove old output files
-rm -f makebelieve.sh
+rm -f makebelieve.sh 
 
 have_lib() {
     echo -n "checking for $1 ... "
@@ -126,8 +126,8 @@ check_bass() {
         CFLAGS="$CFLAGS -DENABLE_BASS"
         BASSO='libbass.o basssource.o'
         BASSL="`pkg-config --libs id3tag` -ldl -lz"
-        build '-c libbass.c'
-        build "`pkg-config --cflags id3tag` -c basssource.cpp"
+        build '-I../bass -c libbass.c'
+        build "`pkg-config --cflags id3tag` -I../bass -c basssource.cpp"
         return 0
     fi
     return 1
@@ -175,7 +175,7 @@ fi
 # compile rest
 build "-c demosauce.cpp"
 build "`pkg-config --cflags shout` -I. -c shoutcast.cpp"
-build "`pkg-config --cflags samplerate` -c scan.cpp"
+build "`pkg-config --cflags samplerate` -I../libreplaygain -c scan.cpp"
 build " -c settings.cpp"
 build "`pkg-config --cflags samplerate` -c convert.cpp"
 build '-c effects.cpp'
@@ -183,7 +183,7 @@ build '-c sockets.cpp'
 
 # link
 INPUT="scan.o avsource.o effects.o logror.o convert.o $BASSO"
-LIBS="-Llibreplaygain -lreplaygain -lboost_system$BS -lboost_filesystem$BS"
+LIBS="-L../libreplaygain -lreplaygain -lboost_system$BS -lboost_filesystem$BS"
 build "$LDIR $INPUT $LIBS $BASSL $AVCODECL `pkg-config --libs samplerate` -o scan"
 
 INPUT="settings.o demosauce.o avsource.o convert.o effects.o logror.o sockets.o shoutcast.o $BASSO $LADSPAO"
@@ -191,7 +191,7 @@ LIBS="-lboost_system$BS -lboost_thread$BS -lboost_filesystem$BS -lboost_program_
 build "$LDIR $INPUT $LIBS $BASSL $AVCODECL `pkg-config --libs shout samplerate` `icu-config --ldflags` -o demosauce"
 
 # generate build script
-printf "#!/bin/sh\n#generated build script\nCFLAGS='$CFLAGS'\ncompile(){\n\techo $CXX \$@\n\tif ! $CXX \$@; then exit 1; fi\n}\n$BUILD\nrm -f *.o" >> makebelieve.sh
+printf "#!/bin/sh\n#generated build script\nCFLAGS='$CFLAGS'\ncompile(){\n\techo $CXX \$@\n\tif ! $CXX \$@; then exit 1; fi\n}\nrm -f demosauce scan ladspainfo\ncd src\n$BUILD\nrm -f *.o" >> makebelieve.sh
 chmod a+x makebelieve.sh
 
 echo "run ./makebelieve to build demosauce"

@@ -17,8 +17,7 @@
 #include <boost/numeric/conversion/cast.hpp>
 
 #include <id3tag.h>
-
-#include "bass/bass.h"
+#include <bass.h>
 
 #include "logror.h"
 #include "keyvalue.h"

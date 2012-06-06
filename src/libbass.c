@@ -18,7 +18,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <dlfcn.h>
-#include "bass/bass.h"
+#include <bass.h>
 
 static void* dl_handle = 0;
 

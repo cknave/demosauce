@@ -150,8 +150,8 @@ if ask "==> use custom libavcodec?"; then
     assert_exe 'make'
     run_script build.sh ffmpeg
     if test $? -ne 0; then echo 'error while building libavcodec'; exit 1; fi
-    AVCODECL="-Lffmpeg -pthread -lavformat -lavcodec -lavutil"
-    build '-Iffmpeg -c avsource.cpp'
+    AVCODECL="-L../ffmpeg -pthread -lavformat -lavcodec -lavutil"
+    build '-I../ffmpeg -c avsource.cpp'
 else
     assert_lib 'libavcodec'
     assert_lib 'libavformat'

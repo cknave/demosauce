@@ -163,10 +163,10 @@ string scan_song(string file_name, bool do_scan)
     return msg.str();
 }
 
-int main(int argc, char* argv[])
+int main(int argc, char** argv)
 {
     LIBBASS_LOAD(argv);
-    if (argc < 2 || (*argv[1] == '-' && argc < 3)) {
+    if (argc < 2 || (argv[1][0] == '-' && argc < 3)) {
         cout << "demosauce scan tool 0.3.3\nsyntax: scan [--no-replaygain] file" << endl;
         return EXIT_FAILURE;
     }

@@ -22,6 +22,12 @@
 #include "avsource.h"
 #include "convert.h"
 
+#define XSTR_(s) "-"#s
+#define XSTR(s) XSTR_(s)
+#ifndef BUILD_ID
+    #define BUILD_ID
+#endif
+
 #define MAX_LENGTH 3600     // abort scan if track is too long, in seconds
 #define SAMPLERATE 44100
 
@@ -167,7 +173,7 @@ int main(int argc, char** argv)
 {
     LIBBASS_LOAD(argv);
     if (argc < 2 || (argv[1][0] == '-' && argc < 3)) {
-        cout << "demosauce scan tool 0.3.3\nsyntax: scan [--no-replaygain] file" << endl;
+        cout << "demosauce scan tool 0.3.4" XSTR(BUILD_ID) "\nsyntax: scan [--no-replaygain] file" << endl;
         return EXIT_FAILURE;
     }
     string file_name = argv[argc - 1];

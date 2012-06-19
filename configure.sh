@@ -172,11 +172,15 @@ if have_exe 'ccache'; then
     CXX="ccache $CXX"
 fi
 
+if have_exe 'git'; then
+    BID="-DBUILD_ID=\`git describe --always\`"
+fi
+
 # compile rest
-build "-c demosauce.cpp"
+build "$BID -c demosauce.cpp"
 build "`pkg-config --cflags shout` -I. -c shoutcast.cpp"
-build "`pkg-config --cflags samplerate` -I../libreplaygain -c scan.cpp"
-build " -c settings.cpp"
+build "$BID `pkg-config --cflags samplerate` -I../libreplaygain -c scan.cpp"
+build "-c settings.cpp"
 build "`pkg-config --cflags samplerate` -c convert.cpp"
 build '-c effects.cpp'
 build '-c sockets.cpp'

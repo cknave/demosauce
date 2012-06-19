@@ -44,7 +44,13 @@
 #include "shoutcast.h"
 #include "basssource.h"
 
-const char* demosauce_version = "demosauce 0.3.3 - less BASS more SHOUT";
+#define XSTR_(s) "-"#s
+#define XSTR(s) XSTR_(s)
+#ifndef BUILD_ID
+    #define BUILD_ID
+#endif
+
+const char* demosauce_version = "demosauce 0.3.3" XSTR(BUILD_ID) " - less BASS more SHOUT";
 
 int main(int argc, char* argv[])
 {

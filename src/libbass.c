@@ -170,6 +170,8 @@ void libbass_load(char** argv)
         return;
     if (load("/usr/local/lib/libbass.so"))
         return;
+    if (load("/usr/lib/libbass.so"))
+        return;
     
     puts("can't find libbass.so");
     exit(EXIT_FAILURE);

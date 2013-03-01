@@ -1,6 +1,6 @@
 #!/bin/sh
 OUTPUT='libreplaygain.a'
-CMD="gcc -Wall -std=gnu99 -O3 -c gain_analysis.c replay_gain.c"
+CMD="gcc -Wall -std=gnu99 -O3 -ffast-math -c gain_analysis.c replay_gain.c"
 echo $CMD
 $CMD
 if test $? -eq 0; then

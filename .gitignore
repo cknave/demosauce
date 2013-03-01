@@ -5,5 +5,4 @@ scan
 ladspainfo
 demosauce
 demosauce.conf
-makebelieve.sh
-Makefile
+config.mk

@@ -176,7 +176,7 @@ cat <<EOF >config.mk
 CC = $CC
 CXX = $CXX
 CFLAGS = -O2 -ffast-math
-CPPFLAGS = $CPPFLAGS -Isrc -Ilibreplaygain
+CPPFLAGS = $CPPFLAGS -Isrc -Ilibreplaygain \$(shell icu-config --cppflags-searchpath)
 BASSOURCE = $BASSSOURCE
 LINK_BASS = $LINK_BASS
 LINK_FFMPEG = $LINK_FFMPEG

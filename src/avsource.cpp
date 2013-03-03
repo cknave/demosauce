@@ -87,7 +87,7 @@ bool AvSource::load(string file_name)
     pimpl->file_name = file_name;
     LOG_DEBUG("[avsource] attempting to load %s", file_name.c_str());
 
-#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(53, 7, 0)
+#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(53, 4, 0)
     if (av_open_input_file(&pimpl->format_context, file_name.c_str(), 0, 0, 0) != 0) {
 #else
     if (avformat_open_input(&pimpl->format_context, file_name.c_str(), 0, 0) != 0) {
@@ -95,14 +95,17 @@ bool AvSource::load(string file_name)
         LOG_DEBUG("[avsource] can't load %s", file_name.c_str());
         return false;
     }
-
+#if LIBAVFORMAT_VERSION_INT < AV_VERSION_INT(53, 6, 0)
     if (av_find_stream_info(pimpl->format_context) < 0) {
+#else
+    if (avformat_find_stream_info(pimpl->format_context, NULL) < 0) {
+#endif
         LOG_DEBUG("[avsource] no stream information %s", file_name.c_str());
         return false;
     }
 
     for (unsigned int i = 0; i < pimpl->format_context->nb_streams; i++) {
-#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(53, 7, 0)
+#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(52, 64, 0)
         if (pimpl->format_context->streams[i]->codec->codec_type == CODEC_TYPE_AUDIO) {
 #else
         if (pimpl->format_context->streams[i]->codec->codec_type == AVMEDIA_TYPE_AUDIO) {
@@ -123,8 +126,11 @@ bool AvSource::load(string file_name)
         LOG_DEBUG("[avsource] unsupported codec %s", file_name.c_str());
         return false;
     }
-
+#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(53, 8, 0)
     if (avcodec_open(pimpl->codec_context, pimpl->codec) < 0) {
+#else
+    if (avcodec_open2(pimpl->codec_context, pimpl->codec, NULL) < 0) {
+#endif
         LOG_DEBUG("[avsource] failed to open codec %s", file_name.c_str());
         return false;
     }
@@ -140,30 +146,31 @@ bool AvSource::load(string file_name)
 
 int AvSource::Pimpl::decode_frame(AVPacket& packet, uint8_t* const buffer, int const size)
 {
-    int len = 0;
-    int decoded_size = 0;
+    int ret = 0, decoded_size = 0;
     //store size & data for later freeing
     uint8_t* packet_data = packet.data;
     int packet_size = packet.size;
 
     while (packet.size > 0) {
         int data_size = size - decoded_size;
-        if (decode_buffer.size() < static_cast<uint32_t>(size)) {// the decode buffer is needed due to alignment issues with sse
+        if (decode_buffer.size() < static_cast<uint32_t>(size)) { // the decode buffer is needed due to alignment issues with sse
             decode_buffer.resize(size);
         }
+
         sample_t* buf = reinterpret_cast<sample_t*>(decode_buffer.get());
-
-#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(52, 26, 0)
-        len = avcodec_decode_audio2(codec_context, buf, &data_size, packet.data, packet.size);
+#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(52, 23, 0)
+        ret = avcodec_decode_audio2(codec_context, buf, &data_size, packet.data, packet.size);
 #else
-        len = avcodec_decode_audio3(codec_context, buf, &data_size, &packet);
+        ret = avcodec_decode_audio3(codec_context, buf, &data_size, &packet);
 #endif
-        if (len < 0) // error, skip frame
-            return 0;
+        // avcodec_decode_audio4 works completely different so I will keep that for the rewrite
 
+        if (ret < 0) // error, skip frame
+            return 0;
         memmove(buffer + decoded_size, decode_buffer.get(), data_size);
-        packet.data += len;
-        packet.size -= len;
+        
+        packet.data += ret;
+        packet.size -= ret;
         decoded_size += data_size;
     }
 
@@ -202,7 +209,7 @@ void AvSource::Pimpl::process(AudioStream& stream, uint32_t frames)
 
     // according to the docs, av_free_packet should be called at some point after av_read_frame
     // without these checks, mysterious segfaults start appearing with small buffers. stable my ass!
-     if (packet.data != 0 && packet.size != 0)  // && packet.stream_index == audio_stream_index
+    if (packet.data != 0 && packet.size != 0) 
         av_free_packet(&packet);
      
 
@@ -236,7 +243,11 @@ void AvSource::Pimpl::free()
     if (codec_context)
         avcodec_close(codec_context);
     if (format_context)
+#if LIBAVFORMAT_VERSION_INT < AV_VERSION_INT(53, 25, 0)
         av_close_input_file(format_context);
+#else
+        avformat_close_input(&format_context);
+#endif
     codec = 0;
     codec_context = 0;
     format_context = 0;

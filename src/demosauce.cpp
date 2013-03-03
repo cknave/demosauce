@@ -37,11 +37,10 @@
     http://www.geocities.com/SoHo/7373/index.htm#home
 */
 
-#include <cstdlib>
-#include <iostream>
+#include <stdio.h>
 
 #include "settings.h"
-#include "shoutcast.h"
+#include "cast.h"
 #include "basssource.h"
 
 #define XSTR_(s) "-"#s
@@ -50,20 +49,16 @@
     #define BUILD_ID
 #endif
 
-const char* demosauce_version = "demosauce 0.3.3" XSTR(BUILD_ID) " - less BASS more SHOUT";
+const char* demosauce_version = "demosauce 0.4.0" XSTR(BUILD_ID) " - less BASS more SHOUT";
 
 int main(int argc, char* argv[])
 {
-    LIBBASS_LOAD(argv);
-    try {
-        init_settings(argc, argv);
-        log_set_console_level(setting::log_console_level);
-        log_set_file(setting::log_file.c_str(), setting::log_file_level);
-        ShoutCast cast;
-        std::cout << "the spice must flow!\n";
-        cast.Run();
-    } catch (std::exception& e) {
-        FATAL(e.what());
-    }
+    bass_load_so(argv);
+    settings_init(argc, argv);
+    log_set_console_level(setting::log_console_level);
+    log_set_file(setting::log_file.c_str(), setting::log_file_level);
+    cast_init();
+    puts("The spice must flow!");
+    cast_run();
     return EXIT_SUCCESS;
 }

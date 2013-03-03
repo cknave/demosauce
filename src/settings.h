@@ -12,57 +12,39 @@
 #define SETTINGS_H
 
 #include <string>
-#include <boost/cstdint.hpp>
-
 #include "logror.h"
 
-void init_settings(int argc, char* argv[]);
+void settings_init(int argc, char** argv);
 
-// seddings, actual instances are in settings.cpp
-namespace setting {
-    
-    extern std::string      demovibes_host;
-    extern uint32_t         demovibes_port;
+extern std::string  settings_demovibes_host;
+extern int          settings_demovibes_port;
 
-    extern std::string      encoder_command;
-    extern std::string      encoder_type;
-    extern uint32_t         encoder_samplerate;
-    extern uint32_t         encoder_bitrate;
-    extern uint32_t         encoder_channels;
+extern std::string  settings_encoder_command;
+extern std::string  settings_encoder_type;
+extern int          settings_encoder_samplerate;
+extern int          settings_encoder_bitrate;
+extern int          settings_encoder_channels;
 
-    extern std::string      cast_host;
-    extern uint32_t         cast_port;
-    extern std::string      cast_mount;
-    extern std::string      cast_user;
-    extern std::string      cast_password;
-    extern std::string      cast_name;
-    extern std::string      cast_url;
-    extern std::string      cast_genre;
-    extern std::string      cast_description;
+extern std::string  settings_cast_host;
+extern int          settings_cast_port;
+extern std::string  settings_cast_mount;
+extern std::string  settings_cast_user;
+extern std::string  settings_cast_password;
+extern std::string  settings_cast_name;
+extern std::string  settings_cast_url;
+extern std::string  settings_cast_genre;
+extern std::string  settings_cast_description;
 
-    extern uint32_t         decode_buffer_size;
+extern int          settings_decode_buffer_size;
 
-    extern std::string      error_tune;
-    extern std::string      error_title;
-    extern std::string      error_fallback_dir;
+extern std::string  settings_error_tune;
+extern std::string  settings_error_title;
+extern std::string  settings_error_fallback_dir;
 
-    extern std::string      log_file;
-    extern LogLevel         log_file_level;
-    extern LogLevel         log_console_level;
+extern std::string  settings_log_file;
+extern LogLevel     settings_log_file_level;
+extern LogLevel     settings_log_console_level;
 
-    extern std::string      debug_song;
-#ifdef ENABLE_LADSPA
-    extern std::string      ladspa_plugin0;
-    extern std::string      ladspa_plugin1;
-    extern std::string      ladspa_plugin2;
-    extern std::string      ladspa_plugin3;
-    extern std::string      ladspa_plugin4;
-    extern std::string      ladspa_plugin5;
-    extern std::string      ladspa_plugin6;
-    extern std::string      ladspa_plugin7;
-    extern std::string      ladspa_plugin8;
-    extern std::string      ladspa_plugin9;
-#endif
-}
+extern std::string  settings_debug_song;
 
 #endif

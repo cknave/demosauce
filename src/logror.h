@@ -16,14 +16,7 @@
 *   int foo = 10; string bar = mongo-moose
 *   LOG_DEBUG("i see %1% %2%!", foo, bar.s_str());
 *   // logs "DEBUG <time> i see 10 mongo-moose!"
-*
-*   for error "handling", use ERROR and FATAL macros:
-*   ERROR("DOOOOOM!! /o\ message: %1%", error_message);
-*   FATAL("FFFFFFFFUUUUUUUUUUUUUUUUUUUU %1%", reason);
-*
-*   ERROR keeps track of the last errors and calls exit(1) after
-*   after more than 10 errors in less than 10 minutes
-*   FATAL will exit immediateloy after logging
+*   LOG_FATAL will exit immediateloy after logging
 *
 *   functions for changing logging behaviour:
 *   void log_set_console_level(Level level);
@@ -36,15 +29,13 @@
 #ifndef LOGROR_H
 #define LOGROR_H
 
-enum LogLevel
+enum log_level
 {
     log_debug = 0,
     log_info,
     log_warn,
     log_error,
-    log_error_quit,
     log_fatal,
-    log_fatal_quit,
     log_off
 };
 
@@ -58,13 +49,11 @@ enum LogLevel
 #define LOG_WARN(...) log_log(log_warn, __VA_ARGS__) 
 #define LOG_ERROR(...) log_log(log_error, __VA_ARGS__) 
 #define LOG_FATAL(...) log_log(log_fatal, __VA_ARGS__) 
-#define ERROR(...) log_log(log_error_quit, __VA_ARGS__)
-#define FATAL(...) log_log(log_fatal_quit, __VA_ARGS__)
 
-void log_log(LogLevel lvl, const char* fmt, ...);
-void log_set_console_level(LogLevel level);
-void log_set_file_level(LogLevel level);
-void log_set_file(const char* file, LogLevel level);
-bool log_string_to_level(const char* name, LogLevel* level);
+void log_log(log_level level, const char* fmt, ...);
+void log_set_console_level(log_level level);
+void log_set_file_level(log_level level);
+void log_set_file(const char* file, log_level level);
+bool log_string_to_level(const char* name, log_level* level);
 
 #endif

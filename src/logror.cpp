@@ -8,66 +8,51 @@
 *   copyright MMXI by maep
 */
 
-#include <cstdlib>
-#include <ctime>
-#include <fstream>
-#include <cstdarg>
-#include <queue>
-
-#include <boost/format.hpp>
-#include <boost/algorithm/string.hpp>
-
+#include <stdlib.h>
+#include <time.h>
+#include <stdio.h>
+#include <string.h>
+#include <strings.h>
 #include "logror.h"
 
-#define TEN_MINUTES (CLOCKS_PER_SEC * 60 * 10)
-
-using std::string;
-
-static LogLevel console_level = log_off;
-static LogLevel file_level = log_off;
+static log_level console_level = log_off;
+static log_level file_level = log_off;
 static FILE* logfile = 0;
-static std::queue<time_t> error_times;
 
-void log_set_console_level(LogLevel level)
+void log_set_console_level(log_level level)
 {
     console_level = level;
 }
 
-void log_set_file_level(LogLevel level)
+void log_set_file_level(log_level level)
 {
     file_level = level;
 }
 
-void log_set_file(const char* file_name, LogLevel level)
+void log_set_file(const char* file_name, log_level level)
 {
     time_t rawtime;
-    char buf[30] = {0};
+    char buf[4000] = {0};
     if (level == log_off)
         return;
-
+    file_level = level;
     time(&rawtime);
-    if (!strftime(buf, 30, "%d.%m.Y %H:%M", localtime(&rawtime)))
-        buf[0] = 0;
-    string tmp_name = file_name;
-    boost::replace_all(tmp_name, "%date%", "%1%");
-    boost::format formater(tmp_name);
-    formater.exceptions(boost::io::no_error_bits);
-    tmp_name = str(formater % buf);
-
-    logfile = fopen(tmp_name.c_str(), "w");
-    if (!logfile)
+    if (!strftime(buf, sizeof(buf) - 1, file_name"%d.%m.Y_%H:%M", localtime(&rawtime))) {
+        puts("WARNING: malformed log file name");
+        return;
+    }
+    logfile = fopen(buf, "w");
+    if (!logfile) 
         puts("WARNING: could not open log file");
-    else 
-        file_level = level;
 }
 
-static void fvlog(FILE* f, LogLevel lvl, const char* fmt, va_list args)
+static void fvlog(FILE* f, log_level lvl, const char* fmt, va_list args)
 {
-    static const char* levels[] = {"DEBUG", "INFO ", "WARN ", "ERROR", "ERROR", "DOOOM", "DOOOM"};
+    const char* levels[] = {"DEBUG", "INFO ", "WARN ", "ERROR", "DOOOM"};
     time_t rawtime;
     char buf[30] = {0};
     time(&rawtime);
-    if (!strftime(buf, 30, "%d.%m.%Y %X", localtime(&rawtime)))
+    if (!strftime(buf, 30, "%Y-%m-%d %X", localtime(&rawtime)))
         buf[0] = 0;
     fprintf(f, "%s %s ", levels[lvl], buf);
     vfprintf(f, fmt, args);
@@ -75,20 +60,8 @@ static void fvlog(FILE* f, LogLevel lvl, const char* fmt, va_list args)
     fflush(f);
 }
 
-void log_log(LogLevel lvl, const char* fmt, ...)
+void log_log(log_level level, const char* fmt, ...)
 {
-    if (lvl == log_off || (lvl < file_level && lvl < console_level)) 
-        return;
-
-    bool quit = (lvl == log_fatal_quit);
-    if (lvl == log_error_quit) {
-        time_t now = clock();
-        error_times.push(now);
-        if (error_times.size() > 10)
-            error_times.pop();
-        quit |= (error_times.size() >= 10) && (error_times.front() > (now - TEN_MINUTES));
-    }
-
     if (lvl != log_off) {
         va_list args;
 
@@ -98,31 +71,31 @@ void log_log(LogLevel lvl, const char* fmt, ...)
             va_end(args);
         }
 
-        if (lvl >= file_level) {
+        if (lvl >= file_level && logfile) {
             va_start(args, fmt);
             fvlog(logfile, lvl, fmt, args);
             va_end(args);
         }
     }
 
-    if (quit) {
+    if (level == log_fatal) {
         puts("terminted\n");
-        if (logfile) fputs("terminated\n", logfile);
+        if (logfile) 
+            fputs("terminated\n", logfile);
         exit(EXIT_FAILURE);
     }
 }
 
-bool log_string_to_level(const char* name, LogLevel* level)
+bool log_string_to_level(const char* name, log_level* level)
 {
-    static const char* lstr[] = {"debug", "info", "warn", "error", "fatal", "off", "nothing"};
-    static const LogLevel llvl[] = {log_debug, log_info, log_warn, log_error, log_fatal, log_off, log_off};
-    string str = name;
-    boost::to_lower(str);
+    const char* lstr[] = {"debug", "info", "warn", "error", "fatal", "off"};
+    const log_level llvl[] = {log_debug, log_info, log_warn, log_error, log_fatal, log_off};
     for (int i = 0; i < 7; i++) {
-        if (str == lstr[i]) {
+        if (strcasecmp(str, lstr[i])) {
             *level = llvl[i];
             return true;
         }
     }
     return false;
 }
+

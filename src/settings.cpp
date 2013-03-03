@@ -8,79 +8,51 @@
 *   copyright MMXI by maep
 */
 
-#include <cstdlib>
-#include <string>
-#include <iostream>
-#include <fstream>
-
-#include <boost/filesystem.hpp>
-#include <boost/program_options.hpp>
-#include <boost/algorithm/string.hpp>
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
+#include <stdbool.h>
+#include <getopt.h>
 
 #include "settings.h"
 
-using std::endl;
-using std::cout;
-using std::string;
-using std::ifstream;
-using boost::to_lower;
+int         config_version              = 0;
 
-namespace fs = ::boost::filesystem;
-namespace po = ::boost::program_options;
+std::string settings_demovibes_host     = "localhost";
+int         settings_demovibes_port     = 32167;
 
-namespace setting {
-    uint32_t    config_version      = 0;
+std::string settings_encoder_command;
+std::string settings_encoder_type;
+int         settings_encoder_samplerate = 44100;
+int         settings_encoder_bitrate    = 224;
+int         settings_encoder_channels   = 2;
 
-    string      demovibes_host      = "localhost";
-    uint32_t    demovibes_port      = 32167;
+std::string settings_cast_host          = "localhost";
+int         settings_cast_port          = 8000; 
+std::string settings_cast_mount         = "stream";
+std::string settings_cast_user          = "soruce";
+std::string settings_cast_password;
+std::string settings_cast_name;
+std::string settings_cast_url;
+std::string settings_cast_genre;
+std::string settings_cast_description;
 
-    string      encoder_command;
-    string      encoder_type;
-    uint32_t    encoder_samplerate  = 44100;
-    uint32_t    encoder_bitrate     = 128;
-    uint32_t    encoder_channels    = 2;
+int         settings_decode_buffer_size = 200;
 
-    string      cast_host           = "127.0.0.1";
-    uint32_t    cast_port           = 8000;
-    string      cast_mount          = "stream";
-    string      cast_user           = "source";
-    string      cast_password;
-    string      cast_name;
-    string      cast_url;
-    string      cast_genre;
-    string      cast_description;
+std::string settings_error_tune;
+std::string settings_error_title        = "Sorry, we're having some trouble";
+std::string settings_error_fallback_dir;
 
-    uint32_t    decode_buffer_size  = 200;
+std::string settings_log_file           = "demosauce.log;
+log_level   settings_log_file_level     = log_info;
+log_level   settings_log_console_level  = log_warn;
 
-    string      error_tune;
-    string      error_title         = "sorry, we're having some trouble";
-    string      error_fallback_dir;
+std::string settings_debug_song;
 
-    string      log_file            = "demosauce.log";
-    LogLevel    log_file_level      = log_info;
-    LogLevel    log_console_level   = log_warn;
-
-    string      debug_song;
-#ifdef ENABLE_LADSPA
-    string      ladspa_plugin0;
-    string      ladspa_plugin1;
-    string      ladspa_plugin2;
-    string      ladspa_plugin3;
-    string      ladspa_plugin4;
-    string      ladspa_plugin5;
-    string      ladspa_plugin6;
-    string      ladspa_plugin7;
-    string      ladspa_plugin8;
-    string      ladspa_plugin9;
-#endif
-}
-
-using namespace setting;
-
-string configFileName = "demosauce.conf";
-string castForcePassword;
-string logFileLevel;
-string logConsoleLevel;
+static std::string config_file_name = "demosauce.conf";
+static std::string cast_password;
+static std::string log_file_level;
+static std::string log_console_level;
 
 void build_descriptions(po::options_description& settingsDesc, po::options_description& optionsDesc)
 {
@@ -115,137 +87,78 @@ void build_descriptions(po::options_description& settingsDesc, po::options_descr
     ("log_file", po::value<string>(&log_file))
     ("log_file_level", po::value<string>(&logFileLevel))
     ("log_console_level", po::value<string>(&logConsoleLevel))
-#ifdef ENABLE_LADSPA
-    // maybe there is a better way to do that :)
-    ("ladspa_plugin0", po::value<string>(&ladspa_plugin0))
-    ("ladspa_plugin1", po::value<string>(&ladspa_plugin1))
-    ("ladspa_plugin2", po::value<string>(&ladspa_plugin2))
-    ("ladspa_plugin3", po::value<string>(&ladspa_plugin3))
-    ("ladspa_plugin4", po::value<string>(&ladspa_plugin4))
-    ("ladspa_plugin5", po::value<string>(&ladspa_plugin5))
-    ("ladspa_plugin6", po::value<string>(&ladspa_plugin6))
-    ("ladspa_plugin7", po::value<string>(&ladspa_plugin7))
-    ("ladspa_plugin8", po::value<string>(&ladspa_plugin8))
-    ("ladspa_plugin9", po::value<string>(&ladspa_plugin9))
-#endif
-    ;
-
-    optionsDesc.add_options()
-    ("help", "halt! hammerzeit")
-    ("config_file,c", po::value<string>(&configFileName), "use config file, default: demosauce.conf")
-    ("cast_password,p", po::value<string>(&castForcePassword), "password for cast server, outranks config file")
-    ("debug_song,d", po::value<string>(&debug_song), "force next song command for debugging")
-    ("version,V", "print program version")
-    ;
 }
 
-void check_sanity()
+static void die(const char* msg)
+{
+    puts(msg);
+    exit(EXIT_FAILURE);
+}
+
+static void check_sanity(void)
 {
     bool err = false;
 
-    if (config_version != 33) {
-        err = true;
-        cout << "your config file is outdated, need config_version = 33\n";
-    }
+    if (settings_config_version != 34)
+        die("your config file is outdated, need config_version 34");
 
-    if (demovibes_port < 1 || demovibes_port > 65535) {
-        err = true;
-        cout << "setting demovibes_port out of range (1-65535)\n";
-    }
+    if (settings demovibes_port < 1 || settings_demovibes_port > 65535) 
+        die("setting demovibes_port out of range (1-65535)");
+    
 
-    if (encoder_samplerate <  8000 || encoder_samplerate > 192000) {
-        err = true;
-        cout << "setting encoder_samplerate out of range (8000-192000)\n";
-    }
+    if (settings_encoder_samplerate <  8000 || settings_encoder_samplerate > 192000) 
+        die("setting encoder_samplerate out of range (8000-192000)");
 
-    if (encoder_command.empty()) {
-        err = true;
-        cout << "setting encoder_command is not specified\n";
-    }
-     
     to_lower(encoder_type);
-    if (encoder_type != "mp3") {
-        err = true;
-        cout << "setting encoder_type must be 'mp3'\n";
-    }
+    if (encoder_type != "mp3")
+        die("setting encoder_type must be 'mp3'");
 
-    if (encoder_bitrate > 10000) {
-        err = true;
-        cout << "setting encoder_bitrate too high >10000\n";
-    }
+    if (settings_encoder_bitrate > 10000)
+        die("setting encoder_bitrate too high >10000");
 
-    if (encoder_channels < 1 and encoder_channels > 2) {
-        err = true;
-        cout << "setting encoder_channels out of range (1-2)\n";
-    }
+    if (settings_encoder_channels < 1 || settings_encoder_channels > 2)
+        die("setting encoder_channels out of range (1-2)");
 
-    if (cast_port < 1 || cast_port > 65535) {
-        err = true;
-        cout << "setting cast_port out of range (1-65535)\n";
-    }
+    if (settings_cast_port < 1 || settings_cast_port > 65535) 
+        die("setting cast_port out of range (1-65535)");
 
-    if (decode_buffer_size < 1 || decode_buffer_size > 10000) {
-        err = true;
-        cout << "setting decode_buffer_size out of range (1-10000)\n";
-    }
-
-    if (err) {
-        exit(EXIT_FAILURE);
-    }
+    if (settings_decode_buffer_size < 1 || settings_decode_buffer_size > 10000) 
+        die("setting decode_buffer_size out of range (1-10000)");
 }
 
-extern const char* demosauce_version; // declared in demosauce.cpp
-
-void init_settings(int argc, char* argv[])
+void settings_init(int argc, char** argv)
 {
-    try {
-        po::options_description settingsDesc("settings");
-        po::options_description optionsDesc("allowed options");
-        build_descriptions(settingsDesc, optionsDesc);
-        po::variables_map optionsMap;
-        po::store(po::parse_command_line(argc, argv, optionsDesc), optionsMap);
-        po::notify(optionsMap);
-
-        if (optionsMap.count("version")) {
-            cout << demosauce_version << endl;
+    char c = 0;
+    while ((c = getopt(argc, argv, "hc:d:V")) != -1) {
+        switch (c) {
+        default:
+        case '?':
+            if (strchr("cd", optopt))
+                puts("missing argument");
+            else
+                puts("unknown option");
+            puts(HELP_MESSAGE);
+            exit(EXIT_FAILURE);
+        case 'h':
+            puts(HELP_MESSAGE);
+            exit(EXIT_SUCCESS);
+        case 'c':
+            config_file_name = optarg;            
+            break;
+        case 'd':
+            debug_song = optarg;
+            break;
+        case 'V':
+            puts(DEMOSAUCE_VERSION);
             exit(EXIT_SUCCESS);
         }
-        if (optionsMap.count("help")) {
-            cout << demosauce_version << endl;
-            cout << optionsDesc << endl;
-            exit(EXIT_SUCCESS);
-        }
-        if (!fs::exists(configFileName)) {
-            cout << "cannot find config file: " << configFileName << endl;
-            exit(EXIT_FAILURE);
-        }
-        ifstream configFile(configFileName.c_str(), ifstream::in);
-        if (configFile.fail()) {
-            cout << "failed to read config file: " << configFileName << endl;
-            exit(EXIT_FAILURE);
-        }
-        
-        cout << "reading config file\n";
-        po::variables_map settingsMap;
-        po::store(po::parse_config_file(configFile, settingsDesc), settingsMap);
-        po::notify(settingsMap);
+    }
 
-        if (optionsMap.count("cast_password")) {
-            cast_password = castForcePassword;
-        }
-        if (settingsMap.count("log_file_level") && 
-            !log_string_to_level(logFileLevel.c_str(), &log_file_level)) {
-            cout << "setting log_file_level: unknown level\n";
-        }
-        if (settingsMap.count("log_console_level") && 
-            !log_string_to_level(logConsoleLevel.c_str(), &log_console_level)) {
-            cout << "setting log_console_level: unknown level\n";
-        }
-        check_sanity();
-
-    } catch (std::exception& e) {
-        cout << e.what() << endl;
+    if (!utils_isreadable(config_file_name)) {
+        printf("cannot read config file: %s", config_file_name);
         exit(EXIT_FAILURE);
     }
+
+    check_sanity();
 }
 

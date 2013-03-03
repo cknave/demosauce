@@ -40,10 +40,10 @@ error_tune              = error.tune
 error_title             = GURU MEDITATION
 error_fallback_dir      = /dir/to/songs
 
-# to prevent old logs from being overwritten, a %date% token in the log file
-# name will be replaced by the current date-time
-# the log level can be debug, info, warn, error, fatal, off/nothing ('nothing' is deprecated)
-log_file                = demosauce_%date%.log
+# to prevent old logs from being overwritten, logfiles can be created with a date.
+# see manpage of strftime for time formatting options
+# the log level can be debug, info, warn, error, fatal, off
+log_file                = demosauce_%Y-%m-%d_%H:%M.log
 log_file_level          = warn
 log_console_level       = warn
 

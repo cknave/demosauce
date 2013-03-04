@@ -12,11 +12,7 @@
 #define KEYVALUE_H
 
 #include <string>
-#include <boost/lexical_cast.hpp>
-
 #include "logror.h"
-
-namespace {
 
 const char* cstr(std::string& s)
 {
@@ -44,8 +40,6 @@ bool get_value_impl(std::string data, std::string key, std::string& value)
     size_t value_end = data.find('\n', value_start);
     value = data.substr(value_start, value_end - value_start);
     return true;
-}
-
 }
 
 inline std::string get_value(std::string data, std::string key, std::string fallback_value)
@@ -90,3 +84,4 @@ template <typename T> T get_value(std::string data, std::string key, T fallback_
 }
 
 #endif
+

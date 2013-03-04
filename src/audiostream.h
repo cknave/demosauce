@@ -7,393 +7,166 @@
 *   authors of this software to a beer when you happen to meet them.
 *   copyright MMXI by maep
 *
-*   classes:
-*   AlignedBuffer
-*   AudioStream
-*   Machine
-*   Decoder
-*   ZeroSource
-*
-*   functions:
-*   frames_in_bytes
-*   bytes_in_frames
-*   unsigned_min
 */
 
-#ifndef AUDIO_STREAM_H
-#define AUDIO_STREAM_H
+#ifndef AUDIOSTREAM_H
+#define AUDIOSTREAM_H
 
-#include <cassert>
-#include <string>
-
-#include <boost/cstdint.hpp>
-#include <boost/utility.hpp>
-#include <boost/shared_ptr.hpp>
-#include <boost/numeric/conversion/cast.hpp>
-
+#include <stdint.h>
+#include <assert.c>
+#include <string.h>
 #include "mem.h"
 
 #ifndef NO_OVERRUN_ASSERT
-    #define OVERRUN_ASSERT(arg) assert(arg)
+    #define OVERRUN_ASSERT(buf) assert(*(uint32_t*)((char*)(buf)->buff + (buf)->size) == MAGIC_NUMBER)
 #else
-    #define OVERRUN_ASSERT(arg)
+    #define OVERRUN_ASSERT(buf)
 #endif
 
-//-----------------------------------------------------------------------------
-
-template <class T>
-class AlignedBuffer : boost::noncopyable
-{
-public:
-    AlignedBuffer() :
-        _buff(0),
-        _size(0)
-    {}
-
-    AlignedBuffer(size_t const size) :
-        _buff(0),
-        _size(size)
-    {
-        resize(size);
-    }
-
-    ~AlignedBuffer()
-    {
-        OVERRUN_ASSERT(no_overrun());
-        free(_buff);
-    }
-
-    T* resize(size_t const size)
-    {
-        OVERRUN_ASSERT(no_overrun());
-
-        // leave room for magic number
-        _size = size;
-        _buff = aligned_realloc(_buff, _size * sizeof(T) + sizeof(uint32_t));
-        *reinterpret_cast<uint32_t*>(reinterpret_cast<char*>(_buff) + _size * sizeof(T)) = MAGIC_NUMBER;
-
-        return reinterpret_cast<T*>(_buff);
-    }
-
-    T* get() const
-    {
-        OVERRUN_ASSERT(no_overrun());
-        return reinterpret_cast<T*>(_buff);
-    }
-
-    char* get_char() const
-    {
-        OVERRUN_ASSERT(no_overrun());
-        return reinterpret_cast<char*>(_buff);
-    }
-
-    unsigned char* get_uchar() const
-    {
-        OVERRUN_ASSERT(no_overrun());
-        return reinterpret_cast<unsigned char*>(_buff);
-    }
-
-    size_t size() const
-    {
-        OVERRUN_ASSERT(no_overrun());
-        return _size;
-    }
-
-    size_t size_bytes() const
-    {
-        OVERRUN_ASSERT(no_overrun());
-        return _size * sizeof(T);
-    }
-
-    void zero()
-    {
-        OVERRUN_ASSERT(no_overrun());
-        memset(_buff, 0, _size * sizeof(T));
-    }
-
-    void zero_end(size_t size)
-    {
-        OVERRUN_ASSERT(no_overrun());
-        size_t start = _size - std::min(size, _size);
-        memset(get() + start, 0, (_size - start) * sizeof(T));
-    }
-
-    bool no_overrun() const
-    {
-        if (!_buff) {
-            return true;
-        }
-        return *reinterpret_cast<uint32_t*>(reinterpret_cast<char*>(_buff) + _size * sizeof(T)) == MAGIC_NUMBER;
-    }
-
-private:
-    const static uint32_t MAGIC_NUMBER = 0xaa55aa55;
-    void* _buff;
-    size_t _size;
-};
+static const int MAX_CHANNELS = 2;
+static const uint32_t MAGIC_NUMBER = 0xaa55aa55;
 
 //-----------------------------------------------------------------------------
 
-// currently only supports max two channels
-class AudioStream : boost::noncopyable
-{
-public:
-    AudioStream() :
-        end_of_stream(false),
-        _frames(0),
-        _max_frames(0),
-        _channels(2)
-    {
-        _buff[0] = 0;
-        _buff[1] = 0;
-    }
-
-    virtual ~AudioStream()
-    {
-        OVERRUN_ASSERT(no_overrun());
-        free(_buff[0]);
-        free(_buff[1]);
-    }
-
-    void resize(uint32_t frames)
-    {
-        OVERRUN_ASSERT(no_overrun());
-        if (_max_frames == frames) {
-            return;
-        }
-        _max_frames = frames;
-        size_t buffer_size = sizeof(float) * (frames + 1);
-        for (uint32_t i = 0; i < _channels; ++i) {
-            void* buff = aligned_realloc(_buff[i], buffer_size);
-            _buff[i] = reinterpret_cast<float*>(buff);
-            _buff[i][_max_frames] = MAGIC_NUMBER;
-        }
-    }
-
-    float* buffer(uint32_t channel) const
-    {
-        OVERRUN_ASSERT(no_overrun());
-        return _buff[channel];
-    }
-
-    uint8_t* bytified_buffer(uint32_t channel) const
-    {
-        return reinterpret_cast<uint8_t*>(buffer(channel));
-    }
-
-    uint32_t channels() const
-    {
-        return _channels;
-    }
-
-    uint32_t frames() const
-    {
-        OVERRUN_ASSERT(no_overrun());
-        return _frames;
-    }
-
-    uint32_t max_frames() const
-    {
-        return _max_frames;
-    }
-
-    void set_channels(uint32_t const channels)
-    {
-        assert(channels == 1 || channels == 2);
-        if (channels != _channels) {
-            _channels = channels;
-            resize(_max_frames);
-        }
-    }
-
-    void set_frames(uint32_t frames)
-    {
-        OVERRUN_ASSERT(no_overrun());
-        assert(frames <= _max_frames);
-        _frames = frames;
-    }
-
-    size_t channel_bytes() const
-    {
-        OVERRUN_ASSERT(no_overrun());
-        return _frames * sizeof(float);
-    }
-
-    bool no_overrun() const
-    {
-        for (uint32_t i = 0; i < _channels; ++i)
-            if (_buff[i] && _buff[i][_max_frames] != MAGIC_NUMBER)
-                return false;
-        return true;
-    }
-
-    void append(AudioStream& stream)
-    {
-        OVERRUN_ASSERT(no_overrun());
-        if (_frames + stream.frames() > _max_frames)
-            resize(_frames + stream.frames());
-        for (uint32_t i = 0; i < _channels && i < stream.channels(); ++i)
-            memmove(_buff[i] + _frames, stream.buffer(i), stream.channel_bytes());
-        _frames += stream.frames();
-    }
-
-    void append(AudioStream& stream, uint32_t frames)
-    {
-        OVERRUN_ASSERT(no_overrun());
-        frames = std::min(frames, stream.frames());
-        if (_frames + frames > _max_frames)
-            resize(_frames + stream.frames());
-        size_t channel_bytes = frames * sizeof(float);
-        for (uint32_t i = 0; i < _channels && i < stream.channels(); ++i)
-            memmove(_buff[i] + _frames, stream.buffer(i), channel_bytes);
-        _frames += frames;
-    }
-
-    void drop(uint32_t frames)
-    {
-        OVERRUN_ASSERT(no_overrun());
-        assert(frames <= _frames);
-
-        uint32_t remaining_frames = _frames - frames;
-
-        if (remaining_frames > 0)
-            for (uint32_t i = 0; i < _channels; ++i)
-                memmove(_buff[i], _buff[i] + frames, remaining_frames * sizeof(float));
-
-        _frames = remaining_frames;
-    }
-
-    void zero(uint32_t offset, uint32_t frames)
-    {
-        OVERRUN_ASSERT(no_overrun());
-        assert(offset + frames <= _max_frames);
-
-        for (uint32_t i_chan = 0; i_chan < _channels; ++i_chan)
-            memset(_buff[i_chan] + offset, 0, _frames * sizeof(float));
-    }
-
-    bool end_of_stream;
-
-private:
-    uint32_t _frames;
-    uint32_t _max_frames;
-    uint32_t _channels;
-    float* _buff[2]; // meh i'd rather have arbitrary number of chans
-    static float const MAGIC_NUMBER = 567.89;
+struct buffer {
+    void*   buff;
+    size_t  size;
 };
-
-//-----------------------------------------------------------------------------
-
-class Machine;
-typedef boost::shared_ptr<Machine> MachinePtr;
-
-class Machine : boost::noncopyable
+    
+inline void buffer_resize(struct buffer* buf, size_t size) 
 {
-public:
-    Machine() :
-        source(),
-        is_enabled(true)
-    {}
+    OVERRUN_ASSERT(buf);
+    buf->size = size;
+    buf->buff = aligned_realloc(buf->buff, buf->size + sizeof(uint32_t));
+    *(uint32_t*)((char*)buf->buff + size) = MAGIC_NUMBER;
+}
 
-    virtual void process(AudioStream& stream, uint32_t frames) = 0;
-
-    virtual std::string name() const = 0;
-
-    template<class T> void set_source(T& machine);
-
-    void set_enabled(bool enabled)
-    {
-        is_enabled = enabled;
-    }
-
-     bool enabled() const
-     {
-         return is_enabled;
-     }
-
-protected:
-    MachinePtr source;
-
-private:
-    void set_source_machine(MachinePtr& machine) {}
-    bool is_enabled;
-};
-template<class T> inline void Machine::set_source(T& machine)
+inline void buffer_zero(struct buffer* buf)
 {
-    MachinePtr base_machine = boost::static_pointer_cast<Machine>(machine);
-    if (base_machine.get() != this) {
-        source = machine;
-    }
+    OVERRUN_ASSERT(buf);
+    memset(buf->buff, 0, buf->size);
+}
+
+inline void buffer_zero_end(struct buffer* buf, size_t size)
+{
+    OVERRUN_ASSERT(buf);
+    size_t start = buf->size - MIN(size, buf->size);
+    memset(buf->buff + start, 0, buf->size - start);
 }
 
 //-----------------------------------------------------------------------------
 
-class Decoder : public Machine
+struct stream
 {
-public:
-    // manipulators
-    virtual bool load(std::string url) = 0;
-    virtual void seek(uint64_t frame) = 0;
+    struct  buffer buff[MAX_CHANNELS];
+    int     channels;
+    long    frames;
+    long    max_frames;
+    bool    end_of_stream;
+};
 
-    // observers
-    virtual uint64_t length() const = 0;
-    virtual uint32_t channels() const = 0;
-    virtual uint32_t samplerate() const = 0; // must never return 0
-    virtual bool seekable() const = 0;
+inline void stream_init(struct stream* s, int channels)
+{
+    assert(channels > 1 && channels <= MAX_CHANNELS);
+    memset(s, 0, sizeof(struct stream));
+    s->channels = channels;
+}
 
-    /*  metadata keys:
-    *   codec_type
-    *   artist
-    *   title
-    *   album
-    */
-    virtual std::string metadata(std::string key) const = 0;
+inline void stream_free(struct stream* s)
+{
+    for (int i = 0; i < s->channels; i++)
+        free(s->buff[i].buff);
+}
+
+inline void stream_resize(struct stream* s, int frames)
+{
+    for (int i = 0; i < s->channels; i++)
+        OVERRUN_ASSERT(s->buff[i]);
+    if (s->max_frames == frames) 
+        return;
+    s->max_frames = frames;
+    for (int i = 0; i < s->channels; i++) 
+        buffer_resize(&s->buff[i], frames * sizeof(float));
+}
+
+inline float* stream_buffer(struct stream* s, int channel)
+{
+    for (int i = 0; i < s->channels; i++)
+        OVERRUN_ASSERT(&s->buff[i]);
+    return s->buff[channel].buff;
+}
+
+inline void stream_set_channels(struct stream* s, int channels)
+{
+    assert(channels > 1 && channels <= MAX_CHANNELS);
+    for (int i = 0; i < s->channels; i++)
+        OVERRUN_ASSERT(&s->buff[i]);
+    if (channels != s->channels) {
+        s->channels = channels;
+        stream_resize(s, s->max_frames);
+    }
+}
+
+inline void stream_set_frames(struct stream* s, int frames)
+{
+    assert(frames <= s->max_frames);
+    for (int i = 0; i < s->channels; i++)
+        OVERRUN_ASSERT(&s->buff[i]);
+    s->frames = frames;
+}
+
+inline void stream_append_n(struct stream* s, struct stream* source, int frames)
+{
+    for (int i = 0; i < s->channels; i++)
+        OVERRUN_ASSERT(&s->buff[i]);
+    frames = MIN(frames, source->frames);
+    if (s->frames + frames > s->max_frames)
+        stream_resize(s, s->frames + source->frames);
+    for (int i = 0; i < s->channels && i < source->channels; i++)
+        memmove(s->buff[i].buff + s->frames, source->buff[i].buff, frames * sizeof(float));
+    s->frames += frames;
+}
+
+inline void stream_append(struct stream* s, struct stream* source)
+{
+    stream_append_s(s, source, source->frames);
+}
+
+inline void stream_drop(struct stream* s, int frames)
+{
+    assert(frames <= s->frames);
+    for (int i = 0; i < s->channels; i++)
+        OVERRUN_ASSERT(&s->buff[i]);
+    int remaining_frames = s->frames - frames;
+    if (remaining_frames > 0)
+        for (int i = 0; i < s->channels; i++)
+            memmove(s->buff[i].buff, s->buff[i].buff + frames * sizeof(frames), remaining_frames * sizeof(float));
+    s->frames = remaining_frames;
+}
+
+inline void void stream_zero(struct stream* s, int offset, int frames)
+{
+    assert(offset + frames <= s->max_frames);
+    for (int i = 0; i < s->channels; i++)
+        OVERRUN_ASSERT(&s->buff[i]);
+    for (int i = 0; i < s->channels; i++)
+        memset(s->buff[i] + offset * sizeof(float), 0, s->frames * sizeof(float));
+}
+
+//-----------------------------------------------------------------------------
+
+struct decoder
+{
+    bool        (*load)         (struct decoder* d, const char* file);
+    void        (*seek)         (struct decoder* d, long frame);
+    long        (*length)       (struct decoder* d);
+    int         (*channels)     (struct decoder* d);
+    int         (*samplerate)   (struct decoder* d);    // must never return 0
+    bool        (*seekable)     (struct decoder* d);
+    const char* (*metadata)     (struct decoder* d);    // metadata keys: codec_type, artist, title, album
 };
 
 //-----------------------------------------------------------------------------
 
-class ZeroSource : public Machine
-{
-public:
-    ZeroSource() {};
+#endif // AUDIOSTREAM_H
 
-    void process(AudioStream& stream, uint32_t frames)
-    {
-        if (stream.max_frames() < frames) {
-            stream.resize(frames);
-        }
-        stream.zero(0, frames);
-        stream.set_frames(frames);
-    }
-
-    std::string name() const
-    {
-        return "Zero";
-    }
-};
-
-//-----------------------------------------------------------------------------
-
-// some helper functions
-template<class FrameType, class SampleType, class ByteType, class ChannelType>
-inline FrameType bytes_in_frames(ByteType bytes, ChannelType channels)
-{
-    if (channels == 0) {
-        return 0;
-    }
-    return boost::numeric_cast<FrameType>(bytes / sizeof(SampleType) / channels);
-}
-
-template<class SampleType, class FrameType, class ChannelType>
-inline size_t frames_in_bytes(FrameType frames, ChannelType channels)
-{
-    return boost::numeric_cast<size_t>(frames * sizeof(SampleType) * channels);
-}
-
-template<class ReturnType> // unsigned min
-inline ReturnType unsigned_min(uint64_t value0, uint64_t value1)
-{
-    return static_cast<ReturnType>(value0 < value1 ? value0 : value1);
-}
-
-#endif // _AUDIO_STREAM_H_

@@ -12,24 +12,27 @@
 #define UTIL_H
 
 #include <stddef.h>
+#include <stdbool.h>
  
 #define MAX_CHANNELS    2
 #define MAGIC_NUMBER    0xaa55aa55
 #define MEM_ALIGN       16
-
-#ifndef NO_OVERRUN_ASSERT
-    #define OVERRUN_ASSERT(buf) assert(*(uint32_t*)((char*)(buf)->buff + (buf)->size) == MAGIC_NUMBER)
-#else
-    #define OVERRUN_ASSERT(buf)
-#endif
-
 void*   util_malloc(size_t size);
 void*   util_realloc(void* ptr, size_t size)
+
+int     socket_open(const char* host, int port);
+void    socket_read(int socket, struct buffer* buf);
+void    socket_close(int socket);
+
+char*   keyval_str(const char* heap, const char* key, const char* fallback);
+int     keyval_int(const char* heap, const char* key, int fallback);
 
 struct buffer {
     void*   buff;
     size_t  size;
 };
+
+#define BSTR(buf) ((char*)(buf).buff)
     
 void    buffer_resize(struct buffer* buf, size_t size);
 void    buffer_zero(struct buffer* buf);

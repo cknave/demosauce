@@ -10,7 +10,18 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include <assert.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
 #include "util.h"
+
+#ifndef NO_OVERRUN_ASSERT
+    #define OVERRUN_ASSERT(buf) assert(*(uint32_t*)((char*)(buf)->buff + (buf)->size) == MAGIC_NUMBER)
+#else
+    #define OVERRUN_ASSERT(buf)
+#endif
 
 void* util_malloc(size_t size)
 {
@@ -34,7 +45,95 @@ void* util_realloc(void* ptr, size_t size)
     }
     return ptr;
 }
+
+//-----------------------------------------------------------------------------
+
+const char* keyval_str(const char* heap, const char* key, const char* fallback)
+{
+    const char* tmp = strstr(heap, key);
+    if (!tmp)
+        return strdup(fallback);
+    tmp += strlen(key);
+    tmp = strpbrk(tmp, "=\n\r");
+    if (!tmp || *tmp != '=')
+        return strdup(fallback);
+    tmp += strspn(tmp + 1, " \t");
+    size_t span = strcspn("\n\r");
+    while (span && isspace(s[span - 1]))
+        span--;
+    const char* value = util_malloc(span);
+    memmove(value, s, span);
+    value[span] = 0;
+    return value;
+}
+
+int keyval_int(const char* heap, const char* key, int fallback)
+{
+    const char* tmp = strstr(heap, key);
+    if (!tmp)
+        return fallback;
+    tmp += strlen(key);
+    tmp = strpbrk(tmp, "=\n\r");
+    if (!tmp || *tmp != '=')
+        return fallback;
+    tmp += strspn(tmp + 1, " \t");
+    int val = 0;
+    if (sscanf(tmp, "%d", &val) != 1)
+        return fallback;
+    return value;
+}
    
+//-----------------------------------------------------------------------------
+
+int socket_open(const char* host, int port)
+{
+    int fd = -1;
+    char portstr[10] = {0};
+    struct addrinfo* info = NULL;
+    struct addrinfo hints = {0};
+    
+    if (snprintf(portstr, sizeof(portstr), "%d", port) < 0)
+        return -1;
+
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    if (getaddrinfo(host, port, &hints, &info))
+        return -1;
+
+    for (struct addrinfo* i = info; i; i = i->ai_next) {
+        fd = socket(info->ai_family, info->ai_socktype, info->ai_protocol);
+        if (fd < 0)
+            continue;
+        if (connect(fd, info->ai_addr, info->ai_addrlen) < 0)
+           close(fd);
+        else
+            break;
+    }
+
+    freeaddrinfo(info);
+    return fd;
+}
+
+bool socket_read(int socket, struct buffer* buf)
+{
+    ssize_t bytes = 0;
+    char buff[4096];
+    if (send(socket, "NEXTSONG", 8, 0) == -1)
+        return false;
+    bytes = recv(socket, buff, sizeof(buff) - 1, 0);
+    if (bytes < 0)
+       return false;
+    if (buf->size < size + 1)
+        buffer_resize(buf, size + 1);
+    memmove(buf->buff, buff, bytes);
+    buf->buff[size] = 0;
+}
+
+void socket_close(int socket)
+{
+    close(socket);
+}
+
 //-----------------------------------------------------------------------------
 
 void buffer_resize(struct buffer* buf, size_t size) 

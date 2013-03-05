@@ -11,40 +11,33 @@
 #ifndef SETTINGS_H
 #define SETTINGS_H
 
-#include <string>
 #include "logror.h"
 
 void settings_init(int argc, char** argv);
 
-extern std::string  settings_demovibes_host;
-extern int          settings_demovibes_port;
-
-extern std::string  settings_encoder_command;
-extern std::string  settings_encoder_type;
-extern int          settings_encoder_samplerate;
-extern int          settings_encoder_bitrate;
-extern int          settings_encoder_channels;
-
-extern std::string  settings_cast_host;
-extern int          settings_cast_port;
-extern std::string  settings_cast_mount;
-extern std::string  settings_cast_user;
-extern std::string  settings_cast_password;
-extern std::string  settings_cast_name;
-extern std::string  settings_cast_url;
-extern std::string  settings_cast_genre;
-extern std::string  settings_cast_description;
-
-extern int          settings_decode_buffer_size;
-
-extern std::string  settings_error_tune;
-extern std::string  settings_error_title;
-extern std::string  settings_error_fallback_dir;
-
-extern std::string  settings_log_file;
-extern LogLevel     settings_log_file_level;
-extern LogLevel     settings_log_console_level;
-
-extern std::string  settings_debug_song;
+extern const char*      settings_demovibes_host;
+extern int              settings_demovibes_port;
+extern const char*      settings_encoder_command;
+extern int              settings_encoder_samplerate;
+extern int              settings_encoder_bitrate;
+extern int              settings_encoder_channels;
+extern const char*      settings_cast_host;
+extern int              settings_cast_port;
+extern const char*      settings_cast_mount;
+extern const char*      settings_cast_user;
+extern const char*      settings_cast_password;
+extern const char*      settings_cast_name;
+extern const char*      settings_cast_url;
+extern const char*      settings_cast_genre;
+extern const char*      settings_cast_description;
+extern int              settings_decode_buffer_size;
+extern const char*      settings_error_tune;
+extern const char*      settings_error_title;
+extern const char*      settings_error_fallback_dir;
+extern const char*      settings_log_file;
+extern enum log_level   settings_log_file_level;
+extern enum log_level   settings_log_console_level;
+extern const char*      settings_debug_song;
 
 #endif
+

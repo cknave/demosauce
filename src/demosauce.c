@@ -49,14 +49,14 @@
     #define BUILD_ID
 #endif
 
-const char* demosauce_version = "demosauce 0.4.0" XSTR(BUILD_ID) " - less BASS more SHOUT";
+const char* demosauce_version = "demosauce 0.4.0" XSTR(BUILD_ID) " - C++ is to C as Lung Cancer is to Lung";
 
-int main(int argc, char* argv[])
+int main(int argc, char** argv)
 {
     bass_load_so(argv);
     settings_init(argc, argv);
-    log_set_console_level(setting::log_console_level);
-    log_set_file(setting::log_file.c_str(), setting::log_file_level);
+    log_set_console_level(settings_log_console_level);
+    log_set_file(settings_log_file, settings_log_file_level);
     cast_init();
     puts("The spice must flow!");
     cast_run();

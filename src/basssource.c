@@ -8,42 +8,15 @@
 *   copyright MMXI by maep
 */
 
-#include <cstring>
-#include <limits>
-#include <algorithm>
-
-#include <boost/filesystem.hpp>
-#include <boost/algorithm/string.hpp>
-#include <boost/numeric/conversion/cast.hpp>
-
 #include <id3tag.h>
 #include <bass.h>
 
 #include "logror.h"
-#include "keyvalue.h"
+#include "util.h"
 #include "convert.h"
-#include "basssource.h"
+#include "bassdec.h"
 
-using std::string;
-using std::numeric_limits;
-
-using boost::to_lower;
-using boost::iends_with;
-using boost::istarts_with;
-using boost::numeric_cast;
-
-namespace fs = ::boost::filesystem;
-
-#ifdef BASSSOURCE_16BIT_DECODING
-    typedef int16_t sample_t;
-    #define FLOAT_FLAG 0
-#else
-    typedef float sample_t;
-    #define FLOAT_FLAG BASS_SAMPLE_FLOAT
-#endif
-
-struct BassSource::Pimpl
-{
+struct bassdec {
     bool load(string file_name, bool prescan);
     void free();
     string codec_type() const;

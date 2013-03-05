@@ -8,12 +8,11 @@
 *   copyright MMXI by maep
 */
 
-#ifndef BASSDEC_H
-#define BASSDEC_H
+#ifndef CAST_H
+#define CAST_H
 
-#include "audiostream.h"
-
-void bass_loadso(char** argv); 
+void cast_init(void);
+void cast_run(void);
 
 #endif
 

@@ -38,22 +38,16 @@
 */
 
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "settings.h"
 #include "cast.h"
-#include "basssource.h"
-
-#define XSTR_(s) "-"#s
-#define XSTR(s) XSTR_(s)
-#ifndef BUILD_ID
-    #define BUILD_ID
-#endif
-
-const char* demosauce_version = "demosauce 0.4.0" XSTR(BUILD_ID) " - C++ is to C as Lung Cancer is to Lung";
+#include "bassdecoder.h"
 
 int main(int argc, char** argv)
 {
-    bass_load_so(argv);
+    puts(DEMOSAUCE_VERSION);
+    bass_loadso(argv);
     settings_init(argc, argv);
     log_set_console_level(settings_log_console_level);
     log_set_file(settings_log_file, settings_log_file_level);
@@ -62,3 +56,4 @@ int main(int argc, char** argv)
     cast_run();
     return EXIT_SUCCESS;
 }
+

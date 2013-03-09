@@ -11,16 +11,15 @@
 #include <string.h>
 #include <unistd.h>
 #include <unicode/ucnv.h>
-#include <unicode/unistr.h>
-#include <unicode/normlzr.h>
+#include <unicode/unorm2.h>
 #include <shout/shout.h>
 #include "settings.h"
-#include "sockets.h"
-#include "effects.h"
+#include "util.h"
 #include "convert.h"
+#include "effects.h"
 #include "avsource.h"
 #ifdef ENABLE_BASS
- #include "basssource.h"
+    #include "basssource.h"
 #endif
 #include "cast.h"
 

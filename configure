@@ -107,7 +107,7 @@ if test `uname -s` = 'Linux' && ! check_bass; then
         if ! check_bass; then exit 1; fi        
         CPPFLAGS="$CPPFLAGS -DENABLE_BASS -Ibass"
         LINK_BASS='$(shell pkg-config --libs id3tag) -ldl'
-        BASSSOURCE='libbass.o basssource.o'
+        BASSSOURCE='libbass.o bassdecoder.o'
     fi 
 fi
 

@@ -13,7 +13,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <getopt.h>
-
+#include "util.h"
 #include "settings.h"
 
 int         config_version              = 0;
@@ -57,8 +57,8 @@ static void die(const char* msg)
 
 static void read_config(void)
 {
-    #define GETINT(key) settings_#key = get_value_int(buffer, ##key, settings_#key)
-    #define GETSTR(key) settings_#key = get_value_str(buffer, ##key, settings_#key)
+    #define GETINT(key) settings_#key = keyval_int(buffer, ##key, settings_#key)
+    #define GETSTR(key) settings_#key = keyval_str(buffer, ##key, settings_#key)
     
     FILE* f = fopen(config_file_name, "r") 
     
@@ -68,7 +68,7 @@ static void read_config(void)
     fseek(f, 0, SEEK_END);
     size_t bsize = ftell(f);
     rewind(f);
-    char* buffer = mem_malloc(bsize + 1);
+    char* buffer = util_malloc(bsize + 1);
     fread(buffer, 1, bsize, f);
     fclose(f);
     buffer[bsize] = 0;
@@ -109,7 +109,7 @@ static void check_sanity(void)
         die("setting demovibes_port out of range (1-65535)");
     
 
-    if (settings_encoder_samplerate <  8000 || settings_encoder_samplerate > 192000) 
+    if (settings_encode_samplerate <  8000 || settings_encoder_samplerate > 192000) 
         die("setting encoder_samplerate out of range (8000-192000)");
 
     if (settings_encoder_bitrate > 10000)

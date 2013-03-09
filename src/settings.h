@@ -11,7 +11,7 @@
 #ifndef SETTINGS_H
 #define SETTINGS_H
 
-#include "logror.h"
+#include "log.h"
 
 void settings_init(int argc, char** argv);
 

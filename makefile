@@ -1,9 +1,9 @@
 include config.mk
 
-INPUT_DEMOSAUCE = demosauce.o avsource.o $(BASSOURCE) convert.o effects.o logror.o settings.o shoutcast.o sockets.o
+INPUT_DEMOSAUCE = $(BASSOURCE) cast.o demosauce.o effects.o ffdecoder.o logror.o settings.o util.o
 LINK_DEMOSAUCE = $(shell pkg-config --libs shout samplerate) $(shell icu-config --ldflags-libsonly) $(LINK_FFMPEG) $(LINK_BASS)
 
-INPUT_SCAN = scan.o avsource.o $(BASSOURCE) convert.o logror.o
+INPUT_SCAN = $(BASSOURCE) logror.o scan.o util.o
 LINK_SCAN = $(shell pkg-config --libs samplerate) $(LINK_FFMPEG) $(LINK_BASS) libreplaygain/libreplaygain.a
 
 all: clean demosauce scan

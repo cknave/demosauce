@@ -48,6 +48,19 @@ void* util_realloc(void* ptr, size_t size)
 
 //-----------------------------------------------------------------------------
 
+char* util_trim(char* str)
+{
+    char* tmp = str;
+    while (isspace(*str))
+        str++;
+    memmove(str, tmp, strlen(*tmp));
+    tmp += strlen(tmp) - 1;
+    while (tmp > str && isspace(*tmp))
+        tmp--;
+    *tmp = 0;
+    return str;
+}
+
 const char* keyval_str(const char* heap, const char* key, const char* fallback)
 {
     const char* tmp = strstr(heap, key);

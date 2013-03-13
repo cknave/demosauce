@@ -29,25 +29,29 @@
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
 struct buffer {
-    void*           buff;
+    void*           data;
     size_t          size;
 };
 
 struct stream {
-    struct buffer   buff[MAX_CHANNELS];
-    int             channels;
-    long            frames;
-    long            max_frames;
-    bool            end_of_stream;
+    float*      buffer[MAX_CHANNELS];
+    size_t      buffer_size;
+    long        frames;
+    long        max_frames;
+    int         channels;
+    bool        end_of_stream;
 };
 
 struct info {
-    int             channels;
-    int             samplerate;
-    long            length;
-    float           bitrate;
-    const char*     codec;
-    bool            seekable;
+    void        (*decode)(void*, struct stream*, int);
+    void        (*free)(void*);
+    long        length;
+    const char* codec;
+    float       bitrate;
+    int         channels;
+    int         samplerate;
+    bool        seekable;
+    bool        amiga_mod;
 };
 
 
@@ -58,10 +62,11 @@ void    util_free(void* ptr);
 
 char*   util_strdup(const char* str);
 char*   util_trim(char* str);
+bool    util_isfile(const char* path);
 
 
 int     socket_open(const char* host, int port);
-void    socket_read(int socket, struct buffer* buf);
+void    socket_read(int socket, struct buffer* buffer);
 void    socket_close(int socket);
 
 
@@ -71,15 +76,13 @@ double  keyval_real(const char* str, const char* key, double fallback);
 bool    keyval_bool(const char* str, const char* key, bool fallback);
     
 
-void    buffer_resize(struct buffer* buf, size_t size);
-void    buffer_zero(struct buffer* buf);
-void    buffer_zero_end(struct buffer* buf, size_t size);
+void    buffer_resize(struct buffer* b, size_t size);
+void    buffer_zero(struct buffer* b);
 
 
 void    stream_init(struct stream* s, int channels);
 void    stream_free(struct stream* s);
 void    stream_resize(struct stream* s, int frames);
-float*  stream_buffer(struct stream* s, int channel);
 void    stream_set_channels(struct stream* s, int channels);
 void    stream_set_frames(struct stream* s, int frames);
 void    stream_append_n(struct stream* s, struct stream* source, int frames);

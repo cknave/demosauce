@@ -39,8 +39,8 @@ struct fx_fade {
     float   amp_inc;
 };
 
-void fx_fade_init(struct fx_fade* fx)
-void fx_fade_process(struct fx_fade* fx, struct stream* s);
+void fx_fade_init(struct fx_fade* fx, long start_frame, long end_frame, float begin_amp, float end_amp);
+void fx_fade(struct fx_fade* fx, struct stream* s);
 
 
 // left = left*llAmp + left*lrAmp; rigt = right*rrAmp + left*rlAmp;
@@ -51,6 +51,7 @@ struct fx_mix {
     float rl_amp;
 };
 
+void fx_mix_init(struct fx_mix* fx, float llamp, float lramp, float rramp, float rlamp);
 void fx_mix(struct fx_mix* fx, struct stream* s);
 
 #endif // EFFECTS_H

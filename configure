@@ -14,6 +14,24 @@ have_lib() {
     return 0
 }
 
+have_header() {
+    echo -n "checking for $1 ... "
+    echo "#include <$1>" | $CC $CFLAGS -E -xc -o /dev/null - 2>/dev/null
+    if test $? -ne 0; then 
+        echo 'no'
+        return 1
+    fi
+    echo 'yes'
+    return 0
+}
+
+assert_header() {
+    if ! have_header "$1"; then
+        echo "missing header: $1"
+        exit 1
+    fi
+}
+
 assert_lib() {
     if ! have_lib "$1"; then 
         echo "missing lib: $1"
@@ -76,6 +94,10 @@ run_script() {
     return $result
 }
 
+# in case there is local stuff
+if test -d "/usr/local/include"; then CPPFLAGS="$CPPFLAGS -I/usr/local/include"; fi
+if test -d '/usr/local/lib'; then LDFLAGS="$LDFLAGS -L/usr/local/lib"; fi
+
 # build environment
 assert_exe 'make'
 assert_exe "$CC"
@@ -83,11 +105,8 @@ assert_exe "pkg-config"
 assert_exe 'icu-config'
 assert_lib 'shout'
 assert_version 'shout' '2.2.2'
+assert_header 'lame/lame.h'
 assert_lib 'samplerate'
-
-# in case there is local stuff
-if test -d "/usr/local/include"; then CPPFLAGS="$CPPFLAGS -I/usr/local/include"; fi
-if test -d '/usr/local/lib'; then LDFLAGS="$LDFLAGS -L/usr/local/lib"; fi
 
 # bass
 check_bass() {
@@ -104,7 +123,9 @@ if test `uname -s` = 'Linux' && ! check_bass; then
         assert_exe 'wget'
         assert_exe 'unzip'
         run_script getbass.sh bass
-        if ! check_bass; then exit 1; fi        
+        if ! check_bass; then 
+            exit 1; 
+        fi        
         CPPFLAGS="$CPPFLAGS -DENABLE_BASS -Ibass"
         LINK_BASS='$(shell pkg-config --libs id3tag) -ldl'
         BASSSOURCE='libbass.o bassdecoder.o'
@@ -117,7 +138,10 @@ if ask "==> build custom ffmpeg?"; then
     assert_exe 'yasm'
     assert_exe 'make'
     run_script build.sh ffmpeg
-    if test $? -ne 0; then echo 'error while building libavcodec'; exit 1; fi
+    if test $? -ne 0; then 
+        echo 'error while building libavcodec'; 
+        exit 1; 
+    fi
     LINK_FFMPEG="-Lffmpeg -pthread -lavformat -lavcodec -lavutil"
     CPPFLAGS="$CPPFLAGS -Iffmpeg"
 else
@@ -125,8 +149,9 @@ else
     assert_lib 'libavformat'
     assert_lib 'libavutil'
     LINK_FFMPEG='$(shell pkg-config --libs libavformat libavcodec libavutil)'
-    echo '#include <avcodec.h>' | $CC $CFLAGS $AVCFLAGS -E -xc++ -o /dev/null - 2> /dev/null
-    if test $? -eq 0; then CPPFLAGS="$CPPFLAGS -DAVCODEC_FIX0"; fi
+    if have_header 'avcodec.h'; then
+        CPPFLAGS="$CPPFLAGS -DAVCODEC_FIX0"
+    fi
 fi
 
 # replaygain
@@ -144,13 +169,13 @@ fi
 
 # generate makefile
 cat <<EOF >config.mk
-CC = $CC
-CFLAGS = -O2 -ffast-math
-CPPFLAGS = $CPPFLAGS -Isrc -Ireplaygain \$(shell icu-config --cppflags-searchpath)
-BASSOURCE = $BASSSOURCE
-LINK_BASS = $LINK_BASS
+CC          = $CC
+CFLAGS      = -std=c99 -O2 -ffast-math
+CPPFLAGS    = $CPPFLAGS -Isrc -Ireplaygain \$(shell icu-config --cppflags-searchpath)
+BASSOURCE   = $BASSSOURCE
+LINK_BASS   = $LINK_BASS
 LINK_FFMPEG = $LINK_FFMPEG
-LDFLAGS = $LDFLAGS
+LDFLAGS     = $LDFLAGS
 EOF
 
-echo "run make"
+echo "smooth operator"

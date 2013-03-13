@@ -12,17 +12,17 @@
 #include <string.h>
 #include <limits.h>
 
-#include "logror.h"
+#include "log.h"
 #include "effects.h"
 
-double db_to_amp(double db)
+float db_to_amp(float db)
 {
-    return pow(10, db / 20);
+    return powf(10, db / 20);
 }
 
-double amp_to_db(double amp)
+float amp_to_db(float amp)
 {
-    return log10(amp) * 20;
+    return log10f(amp) * 20;
 }
 
 //-----------------------------------------------------------------------------

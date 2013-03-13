@@ -5,7 +5,7 @@
 *   http://www.gnu.org/licenses/gpl.txt
 *   also, this is beerware! you are strongly encouraged to invite the
 *   authors of this software to a beer when you happen to meet them.
-*   copyright MMXI by maep
+*   copyright MMXIII by maep
 */
 
 #ifndef SETTINGS_H
@@ -31,9 +31,7 @@ extern const char*      settings_cast_url;
 extern const char*      settings_cast_genre;
 extern const char*      settings_cast_description;
 extern int              settings_decode_buffer_size;
-extern const char*      settings_error_tune;
 extern const char*      settings_error_title;
-extern const char*      settings_error_fallback_dir;
 extern const char*      settings_log_file;
 extern enum log_level   settings_log_file_level;
 extern enum log_level   settings_log_console_level;

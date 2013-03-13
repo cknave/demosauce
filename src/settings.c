@@ -16,8 +16,7 @@
 #include "util.h"
 #include "settings.h"
 
-int         config_version              = 0;
-
+int         config_version              = 34;
 const char* settings_demovibes_host     = "localhost";
 int         settings_demovibes_port     = 32167;
 const char* settings_encoder_command;
@@ -34,16 +33,11 @@ const char* settings_cast_url;
 const char* settings_cast_genre;
 const char* settings_cast_description;
 int         settings_decode_buffer_size = 200;
-const char* settings_error_tune;
-const char* settings_error_title        = "Sorry, we're having some trouble";
-const char* settings_error_fallback_dir;
-
+const char* settings_error_title        = "sorry, out of juice";
 const char* settings_log_file           = "demosauce.log;
 log_level   settings_log_file_level     = log_info;
 log_level   settings_log_console_level  = log_warn;
-
 const char* settings_debug_song;
-
 static const char* config_file_name     = "demosauce.conf";
 static const char* cast_password;
 static const char* log_file_level;

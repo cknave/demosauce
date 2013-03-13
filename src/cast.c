@@ -9,323 +9,237 @@
 */
 
 #include <string.h>
+#include <limits.h>
 #include <unistd.h>
+#include <pthread.h>
+#include <lame/lame.h>
 #include <unicode/ucnv.h>
 #include <unicode/unorm2.h>
 #include <shout/shout.h>
 #include "settings.h"
-#include "util.h"
-#include "convert.h"
 #include "effects.h"
-#include "avsource.h"
+#include "ffdecoder.h"
 #ifdef ENABLE_BASS
-    #include "basssource.h"
+    #include "avdecoder.h"
 #endif
 #include "cast.h"
 
-/*  current processing stack layout, machines in () may be disabled depending on input
-    machines in [] may be disabled depending on build configuration
-    ZeroSource / [BassSource] / AVCodecSource -> (Resample) -> (MixChannels) ->
-    -> MapChannels -> Gain -> [LADSPA] -> (LinearFade) -> ShoutCast
-*/
+#define LOAD_TRIES 3
 
-struct song_info {
-    const char* file;
-    const char* settings;
-    int         samplerate;
-    double      length;
-    double      play_time;
-    bool        amiga_mode;
-};
-
+static lame_t           lame;
+static shout_t*         shout;
 static struct stream    stream;
-static struct decoder*  decoder;
-#ifdef ENABLE_BASS
-static struct decoder*  bassdec;
-#endif
-static struct decoder*  avdec;
-static shout_t*         cast;
-static bool             encoder_running;
-static bool             decoder_ready;
-static bool             connected           = true;
+static struct info      info;
+static void*            decoder;
+static struct fx_fade   fader;
+static struct fx_mix    mixer;
+static void*            resampler;             
+static float            gain;
 static long             remaining_frames;
+static bool             connected;
+static bool             mixer_enabled;
+static bool             fader_enabled;
 
-void cast_init(void)
+static void get_next_song(struct buffer* buffer)
 {
-    init_socket();
-    shout_init();
-    cast = shout_new();
+    if (settings_debug_song) {
+        size_t len = strlen(settings_debug_song);
+        if (buffer->size < len + 1)
+            buffer_resize(buffer, len + 1);
+        strcpy(buffer->data, settings_debug_song);
+    } else {
+        int socket = socket_open(settings_cast_host, settings_cast_port);
+        if (!socket) {
+            LOG_ERROR("[cast] open connection to demosauce");
+            return;
+        }
+        socket_read(socket, buffer);
+        socket_close(socket);
+    }
 }
 
-ShoutCastPimpl::~ShoutCastPimpl()
+static void zero_generator(void* dummy, struct stream* s, int frames)
 {
-    shout_free(cast);
+    if (s->channels != settings_encoder_channels)
+        stream_set_channels(s, settings_encoder_channels);
+    if (s->max_frames < frames)
+        stream_resize(s, frames);
+    s->frames = frames;
+    stream_zero(s, 0, frames);
+}
+
+static void configure_effects(struct buffer* settings, float forced_length)
+{
+    char mix_str[8] = {0};
+    
+    remaining_frames = LONG_MAX;
+    if (forced_length > 0) {
+        remaining_frames = settings_encoder_samplerate * forced_length;
+        LOG_DEBUG("[cast] song length forced to %f seconds", forced_length);
+    }
+
+    if (info.samplerate != settings_encoder_samplerate) {
+        resampler = fx_resample_init(info.channels, info.samplerate, settings_encoder_samplerate);
+        LOG_DEBUG("[cast] resampling from %d to %d Hz", info.samplerate, settings_encoder_samplerate);
+    }
+
+    keyval_str(mix_str, 8, settings->data, "mix", "auto");
+    mixer_enabled = settings_encoder_channels == 2 && (strcmp(mix_str, "auto") || info.amiga_mod);
+    if (mixer_enabled) {
+        float ratio = keyval_real(settings->data, "mix", 0.4);
+        ratio = MAX(MIN(ratio, 1.0), 0.0);
+        fx_mix_init(&mixer, 1.0 - ratio, ratio, 1.0 - ratio, ratio);
+        LOG_DEBUG("[cast] mixing channels with %f ratio", ratio);
+    }
+
+    gain = keyval_real(settings->data, "gain", 0.0);
+    LOG_DEBUG("[cast] setting gain to %f dB", gain);
+    gain = db_to_amp(gain);
+
+    fader_enabled = keyval_bool(settings->data, "fade_out", false); 
+    if (fader_enabled) {
+        float length = forced_length > 0 ?  forced_length : info.length;
+        long start = (length - 5) * settings_encoder_samplerate;
+        long end = length * settings_encoder_samplerate;
+        fx_fade_init(&fader, start, end, 1, 0);
+        LOG_DEBUG("[update_machines] fading out at %f seconds", length);
+    }
+}
+
+static void* load_next(void* data)
+{
+    static struct buffer buffer;
+    char* path = NULL; 
+    float forced_length = 0;
+    int tries = 0;
+
+    if (decoder && info.free)
+        info.free(decoder);
+    memset(&info, 0, sizeof(struct info));
+    
+    while (tries++ < LOAD_TRIES && !decoder) {
+        path[0] = 0;
+        get_next_song(&buffer);
+        path = keyval_str(NULL, 0, buffer.data, "path", NULL);
+        
+        if (!util_isfile(path)) {
+            LOG_ERROR("[cast] file doesn't exist: %s", path);
+            continue;
+        }
+        forced_length = keyval_real(buffer.data, "length", 0);
+#ifdef ENABLE_BASS
+        if ((decoder = bass_load(path, buffer.data))) {
+            bass_info(decoder, &info);
+            if (forced_length > info.length) 
+                bass_set_loop_duration(decoder, forced_length);
+        }
+#endif
+        if (!decoder && (decoder = ff_load(path))) {
+            ff_info(decoder, &info);
+        }
+        
+        if (!decoder) {
+            LOG_ERROR("[cast] can't load %s", path);
+            sleep(3);
+        }
+    }
+
+    if (decoder && info.length == 0)
+        LOG_WARN("[cast] no length %s", path);
+
+    if (!decoder) {
+        LOG_WARN("[cast] load failed three times, sending one minute sound of silence");
+        info.decode     = zero_generator;
+        info.samplerate = settings_encoder_samplerate;
+        info.channels   = settings_encoder_channels;
+        forced_length   = 60;
+    }
+    configure_effects(&buffer, forced_length);
+    return NULL;
+}
+
+static void cast_init(void)
+{
+    shout_init();
+    shout = shout_new();
+    lame = lame_init();
+    lame_set_quality(lame, 2);
+    lame_set_in_samplerate(lame, settings_encoder_bitrate);
+}
+
+static void cast_free(void)
+{
+    shout_free(shout);
+    lame_close(lame);
+}
+
+static void process(struct stream* stream, int frames)
+{
+}
+
+static void cast_connect(void)
+{
+    char bitrate[8]     = {0};
+    char samplerate[8]  = {0};
+    char channels[4]    = {0};
+    snprintf(bitrate, 8, "%d", settings_encoder_bitrate);
+    snprintf(samplerate, 8, "%d" settings_encoder_samplerate);
+    snprintf(channels, 4, "%d", settings_encoder_channels); 
+
+    // setup connection
+    shout_set_host(shout, settings_cast_host);
+    shout_set_port(shout, settings_cast_port);
+    shout_set_user(shout, settings_cast_user);
+    shout_set_password(shout, settings_cast_password);
+    shout_set_format(shout, SHOUT_FORMAT_MP3);
+    shout_set_mount(shout, settings_cast_mount);
+    shout_set_public(shout, 1);
+    shout_set_name(shout, settings_cast_name);
+    shout_set_url(shout, settings_cast_url);
+    shout_set_genre(shout, settings_cast_genre);
+    shout_set_description(shout, settings_cast_description);
+    shout_set_audio_info(shout, SHOUT_AI_BITRATE, bitrate);
+    shout_set_audio_info(cast, SHOUT_AI_SAMPLERATE, samplerate);
+    shout_set_audio_info(cast, SHOUT_AI_CHANNELS, channels);
+
+    // start
+    if (shout_open(cast) != SHOUTERR_SUCCESS) 
+        LOG_ERROR("[cast] can't connect to icecast (%s)", shout_get_error(cast));
+    else
+        LOG_INFO("[cast] connected to icecast");
 }
 
 void cast_run(void)
 {
-    load_next();
+    static unsigned char mp3buf[2048];
+    int decode_frames = (settings_encoder_samplerate * settings_decode_buffer_size) / 1000;
+    load_next(NULL);
+
     while (true) {
-        run_encoder();
+        int err = 0;
+        cast_connect();
+        do {
+            if (!decoder) {
+                stream_zero(&stream, 0, decode_frames);
+                continue;
+            } else {
+                process(&stream, decode_frames);
+                remaining_frames -= stream.frames;
+                if (stream.end_of_stream || remaining_frames < 0) { 
+                    LOG_DEBUG("[cast] end of stream");
+                    decoder = NULL;
+                    pthread_t thread = {0};
+                    pthread_create(&thread, NULL, load_next, NULL);
+                }
+            }
+            // TODO: check stereo 
+            int siz = lame_encode_buffer_ieee_float(lame, stream.buffer[0], stream.buffer[1], stream.frames, mp3buf, sizeof(mp3buf)); 
+            shout_sync(shout);
+            err = shout_send(shout, mp3buf, siz);
+        } while (err == SHOUTERR_SUCCESS);
+        LOG_ERROR("[cast] icecast disconnected (%s)", shout_get_error(shout));
         sleep(10); 
     }
-}
-
-void ShoutCastPimpl::writer()
-{
-    uint32_t const channels = setting::encoder_channels;
-    uint32_t const decode_frames = (setting::encoder_samplerate * setting::decode_buffer_size) / 1000;
-
-    // decode buffer size = sizeof(sample_t) * decode_frames * channels
-    AlignedBuffer<sample_t> decode_buffer(decode_frames * channels);
-
-    while (encoder_running) {
-        // decode and read some
-        if (decoder_ready) {
-            uint32_t frames = converter.process(decode_buffer.get(), decode_frames, channels);
-            remaining_frames += frames;
-
-            if (frames != decode_frames || remaining_frames > 0) { // end of song 
-                LOG_DEBUG("[writer] end of stream");
-                decode_buffer.zero_end((decode_frames - frames) * channels);
-                // load next song in separate thread
-                decoder_ready = false;
-                boost::thread thread(bind(&ShoutCastPimpl::load_next, this));
-            }
-        } else {
-            decode_buffer.zero();
-        }
-        shout_sync(cast); // I did syncing in the reader but that ccaused problems
-        encoder_input->write(decode_buffer.get_char(), decode_buffer.size_bytes());
-    }
-}
-
-void ShoutCastPimpl::reader()
-{
-    AlignedBuffer<char> send_buffer(setting::encoder_samplerate);
-
-    while (encoder_running) {
-        while (!connected) {
-            boost::this_thread::sleep(boost::posix_time::seconds(10));
-            connect();
-        }
-
-        // blocks if not enough data is available, dunno what happens when the process quits
-        encoder_output->read(send_buffer.get(), send_buffer.size_bytes());
-        // shout_sync(cast); syncing moved to writer
-        int err = shout_send(cast, send_buffer.get_uchar(), send_buffer.size_bytes());
-        if (err != SHOUTERR_SUCCESS) {
-            LOG_ERROR("[reader] icecast connection dropped, trying to recover(%s)", shout_get_error(cast));
-            disconnect();
-        }
-    }
-}
-
-static void load_next(void)
-{
-    SongInfo song = {"", "", settings_encoder_samplerate, 0, 0, false};
-
-    int tries = 0;
-    bool loaded = false;
-    while (tries++ < 3 && !loaded) {
-        get_next_song(song);
-        song.forced_length = get_value_flt(song.settings, "length", 0.0);
-
-        if (!util_isfile(song.file)) {
-            LOG_ERROR("[load_next] file doesn't exist: %s", song.file);
-            continue;
-        }
-
-#ifdef ENABLE_BASS
-        if (!loaded && bass_load(bassdec, song.file, song.settings)) {
-            decoder = basssdec;
-            if (song.forced_length > 0) 
-                bass_set_loop_duration(bassdec, song.forced_length);
-            loaded = true;
-        }
-#endif
-        if (!loaded && av_load(avdec, song.file)) {
-            decoder = avdec;
-            loaded = true;
-        }
-
-        song.samplerate = decoder->samplerate;
-        song.length = decoder->length / decoder->samplerate;
-
-        if (!loaded) {
-            LOG_ERROR("[load_next] can't decode %s", song.file);
-            sleep(3);
-        }
-        
-    }
-
-    if (loaded && song.length == 0)
-        LOG_WARN("[load_next] no legth %s", song.file);
-
-    if (!loaded) {
-        LOG_WARN("[load_next] loading failed three times, sending a bunch of zeros");
-        song.forced_length = 60;
-    }
-
-    update_machines(song);
-    update_metadata(song);
-
-    decoder_ready = true;
-}
-
-void get_next_song(struct song_info* song)
-{
-        if (!settings_debug_song) 
-            sockets_next_song(&song.settings);
-        else 
-            song.settings = settings_debug_song;
-        
-        song.file = get_value_str(song.settings, "path", "");
-
-        if (song.file.empty()) {
-            if (fs::is_regular_file(setting::error_tune)) {
-                LOG_WARN("[get_next_song] file name is empty, using error_tune");
-                song.file = settings_error_tune;
-            } else if (fs::is_directory(setting::error_fallback_dir)) {
-                LOG_WARN("[get_next_song] file name is empty, using error_fallback_dir");
-                song.file = get_random_file(setting::error_fallback_dir);
-            } else {
-                LOG_WARN("[get_next_song] file name is empty, and your fallback settings suck");
-            }
-        }
-}
-
-static void process(void)
-{
-
-}
-
-void ShoutCastPimpl::update_machines(SongInfo& song)
-{
-    // reset routing
-    resample->set_enabled(false);
-    mixChannels->set_enabled(false);
-    linearFade->set_enabled(false);
-
-    remaining_frames = std::numeric_limits<int64_t>::min();
-    if (song.forced_length > 0) {
-        remaining_frames = -numeric_cast<int>(setting::encoder_samplerate * song.forced_length);
-        LOG_DEBUG("[update_machines] song length forced to %f seconds", song.forced_length);
-    }
-
-    if (get_value(song.settings, "fade_out", false)) {
-        double length = song.forced_length > 0 ?
-            song.forced_length :
-            song.length;
-        uint64_t start = numeric_cast<uint64_t>((length - 5) * setting::encoder_samplerate);
-        uint64_t end = numeric_cast<uint64_t>(length * setting::encoder_samplerate);
-        linearFade->set_fade(start, end, 1, 0);
-        linearFade->set_enabled(true);
-        LOG_DEBUG("[update_machines] song fading out at %f seconds", length);
-    }
-
-    if (song.samplerate != setting::encoder_samplerate) {
-        resample->set_rates(song.samplerate, setting::encoder_samplerate);
-        resample->set_enabled(true);
-        LOG_DEBUG("[update_machines] resampling %u to %u Hz", song.samplerate, setting::encoder_samplerate);
-    }
-
-    bool auto_mix = (get_value(song.settings, "mix", "auto") == "auto");
-    if (setting::encoder_channels == 2 && (!auto_mix || song.amiga_mode)) {
-        double ratio = get_value(song.settings, "mix", 0.4);
-        ratio = std::max(ratio, 0.0);
-        ratio = std::min(ratio, 1.0);
-        mixChannels->set_mix(1.0 - ratio, ratio, 1.0 - ratio, ratio);
-        mixChannels->set_enabled(true);
-        LOG_DEBUG("[update_machines] mixing channels with %f ratio", ratio);
-    }
-
-    double song_gain = get_value(song.settings, "gain", 0.0);
-    gain->set_amp(db_to_amp(song_gain));
-    LOG_DEBUG("[update_machines] applying gain of %f dB", song_gain);
-
-    machineStack->update_routing();
-}
-
-void ShoutCastPimpl::run_encoder()
-{
-    // split up encoder command into strings for poost::process
-    vector<string> args;
-    boost::split(args, setting::encoder_command, boost::is_any_of("\t "));
-    string exe = args[0];
-    args.erase(args.begin());
-
-    if (!fs::exists(exe)) try {
-        exe = bp::find_executable_in_path(exe);
-    } catch (fs::filesystem_error& e) {
-        FATAL("[run_encoder] can't locate encoder executable: %s", cstr(exe));
-    }
-
-    bp::context ctx;
-    ctx.streams[bp::stdin_id] = bp::behavior::async_pipe();
-    ctx.streams[bp::stdout_id] = bp::behavior::async_pipe();
-    ctx.streams[bp::stderr_id] = bp::behavior::null();
-
-    LOG_INFO("[run_encoder] starting encoder: %s", cstr(setting::encoder_command));
-    try {
-        // launch encoder
-        bp::child c = bp::create_child(exe, args, ctx);
-        encoder_input = boost::in_place(c.get_handle(bp::stdin_id));
-        encoder_output = boost::in_place(c.get_handle(bp::stdout_id));
-        encoder_running = true;
-
-        // launch reader and writer threads
-        boost::thread write_tread(bind(&ShoutCastPimpl::writer, this));
-        boost::thread read_tread(bind(&ShoutCastPimpl::reader, this));
-
-        // blocks until encoder quits. the encoder should only quit in abnormal situations
-        c.wait();
-        encoder_running = false;
-        write_tread.interrupt();    // try interrupting any blocking calls
-        read_tread.interrupt();     // try interrupting any blocking calls
-        LOG_ERROR("[run_encoder] encoder process stopped, trying to recover");
-    } catch (fs::filesystem_error& e) {
-        FATAL("[run_encoder] failed to launch encoder (%s)", e.what());
-    }
-}
-
-void ShoutCastPimpl::connect()
-{
-    // setup connection
-    shout_set_host(cast, setting::cast_host.c_str());
-    shout_set_port(cast, setting::cast_port);
-    shout_set_user(cast, setting::cast_user.c_str());
-    shout_set_password(cast, setting::cast_password.c_str());
-    shout_set_format(cast, SHOUT_FORMAT_MP3);
-    shout_set_mount(cast, setting::cast_mount.c_str());
-    shout_set_public(cast, 1);
-    shout_set_name(cast, setting::cast_name.c_str());
-    shout_set_url(cast, setting::cast_url.c_str());
-    shout_set_genre(cast, setting::cast_genre.c_str());
-    shout_set_description(cast, setting::cast_description.c_str());
-
-    string bitrate = lexical_cast<string>(setting::encoder_bitrate);
-    shout_set_audio_info(cast, SHOUT_AI_BITRATE, bitrate.c_str());
-
-    string samplerate = lexical_cast<string>(setting::encoder_samplerate);
-    shout_set_audio_info(cast, SHOUT_AI_SAMPLERATE, samplerate.c_str());
-
-    string channels =  lexical_cast<string>(setting::encoder_channels);
-    shout_set_audio_info(cast, SHOUT_AI_CHANNELS, channels.c_str());
-
-    // start
-    if (shout_open(cast) != SHOUTERR_SUCCESS) {
-        LOG_ERROR("[connect] can't connect to icecast (%s)", shout_get_error(cast));
-    } else {
-        LOG_INFO("[connect] connected to icecast");
-        connected = true;
-    }
-}
-
-void ShoutCastPimpl::disconnect()
-{
-    connected = false;
-    shout_close(cast);
 }
 
 // unicode decompposition
@@ -380,7 +294,7 @@ string create_cast_title(string artist, string title)
 
 void ShoutCastPimpl::update_metadata(SongInfo& song)
 {
-    string title = get_value(song.settings, "title", setting::error_title);
+    string title = get_value(song.settings, "title", settings_error_title);
     string artist = get_value(song.settings, "artist", "");
     string cast_title = create_cast_title(artist, title);
 

@@ -46,6 +46,11 @@ void* util_realloc(void* ptr, size_t size)
     return ptr;
 }
 
+void util_free(void* ptr)
+{
+    free(ptr);
+}
+
 //-----------------------------------------------------------------------------
 
 char* util_trim(char* str)
@@ -61,23 +66,31 @@ char* util_trim(char* str)
     return str;
 }
 
-const char* keyval_str(const char* heap, const char* key, const char* fallback)
+const char* keyval_str(char* out, size_t size, const char* heap, const char* key, const char* fallback)
 {
     const char* tmp = strstr(heap, key);
     if (!tmp)
-        return strdup(fallback);
+        goto error; 
     tmp += strlen(key);
     tmp = strpbrk(tmp, "=\n\r");
     if (!tmp || *tmp != '=')
-        return strdup(fallback);
+        goto error;
     tmp += strspn(tmp + 1, " \t");
     size_t span = strcspn("\n\r");
-    while (span && isspace(s[span - 1]))
+    while (span && isspace(tmp[span - 1]))
         span--;
-    const char* value = util_malloc(span);
+
+    char* value = NULL;
+    if (out && size + 1 >= span) {
+        value = out;
+    } else {
+        value = util_malloc(span);
+    }
     memmove(value, s, span);
     value[span] = 0;
     return value;
+error:
+    return ;
 }
 
 int keyval_int(const char* heap, const char* key, int fallback)

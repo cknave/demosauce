@@ -20,13 +20,16 @@
 #define BSTR(buf) ((char*)(buf).buff)
 #define XSTR_(s) "-"#s
 #define XSTR(s) XSTR_(s)
-#ifndef BUILD_ID
-    #define BUILD_ID
+#ifdef BUILD_ID
+    #define ID_STR XSTR(BUILD_ID)
+#else
+    #define ID_STR
 #endif
-#define DEMOSAUCE_VERSION "demosauce 0.4.0"XSTR(BUILD_ID)" - C++ is to C as Lung Cancer is to Lung"
+#define DEMOSAUCE_VERSION "demosauce 0.4.0"ID_STR" - C++ is to C as Lung Cancer is to Lung"
 #define COUNT(array) (sizeof(array) / sizeof(array[0]))
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
+#define CLAMP(a, b, c) ((b) < (a) ? (a) : (b) > (c) ? (c) : (b))
 
 struct buffer {
     void*           data;
@@ -66,7 +69,7 @@ bool    util_isfile(const char* path);
 
 
 int     socket_open(const char* host, int port);
-void    socket_read(int socket, struct buffer* buffer);
+bool    socket_read(int socket, struct buffer* buffer);
 void    socket_close(int socket);
 
 
@@ -80,13 +83,9 @@ void    buffer_resize(struct buffer* b, size_t size);
 void    buffer_zero(struct buffer* b);
 
 
-void    stream_init(struct stream* s, int channels);
 void    stream_free(struct stream* s);
 void    stream_resize(struct stream* s, int frames);
-void    stream_set_channels(struct stream* s, int channels);
-void    stream_set_frames(struct stream* s, int frames);
-void    stream_append_n(struct stream* s, struct stream* source, int frames);
-void    stream_append(struct stream* s, struct stream* source);
+void    stream_fill(struct stream* s, const float* source, int frames, int channels);
 void    stream_drop(struct stream* s, int frames);
 void    stream_zero(struct stream* s, int offset, int frames);
 

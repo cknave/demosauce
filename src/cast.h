@@ -11,6 +11,7 @@
 #ifndef CAST_H
 #define CAST_H
 
+void cast_init(void);
 void cast_run(void);
 
 #endif

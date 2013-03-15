@@ -11,25 +11,24 @@
 #include <stdlib.h>
 #include <time.h>
 #include <stdio.h>
-#include <string.h>
 #include <strings.h>
-#include "logror.h"
+#include "log.h"
 
-static log_level console_level = log_off;
-static log_level file_level = log_off;
-static FILE* logfile = 0;
+static enum log_level   console_level   = log_off;
+static enum log_level   file_level      = log_off;
+static FILE*            logfile         = 0;
 
-void log_set_console_level(log_level level)
+void log_set_console_level(enum log_level level)
 {
     console_level = level;
 }
 
-void log_set_file_level(log_level level)
+void log_set_file_level(enum log_level level)
 {
     file_level = level;
 }
 
-void log_set_file(const char* file_name, log_level level)
+void log_set_file(const char* file_name, enum log_level level)
 {
     time_t rawtime;
     char buf[4000] = {0};
@@ -46,7 +45,7 @@ void log_set_file(const char* file_name, log_level level)
         puts("WARNING: could not open log file");
 }
 
-static void fvlog(FILE* f, log_level lvl, const char* fmt, va_list args)
+static void fvlog(FILE* f, enum log_level lvl, const char* fmt, va_list args)
 {
     const char* levels[] = {"DEBUG", "INFO ", "WARN ", "ERROR", "DOOOM"};
     time_t rawtime;
@@ -60,7 +59,7 @@ static void fvlog(FILE* f, log_level lvl, const char* fmt, va_list args)
     fflush(f);
 }
 
-void log_log(log_level level, const char* fmt, ...)
+void log_log(enum log_level lvl, const char* fmt, ...)
 {
     if (lvl != log_off) {
         va_list args;
@@ -78,20 +77,20 @@ void log_log(log_level level, const char* fmt, ...)
         }
     }
 
-    if (level == log_fatal) {
-        puts("terminted\n");
+    if (lvl == log_fatal) {
+        puts("terminated");
         if (logfile) 
-            fputs("terminated\n", logfile);
+            fputs("terminated", logfile);
         exit(EXIT_FAILURE);
     }
 }
 
-bool log_string_to_level(const char* name, log_level* level)
+bool log_string_to_level(const char* name, enum log_level* level)
 {
     const char* lstr[] = {"debug", "info", "warn", "error", "fatal", "off"};
-    const log_level llvl[] = {log_debug, log_info, log_warn, log_error, log_fatal, log_off};
+    enum log_level llvl[] = {log_debug, log_info, log_warn, log_error, log_fatal, log_off};
     for (int i = 0; i < 7; i++) {
-        if (strcasecmp(str, lstr[i])) {
+        if (!strcasecmp(name, lstr[i])) {
             *level = llvl[i];
             return true;
         }

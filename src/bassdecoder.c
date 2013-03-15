@@ -8,20 +8,24 @@
 *   copyright MMXI by maep
 */
 
+
+#include <string.h>
+#include <math.h>
+#include <strings.h>
 #include <id3tag.h>
 #include <bass.h>
-#include "logror.h"
-#include "util.h"
-#include "convert.h"
-#include "bassdec.h"
+#include "log.h"
+#include "settings.h"
+#include "effects.h"
+#include "bassdecoder.h"
 
 #define IS_MOD(dec)         ((dec)->channel_info.ctype & BASS_CTYPE_MUSIC_MOD)
 #define IS_AMIGAMOD(dec)    ((dec)->channel_info.ctype == BASS_CTYPE_MUSIC_MOD)
 
-struct ffdecoder {
+struct bassdecoder {
+    struct buffer       read_buffer;
     DWORD               channel;
     BASS_CHANNELINFO    channel_info;
-    const char*         file_name;
     int                 samplerate;
     long                current_frame;
     long                last_frame;
@@ -29,27 +33,26 @@ struct ffdecoder {
 
 static bool initialized;
 
-
-static void free_bassdecoder(struct basdecoder* d)
+static void bass_free2(struct bassdecoder* d)
 {
+    util_free(d->read_buffer.data);
     if (d->channel) {
         if (d->channel_info.ctype & BASS_CTYPE_MUSIC_MOD) 
-            BASS_MusicFree(channel);
+            BASS_MusicFree(d->channel);
         else 
-            BASS_StreamFree(channel);
+            BASS_StreamFree(d->channel);
         if (BASS_ErrorGetCode() != BASS_OK)
              LOG_WARN("[bassdecoder] failed to free channel (%d)", BASS_ErrorGetCode());
     }
-    free(d->file_name);
 }
 
 void bass_free(void* handle)
 {
-    free_bassdecoder(handle);
-    free(handle);
+    bass_free2(handle);
+    util_free(handle);
 }
 
-void* bass_load(const char* file_name, const char* options)
+void* bass_load(const char* path, const char* options)
 {
     if (!initialized) {
         if (!BASS_Init(0, 44100, 0, 0, NULL)) {
@@ -60,30 +63,29 @@ void* bass_load(const char* file_name, const char* options)
         initialized = true;
     }
 
-    LOG_DEBUG("[bassdecoder] loading %s", file_name);
+    LOG_DEBUG("[bassdecoder] loading %s", path);
 
     bool prescan = keyval_bool(options, "bass_prescan", false);    
-    DWORD stream_flags = BASS_STREAM_DECODE | (prescan ? BASS_STREAM_PRESCAN : 0) | FLOAT_FLAG;
-    DWORD music_flags = BASS_MUSIC_DECODE | BASS_MUSIC_PRESCAN | FLOAT_FLAG;
+    DWORD stream_flags = BASS_STREAM_DECODE | (prescan ? BASS_STREAM_PRESCAN : 0) | BASS_SAMPLE_FLOAT;
+    DWORD music_flags = BASS_MUSIC_DECODE | (prescan ? BASS_MUSIC_PRESCAN : 0) | BASS_MUSIC_FLOAT;
 
-    struct bassdecoder d = {0}
-    d.channel = BASS_StreamCreateFile(FALSE, file_name, 0, 0, stream_flags);
+    struct bassdecoder d = {{0}};
+    d.channel = BASS_StreamCreateFile(FALSE, path, 0, 0, stream_flags);
     if (!d.channel) 
-        channel = BASS_MusicLoad(FALSE, file_name, 0, 0 , music_flags, samplerate);
-    if (!d.channel) {
+        d.channel = BASS_MusicLoad(FALSE, path, 0, 0 , music_flags, settings_encoder_samplerate);
+    if (!d.channel) 
         return false;
-    }
 
-    BASS_ChannelGetInfo(d->channel, &channelInfo);
-    QWORD length = BASS_ChannelGetLength(channel, BASS_POS_BYTE);
-    d.lastFrame = length / (sizeof(sample_t) * d.channel_info.chans);
+    BASS_ChannelGetInfo(d.channel, &d.channel_info);
+    QWORD length = BASS_ChannelGetLength(d.channel, BASS_POS_BYTE);
+    d.last_frame = length / (sizeof(float) * d.channel_info.chans);
 
     if (length == (QWORD)(-1))
         goto error;
 
     if (IS_MOD(&d)) {
         // interpolation, values: auto, auto, off, linear, sinc (bass uses linear as default)
-        char inter_str[8] = {0}
+        char inter_str[8] = {0};
         keyval_str(inter_str, 8, options, "bass_inter", "auto");
         if ((IS_AMIGAMOD(&d) && !strcmp(inter_str, "auto")) || !strcmp(inter_str, "off")) 
             BASS_ChannelFlags(d.channel, BASS_MUSIC_NONINTER, BASS_MUSIC_NONINTER);
@@ -107,54 +109,48 @@ void* bass_load(const char* file_name, const char* options)
             BASS_ChannelFlags(d.channel, BASS_MUSIC_FT2MOD, BASS_MUSIC_FT2MOD);
     } 
 
-    dec->file_name = strdup(file_name);
     struct bassdecoder* dec = util_malloc(sizeof(struct bassdecoder));
     memmove(dec, &d, sizeof(struct bassdecoder));
-    LOG_INFO("[bassdecoder] loaded %s", file_name);
+    LOG_INFO("[bassdecoder] loaded %s", path);
     return dec;
+
 error:
-    free_bassdecoder(&d);
-    LOG_DEBUG("[bassdecoder] can't load %s", file_name);
+    bass_free2(&d);
+    LOG_DEBUG("[bassdecoder] failed to load %s", path);
     return NULL;
 }
 
-void bass_decode(void* hadle, struct stream* s, int frames)
+void bass_decode(void* handle, struct stream* s, int frames)
 {
-    uint32_t const chan = channels();
-    if (chan != 2 && chan != 1) {
-        ERROR("[basssource] unsupported number of channels");
-        stream.end_of_stream = true;
-        stream.set_frames(0);
+    struct bassdecoder* d = handle;
+    int ch = d->channel_info.chans;
+    if (ch != 2 && ch != 1) {
+        LOG_ERROR("[bassdecoder] unsupported number of channels");
+        s->end_of_stream = true;
+        s->frames = 0;
         return;
     }
 
-    uint32_t const framesToRead = unsigned_min<uint32_t>(frames, pimpl->lastFrame - pimpl->currentFrame);
-    if (framesToRead == 0) {
-        stream.end_of_stream = true;
-        stream.set_frames(0);
+    int frames_to_read = CLAMP(frames, d->last_frame - d->current_frame, frames);
+    if (frames_to_read == 0) {
+        s->end_of_stream = true;
+        s->frames = 0;
         return;
     }
 
-    DWORD const bytesToRead = frames_in_bytes<sample_t>(framesToRead, chan);
-    sample_t* const readBuffer = pimpl->converter.input_buffer(frames, chan);
-    DWORD const bytesRead = BASS_ChannelGetData(pimpl->channel, readBuffer, bytesToRead);
+    DWORD bytes_to_read = frames_to_read * ch * sizeof(float);
+    buffer_resize(&d->read_buffer, bytes_to_read);
+    DWORD bytes_read = BASS_ChannelGetData(d->channel, d->read_buffer.data, bytes_to_read);
+    if (bytes_read == -1 && BASS_ErrorGetCode() != BASS_ERROR_ENDED) 
+        LOG_ERROR("[bassdecoder] failed to read from channel (%d)", BASS_ErrorGetCode());
+    
+    int frames_read = bytes_read != -1 ? bytes_read / (sizeof(float) * ch) : 0;
+    d->current_frame += frames_read;
 
-    if (bytesRead == static_cast<DWORD>(-1) && BASS_ErrorGetCode() != BASS_ERROR_ENDED) {
-        ERROR("[basssource] failed to read from channel (%d)", BASS_ErrorGetCode());
-    }
-
-    uint32_t framesRead = 0;
-    if (bytesRead != static_cast<DWORD>(-1)) {
-        framesRead = bytes_in_frames<uint32_t, sample_t>(bytesRead, chan);
-    }
-
-    // converter will set stream size
-    pimpl->converter.process(stream, framesRead);
-    pimpl->currentFrame += framesRead;
-
-    stream.end_of_stream = framesRead != framesToRead || pimpl->currentFrame >= pimpl->lastFrame;
-    if(stream.end_of_stream) 
-        LOG_DEBUG("[basssource] eos bass %lu frames left", stream.frames());
+    stream_fill(s, d->read_buffer.data, frames_read, ch);
+    s->end_of_stream = (frames_read != frames_to_read) || (d->current_frame >= d->last_frame);
+    if(s->end_of_stream) 
+        LOG_DEBUG("[bassdecoder] eos %d frames left", s->frames);
 }
 
 void bass_seek(void* handle, long position)
@@ -166,12 +162,12 @@ void bass_set_loop_duration(void* handle, double duration)
 {
     struct bassdecoder* d = handle;
     d->last_frame = duration * d->channel_info.freq;
-    BASS_ChannelFlags(pimpl->channel, BASS_SAMPLE_LOOP, BASS_SAMPLE_LOOP);
+    BASS_ChannelFlags(d->channel, BASS_SAMPLE_LOOP, BASS_SAMPLE_LOOP);
 }
 
 static const char* codec_type(struct bassdecoder* d)
 {
-    switch (d->channelInfo.ctype) {
+    switch (d->channel_info.ctype) {
     case BASS_CTYPE_STREAM_OGG: return "vorbis";
     case BASS_CTYPE_STREAM_MP1:
     case BASS_CTYPE_STREAM_MP2: return "mp2";
@@ -194,48 +190,42 @@ static const char* codec_type(struct bassdecoder* d)
 void bass_info(void* handle, struct info* info)
 {
     struct bassdecoder* d = handle;
-    
+    memset(info, 0, sizeof(struct info)); 
     info->channels      = d->channel_info.chans;
     info->samplerate    = d->channel_info.freq;
     info->length        = d->last_frame;
     if (IS_MOD(d)) {
         info->bitrate = 0;
     } else {
-        double size = BASS_StreamGetFilePosition(d->channel, BASS_FILEPOS_END);
-        double duration = (double)d->last_frame / d->channel_info.freq;
+        float size = BASS_StreamGetFilePosition(d->channel, BASS_FILEPOS_END);
+        float duration = (float)d->last_frame / d->channel_info.freq;
         info->bitrate = size / (125 * duration);
     }
     info->codec         = codec_type(d); 
     info->seekable      = false;
+    info->amiga_mod     = IS_AMIGAMOD(d);
 }
 
 
-static char* get_id3_tag(const TAG_ID_3* tags, const char* key)
+static char* get_id3_tag(const TAG_ID3* tags, const char* key)
 {
     char* value = NULL;
     if (!strcmp(key, "artist")) {
         value = util_malloc(31);
-        memmove(value, tag->artist, 30);
+        memmove(value, tags->artist, 30);
         value[30] = 0;
     } else if (!strcmp(key, "title")) {
         value = util_malloc(31);
-        memmove(value, tag->title, 30);
+        memmove(value, tags->title, 30);
         value[30] = 0;
     }
     return value;
 }
 
 // and the award to the bested documented lib goes to: libid3tag! </irony>
-static char* get_id3v2_tag(const td3_byte_t* tags, const char* key)
+static char* get_id3v2_tag(const id3_byte_t* tags, const char* key)
 {
-    const char*         frame_id    = NULL;
-    long                length      = 0;
-    id3_tag*            tag         = NULL;
-    id3_frame*          frame       = NULL;
-    id3_field*          field       = NULL;
-    id3_ucs4_t*         ucs_str     = NULL;
-    id3_utf8_t*         utf_str     = NULL;
-
+    const char* frame_id = NULL;
     if (!strcmp(key, "artist")) 
         frame_id = ID3_FRAME_ARTIST;
     else if (!strcmp(key, "title"))
@@ -243,24 +233,24 @@ static char* get_id3v2_tag(const td3_byte_t* tags, const char* key)
     else
         goto id3_quit;
 
-    length = id3_tag_query(tags, ID3_TAG_QUERYSIZE);
+    long length = id3_tag_query(tags, ID3_TAG_QUERYSIZE);
     if (!length) 
         goto id3_quit;
 
-    tag = id3_tag_parse(tags, length);
+    struct id3_tag* tag = id3_tag_parse(tags, length);
     if (!tag)
         goto id3_quit;
 
-    frame = id3_tag_findframe(tag, frame_id, 0);
+    struct id3_frame* frame = id3_tag_findframe(tag, frame_id, 0);
     if (!frame) 
         goto id3_quit_tag;
 
-    field = id3_frame_field(frame, 1);
-    ucs_str = id3_field_getstrings(field, 0);
+    union id3_field* field = id3_frame_field(frame, 1);
+    const id3_ucs4_t* ucs_str = id3_field_getstrings(field, 0);
     if (!ucs_str)
         goto id3_quit_frame;
 
-    utf_str = id3_ucs4_utf8duplicate(ucs_str);
+    id3_utf8_t* utf_str = id3_ucs4_utf8duplicate(ucs_str);
     // TODO: free ucs string?
 id3_quit_frame:
     id3_frame_delete(frame);
@@ -270,27 +260,27 @@ id3_quit:
     return (char*)utf_str;
 }
 
-static char* get_ogg_tag(const char* tags, string key)
+static char* get_ogg_tag(const char* tags, const char* key)
 {
     return keyval_str(NULL, 0, tags, key, NULL);
 }
 
-static char* get_tag(DWORD handle, const char* key)
+static char* get_tag(DWORD channel, const char* key)
 {
-    const char* trags = NULL;
-    tags = BASS_ChannelGetTags(handle, BASS_TAG_ID3V2);
+    const void* tags = NULL;
+    tags = BASS_ChannelGetTags(channel, BASS_TAG_ID3V2);
     if (tags) 
         return get_id3v2_tag(tags, key);
-    tags = BASS_ChannelGetTags(handle, BASS_TAG_ID3);
+    tags = BASS_ChannelGetTags(channel, BASS_TAG_ID3);
     if (tags)
         return get_id3_tag(tags, key);
-    tags = BASS_ChannelGetTags(handle, BASS_TAG_OGG);
+    tags = BASS_ChannelGetTags(channel, BASS_TAG_OGG);
     if (tags)
         return get_ogg_tag(tags, key);
-    tags = BASS_ChannelGetTags(handle, BASS_TAG_APE);
+    tags = BASS_ChannelGetTags(channel, BASS_TAG_APE);
     if (tags)
         return get_ogg_tag(tags, key);
-    tags = BASS_ChannelGetTags(handle, BASS_TAG_MUSIC_NAME);
+    tags = BASS_ChannelGetTags(channel, BASS_TAG_MUSIC_NAME);
     if (tags && !strcmp(key, "title"))
         return util_strdup(tags);
     return NULL;
@@ -298,30 +288,35 @@ static char* get_tag(DWORD handle, const char* key)
 
 char* bass_metadata(void* handle, const char* key)
 {
-    return util_trim(get_tag(handle, key));
+    struct bassdecoder* d = handle;
+    return util_trim(get_tag(d->channel, key));
 }
 
-float bass_loopiness(void* handle)
+float bass_loopiness(const char* path)
 {
-    struct bassdecoder* d = handle;
-    if (!IS_MOD(d)) 
-        return 0;
     // what I'm doing here is find the last 50 ms of a track and return the average positive value
     // i got a bit lazy here, but this part isn't so crucial anyways
     // flags to make decoding as fast as possible. still use 44100 hz, because lower setting might
     // remove upper frequencies that could indicate a loop
+    float loopiness = 0;
     DWORD flags = BASS_MUSIC_DECODE | BASS_SAMPLE_MONO | BASS_MUSIC_NONINTER | BASS_MUSIC_PRESCAN;
     DWORD samplerate = 44100;
-    HMUSIC channel = BASS_MusicLoad(false, d->file_name, 0, 0 , flags, samplerate);
     size_t check_frames = samplerate / 20;
     size_t check_bytes = check_frames * sizeof(int16_t);
+
+    HMUSIC channel = BASS_MusicLoad(FALSE, path, 0, 0 , flags, samplerate);
+
+    BASS_CHANNELINFO channel_info = {0};
+    BASS_ChannelGetInfo(channel, &channel_info);
+    if (!(channel_info.ctype & BASS_CTYPE_MUSIC_MOD))
+        goto error;
 
     QWORD length = BASS_ChannelGetLength(channel, BASS_POS_BYTE);
     if (!BASS_ChannelSetPosition(channel, length - check_bytes, BASS_POS_BYTE)) 
         return 0;
 
     int16_t* out = util_malloc(sizeof(int16_t) * check_frames);
-    memset(out, 0, sizeof(int16_t) * check_frames;
+    memset(out, 0, sizeof(int16_t) * check_frames);
     DWORD read_bytes = 0;
     while (read_bytes < check_bytes && BASS_ErrorGetCode() == BASS_OK) {
         DWORD r = BASS_ChannelGetData(channel, out, check_bytes - read_bytes);
@@ -331,26 +326,27 @@ float bass_loopiness(void* handle)
     BASS_MusicFree(channel);
 
     long accu = 0;
-    for (size_t i = 0l i < check_frames; i++) 
+    for (size_t i = 0; i < check_frames; i++) 
         accu += fabs(*out++);
+    loopiness = (float)accu / check_frames / -INT16_MIN;
+error:
     util_free(out);
-    
-    return (float)accu / check_frames / -INT16_MIN;
+    return loopiness;
 }
 
-bool bass_probe_name(const char* file_name)
+bool bass_probe_name(const char* path)
 {
     const char* ext[] = {".mp3", ".mp2", ".wav", ".aiff", ".xm", ".mod", ".s3m", ".it", ".mtm", ".umx", ".mo3", ".fst"};
     for (int i = 0; i < COUNT(ext); i++) {
-        const char* tmp = strrchr(file_name, ".");
+        const char* tmp = strrchr(path, '.');
         if (!strcasecmp(tmp, ext[i])) 
             return true;
     }
 
     // extrawurst for AMP :)
     const char* ext2[] = {"xm.", "mod.", "s3m.", "it.", "mtm.", "umx.", "mo3.", "fst."};
-    for (int i = 0; i < COUNT(ext_amp); i++) {
-        if (!strncasecmp(name, ext2[i]), strlen(ext2[i])) 
+    for (int i = 0; i < COUNT(ext2); i++) {
+        if (!strncasecmp(path, ext2[i], strlen(ext2[i])))
             return true;
     }
 

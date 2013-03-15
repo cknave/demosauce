@@ -146,7 +146,7 @@ BOOL BASSDEF(BASS_ChannelSetPosition)(DWORD handle, QWORD pos, DWORD mode)
     return ChannelSetPosition(handle, pos, mode);
 }
 
-void libbass_load(char** argv)
+void bass_loadso(char** argv)
 {
     char path[4000];
     char* path_end = 0;

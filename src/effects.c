@@ -11,8 +11,7 @@
 #include <math.h>
 #include <string.h>
 #include <limits.h>
-
-#include "log.h"
+#include <assert.h>
 #include "effects.h"
 
 float db_to_amp(float db)
@@ -27,16 +26,32 @@ float amp_to_db(float amp)
 
 //-----------------------------------------------------------------------------
 
+void* fx_resample_init(int channels, int sr_from, int sr_to)
+{
+    return NULL;
+}
+
+void fx_resample_free(void* handle)
+{
+}
+
+void fx_resample(void* handle, struct stream* s1, struct stream* s2)
+{
+}
+
+//-----------------------------------------------------------------------------
+
 void fx_map_process(struct stream* s, int channels)
 {
     assert(channels >= 1 && channels <= MAX_CHANNELS);
-    int in_channels = s->channels;
-    stream_set_channels(s, channels);
-    if (in_channels == 1 && channels == 2) 
-        memmove(s->buff[1].buff, s->buff[0].buff, s->frames * sizeof(float));
-    if (in_channels == 2 && channels == 1) {
-        float* left = stream_buffer(s, 0);
-        float* right = stream_buffer(s, 1);
+    if (s->channels == 1 && channels == 2) {
+        s->channels = 2;
+        stream_resize(s, s->frames);
+        memmove(s->buffer[1], s->buffer[0], s->frames * sizeof(float));
+    } else if (s->channels == 2 && channels == 1) {
+        s->channels = 1;
+        float* left = s->buffer[0];
+        float* right = s->buffer[1];
         for (int i = 0; i < s->frames; i++) 
             left[i] = (left[i] + right[i]) / 2;
     }
@@ -49,32 +64,32 @@ void fx_fade_init(struct fx_fade* fx, long start_frame, long end_frame, float be
     if (start_frame >= end_frame || begin_amp < 0 || end_amp < 0) 
         return;
     fx->start_frame = start_frame;
-    fx->end_frame = end_frame;
+    fx->end_frame   = end_frame;
     fx->current_frame = 0;
-    fx->amp = begin_amp;
-    fx->amp_inc = (end_amp - begin_amp) / (end_frame - start_frame);
+    fx->amp         = begin_amp;
+    fx->amp_inc     = (end_amp - begin_amp) / (end_frame - start_frame);
 }
 
 void fx_fade_process(struct fx_fade* fx, struct stream* s)
 {
-    long end_a = (fx->start_frame < fx->current_frame) ? 0 :
+    long enda = (fx->start_frame < fx->current_frame) ? 0 :
         MIN(s->frames, fx->start_frame - fx->current_frame);
-    long end_b = (end_frame < current_frame) ? 0 :
+    long endb = (fx->end_frame < fx->current_frame) ? 0 :
         MIN(s->frames, fx->end_frame - fx->current_frame);
-    current_frame += proc_frames;
-    if (fx->amp == 1 && (end_a >= fx->proc_frames || end_b == 0)) 
+    fx->current_frame += s->frames;
+    if (fx->amp == 1 && (enda >= s->frames || endb == 0)) 
         return; // nothing to do; amp mignt not be exacly on target, so proximity check would be better
+    float a = fx->amp;
     for (int ch = 0; ch < s->channels; ch++) {
-        float* out = stream_buffer(s, ch);
-        float a = amp;
-        for (int i = 0; i < end_a; i++) 
+        float* out = s->buffer[ch];
+        for (int i = 0; i < enda; i++) 
             out[i] *= a;
-        for (int i = 0; i < end_b; i++, a += amp_inc) 
+        for (int i = 0; i < endb; i++, a += fx->amp_inc) 
             out[i] *= a;
-        for (int i = 0; i < fx->proc_frames; i++) 
+        for (int i = 0; i < s->frames; i++) 
             *out++ *= a;
     }
-    s->amp += s->amp_inc * (end_b - end_a);
+    fx->amp += fx->amp_inc * (endb - enda);
 }
 
 //-----------------------------------------------------------------------------
@@ -82,25 +97,42 @@ void fx_fade_process(struct fx_fade* fx, struct stream* s)
 void fx_gain_process(struct stream* s, float amp)
 {
     for (int ch = 0; ch < s->channels; ch++) {
-        float* out = stream_buffer(s, ch);
-        for (int i = 0; i < stream.frames; i++) 
+        float* out = s->buffer[ch];
+        for (int i = 0; i < s->frames; i++) 
             out[i] *= amp;
     }
 }
 
 //-----------------------------------------------------------------------------
 
+void fx_mix_init(struct fx_mix* fx, float llamp, float lramp, float rramp, float rlamp)
+{
+    fx->llamp = llamp;
+    fx->lramp = lramp;
+    fx->rramp = rramp;
+    fx->rlamp = rlamp;
+}
+
 void fx_mix_process(struct fx_mix* fx, struct stream* s)
 {
     if (s->channels != 2)
         return;
-    float* left = stream_buffer(s, 0);
-    float* right = stream_buffer(s, 1);
-    for (int i = 0; i < stream->frames; i++) {
-        float new_left = fx->ll_amp * left[i] + fx->lr_amp * right[i];
-        float new_right = fx->rr_amp * right[i] + fx->rl_amp * left[i];
+    float* left = s->buffer[0];
+    float* right = s->buffer[1];
+    for (int i = 0; i < s->frames; i++) {
+        float new_left = fx->llamp * left[i] + fx->lramp * right[i];
+        float new_right = fx->rramp * right[i] + fx->rlamp * left[i];
         left[i] = new_left;
         right[i] = new_right;
     }
 }
 
+//-----------------------------------------------------------------------------
+
+void fx_deinterleave(const float* in, float* lout, float* rout, int len)
+{
+    for (int i = 0; i < len; i++) {
+        lout[i] = in[i * 2];
+        rout[i] = in[i * 2 + 1];
+    }
+}

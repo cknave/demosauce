@@ -8,20 +8,22 @@
 *   copyright MMXI by maep
 */
 
+#define _POSIX_C_SOURCE 200112L
+
 #include <string.h>
+#include <strings.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <ctype.h>
 #include <assert.h>
+#include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <netdb.h>
 #include "util.h"
-
-#ifndef NO_OVERRUN_ASSERT
-    #define OVERRUN_ASSERT(buf) assert(*(uint32_t*)((char*)(buf)->buff + (buf)->size) == MAGIC_NUMBER)
-#else
-    #define OVERRUN_ASSERT(buf)
-#endif
+#include "log.h"
+#include "effects.h"
 
 void* util_malloc(size_t size)
 {
@@ -53,12 +55,30 @@ void util_free(void* ptr)
 
 //-----------------------------------------------------------------------------
 
+bool util_isfile(const char* path)
+{
+    struct stat buf = {0};
+    stat(path, &buf);
+    return S_ISREG(buf.st_mode);
+}
+
+//-----------------------------------------------------------------------------
+
+char* util_strdup(const char* str)
+{
+    if (!str)
+        return NULL;
+    char* s = util_malloc(strlen(str) + 1);
+    strcpy(s, str);
+    return s;
+}
+
 char* util_trim(char* str)
 {
     char* tmp = str;
     while (isspace(*str))
         str++;
-    memmove(str, tmp, strlen(*tmp));
+    memmove(str, tmp, strlen(tmp));
     tmp += strlen(tmp) - 1;
     while (tmp > str && isspace(*tmp))
         tmp--;
@@ -66,7 +86,7 @@ char* util_trim(char* str)
     return str;
 }
 
-const char* keyval_str(char* out, size_t size, const char* heap, const char* key, const char* fallback)
+char* keyval_str(char* out, int size, const char* heap, const char* key, const char* fallback)
 {
     const char* tmp = strstr(heap, key);
     if (!tmp)
@@ -76,39 +96,53 @@ const char* keyval_str(char* out, size_t size, const char* heap, const char* key
     if (!tmp || *tmp != '=')
         goto error;
     tmp += strspn(tmp + 1, " \t");
-    size_t span = strcspn("\n\r");
+    size_t span = strcspn(tmp, "\n\r");
     while (span && isspace(tmp[span - 1]))
         span--;
 
-    char* value = NULL;
-    if (out && size + 1 >= span) {
-        value = out;
-    } else {
-        value = util_malloc(span);
+    if (out && span >= size) {
+        LOG_DEBUG("[keyval_str] buffer too small for value (%s)", key);
+        goto error;
     }
-    memmove(value, s, span);
+    char* value = out ? out : util_malloc(span + 1);
+    memmove(value, tmp, span);
     value[span] = 0;
     return value;
+
 error:
-    return ;
+    if (!out && fallback) {
+        return util_strdup(fallback);
+    } else if (out && fallback && strlen(fallback) < size) {
+        return strcpy(out, fallback);
+    } else if (out && size) {
+        LOG_DEBUG("[keyval_str] buffer too small for fallback (%s, %s)", key, fallback);
+        return strcpy(out, "");
+    } else {
+        return NULL;
+    }
 }
 
 int keyval_int(const char* heap, const char* key, int fallback)
 {
-    const char* tmp = strstr(heap, key);
-    if (!tmp)
-        return fallback;
-    tmp += strlen(key);
-    tmp = strpbrk(tmp, "=\n\r");
-    if (!tmp || *tmp != '=')
-        return fallback;
-    tmp += strspn(tmp + 1, " \t");
-    int val = 0;
-    if (sscanf(tmp, "%d", &val) != 1)
-        return fallback;
-    return value;
+    char tmp[16] = {0};
+    keyval_str(tmp, 16, heap, key, NULL);
+    return strlen(tmp) ? atoi(tmp) : fallback;
 }
-   
+
+double keyval_real(const char* heap, const char* key, double fallback)
+{
+    char tmp[16] = {0};
+    keyval_str(tmp, 16, heap, key, NULL);
+    return strlen(tmp) ? atof(tmp) : fallback;
+}
+  
+bool keyval_bool(const char* heap, const char* key, bool fallback)
+{
+    char tmp[8] = {0};
+    keyval_str(tmp, 8, heap, key, NULL);
+    return strlen(tmp) ? !strcasecmp(tmp, "true") : fallback;
+}
+
 //-----------------------------------------------------------------------------
 
 int socket_open(const char* host, int port)
@@ -123,7 +157,7 @@ int socket_open(const char* host, int port)
 
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
-    if (getaddrinfo(host, port, &hints, &info))
+    if (getaddrinfo(host, portstr, &hints, &info))
         return -1;
 
     for (struct addrinfo* i = info; i; i = i->ai_next) {
@@ -140,7 +174,7 @@ int socket_open(const char* host, int port)
     return fd;
 }
 
-bool socket_read(int socket, struct buffer* buf)
+bool socket_read(int socket, struct buffer* buffer)
 {
     ssize_t bytes = 0;
     char buff[4096];
@@ -149,10 +183,10 @@ bool socket_read(int socket, struct buffer* buf)
     bytes = recv(socket, buff, sizeof(buff) - 1, 0);
     if (bytes < 0)
        return false;
-    if (buf->size < size + 1)
-        buffer_resize(buf, size + 1);
-    memmove(buf->buff, buff, bytes);
-    buf->buff[size] = 0;
+    buffer_resize(buffer, bytes + 1);
+    memmove(buffer->data, buff, bytes);
+    ((char*)buffer->data)[bytes] = 0;
+    return true;
 }
 
 void socket_close(int socket)
@@ -164,103 +198,55 @@ void socket_close(int socket)
 
 void buffer_resize(struct buffer* buf, size_t size) 
 {
-    OVERRUN_ASSERT(buf);
-    buf->size = size;
-    buf->buff = util_realloc(buf->buff, buf->size + sizeof(uint32_t));
-    *(uint32_t*)((char*)buf->buff + size) = MAGIC_NUMBER;
+    if (buf->size < size) {
+        buf->data = util_realloc(buf->data, buf->size);
+        buf->size = size;
+    }
 }
 
 void buffer_zero(struct buffer* buf)
 {
-    OVERRUN_ASSERT(buf);
-    memset(buf->buff, 0, buf->size);
-}
-
-void buffer_zero_end(struct buffer* buf, size_t size)
-{
-    OVERRUN_ASSERT(buf);
-    size_t start = buf->size - MIN(size, buf->size);
-    memset(buf->buff + start, 0, buf->size - start);
+    memset(buf->data, 0, buf->size);
 }
 
 //-----------------------------------------------------------------------------
 
-void stream_init(struct stream* s, int channels)
-{
-    assert(channels > 1 && channels <= MAX_CHANNELS);
-    memset(s, 0, sizeof(struct stream));
-    s->channels = channels;
-}
-
 void stream_free(struct stream* s)
 {
-    for (int i = 0; i < s->channels; i++)
-        free(s->buff[i].buff);
+    for (int i = 0; i < MAX_CHANNELS; i++)
+        util_free(s->buffer[i]);
 }
 
 void stream_resize(struct stream* s, int frames)
 {
-    for (int i = 0; i < s->channels; i++)
-        OVERRUN_ASSERT(s->buff[i]);
-    if (s->max_frames == frames) 
-        return;
-    s->max_frames = frames;
-    for (int i = 0; i < s->channels; i++) 
-        buffer_resize(&s->buff[i], frames * sizeof(float));
-}
-
-float* stream_buffer(struct stream* s, int channel)
-{
-    for (int i = 0; i < s->channels; i++)
-        OVERRUN_ASSERT(&s->buff[i]);
-    return s->buff[channel].buff;
-}
-
-void stream_set_channels(struct stream* s, int channels)
-{
-    assert(channels > 1 && channels <= MAX_CHANNELS);
-    for (int i = 0; i < s->channels; i++)
-        OVERRUN_ASSERT(&s->buff[i]);
-    if (channels != s->channels) {
-        s->channels = channels;
-        stream_resize(s, s->max_frames);
+    assert(s->channels >= 1 && s->channels <= MAX_CHANNELS);
+    if (s->max_frames < frames) { 
+        for (int ch = 0; ch < s->channels; ch++) 
+            util_realloc(s->buffer[ch], frames * sizeof(float));
+        s->max_frames = frames;
     }
 }
 
-void stream_set_frames(struct stream* s, int frames)
+void stream_fill(struct stream* s, const float* source, int frames, int channels)
 {
-    assert(frames <= s->max_frames);
-    for (int i = 0; i < s->channels; i++)
-        OVERRUN_ASSERT(&s->buff[i]);
+    assert(channels >= 1 && channels <= MAX_CHANNELS);
+    if (channels != s->channels)
+        s->channels = channels;
+    stream_resize(s, frames);
     s->frames = frames;
-}
-
-void stream_append_n(struct stream* s, struct stream* source, int frames)
-{
-    for (int i = 0; i < s->channels; i++)
-        OVERRUN_ASSERT(&s->buff[i]);
-    frames = MIN(frames, source->frames);
-    if (s->frames + frames > s->max_frames)
-        stream_resize(s, s->frames + source->frames);
-    for (int i = 0; i < s->channels && i < source->channels; i++)
-        memmove(s->buff[i].buff + s->frames, source->buff[i].buff, frames * sizeof(float));
-    s->frames += frames;
-}
-
-void stream_append(struct stream* s, struct stream* source)
-{
-    stream_append_s(s, source, source->frames);
+    if (channels == 1)
+        memmove(s->buffer[0], source, frames * sizeof(float));
+    else // channels == 2 
+        fx_deinterleave(source, s->buffer[0], s->buffer[1], frames);
 }
 
 void stream_drop(struct stream* s, int frames)
 {
     assert(frames <= s->frames);
-    for (int i = 0; i < s->channels; i++)
-        OVERRUN_ASSERT(&s->buff[i]);
     int remaining_frames = s->frames - frames;
     if (remaining_frames > 0)
         for (int i = 0; i < s->channels; i++)
-            memmove(s->buff[i].buff, s->buff[i].buff + frames * sizeof(frames), remaining_frames * sizeof(float));
+            memmove(s->buffer[i], s->buffer[i] + frames, remaining_frames * sizeof(float));
     s->frames = remaining_frames;
 }
 
@@ -268,8 +254,7 @@ void stream_zero(struct stream* s, int offset, int frames)
 {
     assert(offset + frames <= s->max_frames);
     for (int i = 0; i < s->channels; i++)
-        OVERRUN_ASSERT(&s->buff[i]);
-    for (int i = 0; i < s->channels; i++)
-        memset(s->buff[i] + offset * sizeof(float), 0, s->frames * sizeof(float));
+        memset(s->buffer[i] + offset, 0, s->frames * sizeof(float));
+    s->frames = offset + frames;
 }
 

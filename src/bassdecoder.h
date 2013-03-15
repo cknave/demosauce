@@ -21,7 +21,7 @@ void    bass_seek(void* handle, long position);
 void    bass_set_loop_duration(void* handle, double duration);
 void    bass_info(void* handle, struct info* info);
 char*   bass_metadata(void* handle, const char* key);
-float   bass_loopiness(void* handle);
+float   bass_loopiness(const char* path);
 bool    bass_probe_name(const char* path);
 
 #endif

@@ -1,12 +1,12 @@
 include config.mk
 
-INPUT_DEMOSAUCE = $(BASSOURCE) cast.o demosauce.o effects.o ffdecoder.o logror.o settings.o util.o
-LINK_DEMOSAUCE = $(shell pkg-config --libs shout samplerate) $(shell icu-config --ldflags-libsonly) $(LINK_FFMPEG) $(LINK_BASS)
+INPUT_DEMOSAUCE = $(BASSOURCE) cast.o demosauce.o effects.o ffdecoder.o log.o settings.o util.o
+LINK_DEMOSAUCE = $(shell pkg-config --libs shout samplerate) $(LINK_FFMPEG) $(LINK_BASS)
 
-INPUT_SCAN = $(BASSOURCE) logror.o scan.o util.o
+INPUT_SCAN = $(BASSOURCE) ffdecoder.o log.o scan.o util.o effects.o
 LINK_SCAN = $(shell pkg-config --libs samplerate) $(LINK_FFMPEG) $(LINK_BASS) libreplaygain/libreplaygain.a
 
-all: clean demosauce scan
+all: demosauce scan
 	
 demosauce: $(INPUT_DEMOSAUCE)
 	$(CC) $(LDFLAGS) $(INPUT_DEMOSAUCE) $(LINK_DEMOSAUCE) -o demosauce

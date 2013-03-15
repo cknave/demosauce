@@ -10,17 +10,16 @@
 
 #include <string.h>
 #include <limits.h>
+#include <signal.h>
 #include <unistd.h>
 #include <pthread.h>
 #include <lame/lame.h>
-#include <unicode/ucnv.h>
-#include <unicode/unorm2.h>
 #include <shout/shout.h>
 #include "settings.h"
 #include "effects.h"
 #include "ffdecoder.h"
 #ifdef ENABLE_BASS
-    #include "avdecoder.h"
+    #include "bassdecoder.h"
 #endif
 #include "cast.h"
 
@@ -28,7 +27,9 @@
 
 static lame_t           lame;
 static shout_t*         shout;
-static struct stream    stream;
+static struct stream    stream0;
+static struct stream    stream1;
+static struct buffer    config;
 static struct info      info;
 static void*            decoder;
 static struct fx_fade   fader;
@@ -36,39 +37,35 @@ static struct fx_mix    mixer;
 static void*            resampler;             
 static float            gain;
 static long             remaining_frames;
-static bool             connected;
 static bool             mixer_enabled;
 static bool             fader_enabled;
+static sig_atomic_t     decoder_ready;
 
-static void get_next_song(struct buffer* buffer)
+static void get_next_song()
 {
     if (settings_debug_song) {
-        size_t len = strlen(settings_debug_song);
-        if (buffer->size < len + 1)
-            buffer_resize(buffer, len + 1);
-        strcpy(buffer->data, settings_debug_song);
+        buffer_resize(&config, strlen(settings_debug_song) + 1);
+        strcpy(config.data, settings_debug_song);
     } else {
         int socket = socket_open(settings_cast_host, settings_cast_port);
         if (!socket) {
             LOG_ERROR("[cast] open connection to demosauce");
             return;
         }
-        socket_read(socket, buffer);
+        socket_read(socket, &config);
         socket_close(socket);
     }
 }
 
 static void zero_generator(void* dummy, struct stream* s, int frames)
 {
-    if (s->channels != settings_encoder_channels)
-        stream_set_channels(s, settings_encoder_channels);
-    if (s->max_frames < frames)
-        stream_resize(s, frames);
+    s->channels = settings_encoder_channels;
     s->frames = frames;
+    stream_resize(s, frames);
     stream_zero(s, 0, frames);
 }
 
-static void configure_effects(struct buffer* settings, float forced_length)
+static void configure_effects(float forced_length)
 {
     char mix_str[8] = {0};
     
@@ -83,20 +80,20 @@ static void configure_effects(struct buffer* settings, float forced_length)
         LOG_DEBUG("[cast] resampling from %d to %d Hz", info.samplerate, settings_encoder_samplerate);
     }
 
-    keyval_str(mix_str, 8, settings->data, "mix", "auto");
+    keyval_str(mix_str, 8, config.data, "mix", "auto");
     mixer_enabled = settings_encoder_channels == 2 && (strcmp(mix_str, "auto") || info.amiga_mod);
     if (mixer_enabled) {
-        float ratio = keyval_real(settings->data, "mix", 0.4);
+        float ratio = keyval_real(config.data, "mix", 0.4);
         ratio = MAX(MIN(ratio, 1.0), 0.0);
         fx_mix_init(&mixer, 1.0 - ratio, ratio, 1.0 - ratio, ratio);
         LOG_DEBUG("[cast] mixing channels with %f ratio", ratio);
     }
 
-    gain = keyval_real(settings->data, "gain", 0.0);
+    gain = keyval_real(config.data, "gain", 0.0);
     LOG_DEBUG("[cast] setting gain to %f dB", gain);
     gain = db_to_amp(gain);
 
-    fader_enabled = keyval_bool(settings->data, "fade_out", false); 
+    fader_enabled = keyval_bool(config.data, "fade_out", false); 
     if (fader_enabled) {
         float length = forced_length > 0 ?  forced_length : info.length;
         long start = (length - 5) * settings_encoder_samplerate;
@@ -106,21 +103,50 @@ static void configure_effects(struct buffer* settings, float forced_length)
     }
 }
 
+static void update_metadata(void)
+{
+    char cast_title[1024]   = {0};
+    char artist[504]        = {0};
+    char title[512]         = {0};
+
+    keyval_str(title, 504, config.data, "title", settings_error_title);
+    keyval_str(artist, 512, config.data, "artist", "");
+
+    // remove - in artist name, players use it for artist-title separation
+    for (size_t i = 0; i < strlen(artist); i++)
+        if (cast_title[i] == '-')
+            cast_title[i] = ' ';
+
+    size_t len = strlen(artist);
+    if (len > 0) {
+        strcpy(cast_title, artist);
+        strcpy(cast_title + len, " - ");
+        len += 3;
+    }
+    strcpy(cast_title + len, title);
+    LOG_DEBUG("[cast] updating metadata to %s", cast_title);
+
+    shout_metadata_t* metadata = shout_metadata_new();
+    shout_metadata_add(metadata, "song", cast_title);
+    if (shout_set_metadata(shout, metadata) != SHOUTERR_SUCCESS)
+        LOG_WARN("[cast] metadat update failed (%s)", shout_get_error(shout));
+    shout_metadata_free(metadata);
+}
+
 static void* load_next(void* data)
 {
-    static struct buffer buffer;
-    char* path = NULL; 
-    float forced_length = 0;
-    int tries = 0;
+    static struct buffer    buffer;
+    static char             path[4096];
+    float                   forced_length   = 0;
+    int                     tries           = 0;
 
     if (decoder && info.free)
         info.free(decoder);
     memset(&info, 0, sizeof(struct info));
     
     while (tries++ < LOAD_TRIES && !decoder) {
-        path[0] = 0;
-        get_next_song(&buffer);
-        path = keyval_str(NULL, 0, buffer.data, "path", NULL);
+        get_next_song();
+        keyval_str(path, sizeof(path), buffer.data, "path", "");
         
         if (!util_isfile(path)) {
             LOG_ERROR("[cast] file doesn't exist: %s", path);
@@ -154,37 +180,53 @@ static void* load_next(void* data)
         info.channels   = settings_encoder_channels;
         forced_length   = 60;
     }
-    configure_effects(&buffer, forced_length);
+
+    configure_effects(forced_length);
+    update_metadata();
+    decoder_ready = true;
     return NULL;
 }
 
-static void cast_init(void)
+void cast_init(void)
 {
     shout_init();
     shout = shout_new();
     lame = lame_init();
     lame_set_quality(lame, 2);
-    lame_set_in_samplerate(lame, settings_encoder_bitrate);
+    lame_set_brate(lame, settings_encoder_bitrate);
+    lame_set_num_channels(lame, settings_encoder_channels);
+    lame_set_in_samplerate(lame, settings_encoder_samplerate);
+    stream1.channels = settings_encoder_channels;
 }
 
+/*
 static void cast_free(void)
 {
     shout_free(shout);
     lame_close(lame);
 }
+*/
 
-static void process(struct stream* stream, int frames)
+static struct stream* process(int frames)
 {
+    struct stream* s = &stream0;
+    info.decode(decoder, &stream0, frames);
+    if (resampler) {
+        fx_resample(resampler, &stream0, &stream1);
+        s = &stream1;
+    }
+    // other effects
+    return s;
 }
 
-static void cast_connect(void)
+static bool cast_connect(void)
 {
     char bitrate[8]     = {0};
     char samplerate[8]  = {0};
     char channels[4]    = {0};
-    snprintf(bitrate, 8, "%d", settings_encoder_bitrate);
-    snprintf(samplerate, 8, "%d" settings_encoder_samplerate);
-    snprintf(channels, 4, "%d", settings_encoder_channels); 
+    snprintf(bitrate, 7, "%d", settings_encoder_bitrate);
+    snprintf(samplerate, 7, "%d", settings_encoder_samplerate);
+    snprintf(channels, 3, "%d", settings_encoder_channels); 
 
     // setup connection
     shout_set_host(shout, settings_cast_host);
@@ -199,14 +241,16 @@ static void cast_connect(void)
     shout_set_genre(shout, settings_cast_genre);
     shout_set_description(shout, settings_cast_description);
     shout_set_audio_info(shout, SHOUT_AI_BITRATE, bitrate);
-    shout_set_audio_info(cast, SHOUT_AI_SAMPLERATE, samplerate);
-    shout_set_audio_info(cast, SHOUT_AI_CHANNELS, channels);
+    shout_set_audio_info(shout, SHOUT_AI_SAMPLERATE, samplerate);
+    shout_set_audio_info(shout, SHOUT_AI_CHANNELS, channels);
 
     // start
-    if (shout_open(cast) != SHOUTERR_SUCCESS) 
-        LOG_ERROR("[cast] can't connect to icecast (%s)", shout_get_error(cast));
+    int err = shout_open(shout);
+    if (err != SHOUTERR_SUCCESS) 
+        LOG_ERROR("[cast] can't connect to icecast (%s)", shout_get_error(shout));
     else
         LOG_INFO("[cast] connected to icecast");
+    return err == SHOUTERR_SUCCESS;
 }
 
 void cast_run(void)
@@ -217,93 +261,29 @@ void cast_run(void)
 
     while (true) {
         int err = 0;
-        cast_connect();
-        do {
-            if (!decoder) {
-                stream_zero(&stream, 0, decode_frames);
+        if (cast_connect()) do {
+            struct stream* s = &stream1;
+            if (!decoder_ready) {
+                if (s->max_frames < decode_frames)
+                    stream_resize(s, decode_frames);
+                stream_zero(s, 0, decode_frames);
                 continue;
             } else {
-                process(&stream, decode_frames);
-                remaining_frames -= stream.frames;
-                if (stream.end_of_stream || remaining_frames < 0) { 
+                s = process(decode_frames);
+                remaining_frames -= s->frames;
+                if (s->end_of_stream || remaining_frames < 0) { 
                     LOG_DEBUG("[cast] end of stream");
-                    decoder = NULL;
+                    decoder_ready = false;
                     pthread_t thread = {0};
                     pthread_create(&thread, NULL, load_next, NULL);
                 }
             }
-            // TODO: check stereo 
-            int siz = lame_encode_buffer_ieee_float(lame, stream.buffer[0], stream.buffer[1], stream.frames, mp3buf, sizeof(mp3buf)); 
+            int siz = lame_encode_buffer_ieee_float(lame, s->buffer[0], s->buffer[1], s->frames, mp3buf, sizeof(mp3buf)); 
             shout_sync(shout);
             err = shout_send(shout, mp3buf, siz);
         } while (err == SHOUTERR_SUCCESS);
         LOG_ERROR("[cast] icecast disconnected (%s)", shout_get_error(shout));
         sleep(10); 
     }
-}
-
-// unicode decompposition
-string utf8_to_ascii(string utf8_str)
-{
-    // BLAST! fromUTF8 requires ics 4.2
-    // UnicodeString in_str = UnicodeString::fromUTF8(utf8_str);
-    UErrorCode status = U_ZERO_ERROR;
-    UConverter* converter = ucnv_open("UTF-8", &status);
-    UnicodeString in_str(utf8_str.c_str(), utf8_str.size(), converter, status);
-    ucnv_close(converter);
-
-    if (U_FAILURE(status)) {
-        LOG_WARN("[utf8_to_ascii] conversion failed (%s)", u_errorName(status));
-        return "";
-    }
-
-    // convert to ascii as best as possible. it's really smart
-    UnicodeString norm_str;
-    Normalizer::normalize(in_str, UNORM_NFKD, 0, norm_str, status);
-
-    if (U_FAILURE(status)) {
-        LOG_WARN("[utf8_to_ascii] decomposition failed (%s)", u_errorName(status));
-        return "";
-    }
-
-    // NFKD may produce non ascii chars, these are dropped
-    string out_str;
-    for (int32_t i = 0; i < norm_str.length(); ++i) {
-        if (norm_str[i] >= ' ' && norm_str[i] <= '~') {
-            out_str.push_back(static_cast<char>(norm_str[i]));
-        }
-    }
-    return out_str;
-}
-
-string create_cast_title(string artist, string title)
-{
-    // can't use utf-8 metadata in the stream, at least not with bass
-    // so unicode decomposition is as a workaround all dashes are removed from artist, because its
-    // used as artist-title separator. talk about bad semantics...
-    string cast_title = utf8_to_ascii(artist);
-    for (size_t i = 0; i < cast_title.size(); ++i) 
-        if (cast_title[i] == '-') 
-            cast_title[i] = ' ';
-    if (cast_title.size() > 0) 
-        cast_title.append(" - ");
-    cast_title.append(utf8_to_ascii(title));
-    LOG_DEBUG("[create_cast_title] '%s', '%s' -> '%s'", cstr(artist), cstr(title), cstr(cast_title));
-    return cast_title;
-}
-
-void ShoutCastPimpl::update_metadata(SongInfo& song)
-{
-    string title = get_value(song.settings, "title", settings_error_title);
-    string artist = get_value(song.settings, "artist", "");
-    string cast_title = create_cast_title(artist, title);
-
-    shout_metadata_t* metadata = shout_metadata_new();
-    shout_metadata_add(metadata, "song", cast_title.c_str());
-    int err = shout_set_metadata(cast, metadata);
-    if (err != SHOUTERR_SUCCESS) 
-        LOG_WARN("[update_metadata] error (%d)", err);
-    
-    shout_metadata_free(metadata);
 }
 

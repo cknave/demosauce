@@ -8,177 +8,131 @@
 *   copyright MMXI by maep
 */
 
-#include <cstdlib>
-#include <string>
-#include <sstream>
-#include <iostream>
-
-#include <boost/make_shared.hpp>
-#include <boost/filesystem.hpp>
-
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
+#include <limits.h>
 #include <replay_gain.h>
-
-#include "basssource.h"
-#include "avsource.h"
-#include "convert.h"
-
-#define XSTR_(s) "-"#s
-#define XSTR(s) XSTR_(s)
-#ifndef BUILD_ID
-    #define BUILD_ID
-#endif
+#include "bassdecoder.h"
+#include "ffdecoder.h"
+#include "effects.h"
+#include "util.h"
 
 #define MAX_LENGTH 3600     // abort scan if track is too long, in seconds
 #define SAMPLERATE 44100
 
-using std::endl;
-using std::cout;
-using std::string;
-using std::stringstream;
-
-using boost::shared_ptr;
-using boost::make_shared;
-using boost::static_pointer_cast;
-
 // for some formats avcodec fails to provide a bitrate so I just
-// take an educated guess. if the file contains large amounts of 
-// other data, this will be completely wrong 
-float fake_bitrate(string file_name, float duration)
+// make an educated guess. if the file contains large amounts of 
+// other data, this will be completely wrong.
+static float fake_bitrate(const char* path, float duration)
 {
-    uintmax_t bytes = boost::filesystem::file_size(file_name);
-    uintmax_t kbit = (bytes * 8) / 1000;
-    return static_cast<float>(kbit) / duration;
+    long bytes = util_filesize(path);
+    long kbit = (bytes * 8) / 1000;
+    return (float)kbit / duration;
 }
 
-void fill_buffer(shared_ptr<Machine>& machine, AudioStream& stream, uint32_t frames)
+void die(const char* msg)
 {
-    machine->process(stream, frames);
-    if (stream.frames() < frames && !stream.end_of_stream) {
-        AudioStream helper;
-        while (stream.frames() < frames && !stream.end_of_stream) {
-            machine->process(helper, frames - stream.frames());
-            stream.append(helper);
-        }
-        stream.end_of_stream = helper.end_of_stream;
-    }
-}
-
-void exit_error(string message)
-{
-    cout << message << endl;
+    puts(msg);
     exit(EXIT_FAILURE);
-}
-
-string scan_song(string file_name, bool do_scan)
-{
-    bool bass_loaded = false;
-    bool av_loaded = false;
-    float bitrate = 0;
-    shared_ptr<Decoder> decoder;
-
-#ifdef ENABLE_BASS
-    shared_ptr<BassSource> bass_decoder = make_shared<BassSource>();
-    bass_loaded = bass_decoder->load(file_name, "prescan=true");
-    bitrate = bass_decoder->bitrate();
-    decoder = static_pointer_cast<Decoder>(bass_decoder);
-#endif
-
-    if (!bass_loaded) {
-        shared_ptr<AvSource> av_decoder = make_shared<AvSource>();
-        av_loaded = av_decoder->load(file_name);
-        bitrate = av_decoder->bitrate();
-        decoder = static_pointer_cast<Decoder>(av_decoder);
-    }
-
-    if (!av_loaded && !bass_loaded) 
-        exit_error("unknown format");
-    
-    uint32_t chan = decoder->channels();
-    uint32_t srate = decoder->samplerate();
-
-    if (srate == 0) 
-        exit_error("samplerate is zero");
-
-    if (chan < 1 || chan > 2) 
-        exit_error("unsupported number of channels");
-
-    shared_ptr<Machine> source = static_pointer_cast<Machine>(decoder);
-    if (srate != SAMPLERATE) {
-        shared_ptr<Resample> resample = make_shared<Resample>();
-        resample->set_rates(srate, SAMPLERATE);
-        resample->set_source(decoder);
-        source = static_pointer_cast<Machine>(resample);
-    }
-
-    uint64_t frames = 0;
-    AudioStream stream;
-    RG_SampleFormat format = {SAMPLERATE, RG_FLOAT_32_BIT, chan, FALSE};
-    RG_Context* context = RG_NewContext(&format);
-
-    // avcodec is unreliable when it comes to length, so the only way to be 
-    // absolutely accurate is to decode the whole stream
-    if (do_scan || av_loaded) {
-        while (!stream.end_of_stream) {
-            fill_buffer(source, stream, 48000);
-            float* buffers[2] = {stream.buffer(0), chan == 2 ? stream.buffer(1) : 0};
-            // there is a strange bug in the replaygain code that can cause it to report the wrong
-            // value if the input buffer has an odd lengh, until the root of the cause is found,
-            // this will have to do :(
-            uint32_t analyze_frames = stream.frames() - stream.frames() % 2;
-            if (do_scan) 
-                RG_Analyze(context, buffers, analyze_frames);
-            frames += stream.frames();
-            if (frames > MAX_LENGTH * SAMPLERATE) 
-                exit_error("too long");
-        }
-    }
-
-    stringstream msg;
-
-    string artist = decoder->metadata("artist");
-    if (!artist.empty()) 
-        msg << "artist:" << artist << endl;
-
-    string title = decoder->metadata("title");
-    if (!artist.empty()) 
-        msg << "title:" << title << endl;
-
-    msg << "type:" << decoder->metadata("codec_type") << endl;
-
-    double duration = av_loaded ?
-        static_cast<double>(frames) / SAMPLERATE :
-        static_cast<double>(decoder->length()) / srate;
-    msg << "length:" << duration << endl;
-
-    if (do_scan) 
-        msg << "replaygain:" << RG_GetTitleGain(context) << endl;
-    RG_FreeContext(context);
-
-#ifdef ENABLE_BASS
-    if (bass_decoder->is_module()) {
-        msg << "loopiness:" << bass_decoder->loopiness() << endl;
-    } else
-#endif
-    {
-        if (bitrate == 0)
-            bitrate = fake_bitrate(file_name, duration);
-        msg << "bitrate:" << bitrate  << endl;
-        msg << "samplerate:" << decoder->samplerate() << endl;
-    }
-
-    return msg.str();
 }
 
 int main(int argc, char** argv)
 {
-    LIBBASS_LOAD(argv);
-    if (argc < 2 || (argv[1][0] == '-' && argc < 3)) {
-        cout << "demosauce scan tool 0.3.4" XSTR(BUILD_ID) "\nsyntax: scan [--no-replaygain] file" << endl;
+#ifdef ENABLE_BASS
+    bass_loadso(argv);
+#endif
+    if (argc < 2 || (!strcmp(argv[1], "--") && argc < 3)) {
+        puts("demosauce scan tool 0.4.0"ID_STR"\nsyntax: scan [--no-replaygain] file");
         return EXIT_FAILURE;
     }
-    string file_name = argv[argc - 1];
-    bool do_replay_gain = string(argv[1]) != "--no-replaygain";
-    cout << scan_song(file_name, do_replay_gain);
+    const char*     path        = argv[argc - 1];
+    bool            do_scan     = !strcmp(argv[1], "--no-replaygain");
+    struct info     info        = {0};
+    void*           decoder     = NULL;
+    void*           resampler   = NULL;
+    struct stream   stream0     = {{0}};
+    struct stream   stream1     = {{0}};
+    struct stream*  stream      = &stream0;;
+
+#ifdef ENABLE_BASS
+    if ((decoder = bass_load(path, "prescan=true")))
+        bass_info(decoder, &info);
+#endif
+    if (!decoder && (decoder = ff_load(path))) {
+        ff_info(decoder, &info);
+        do_scan = true;
+    }
+
+    if (!decoder) 
+        die("unknown format");
+
+    if (info.samplerate <= 0) 
+        die("improper samplerate");
+
+    if (info.channels < 1 || info.channels > 2) 
+        die("improper channel number");
+    
+    if (info.samplerate != SAMPLERATE) {
+        resampler = fx_resample_init(info.channels, info.samplerate, SAMPLERATE);
+        if (!resampler)
+            die("failed to init resampler");      
+        stream = &stream1; 
+    }
+
+    struct rg_context* ctx = rg_new(SAMPLERATE, RG_FLOAT32, info.channels, false);
+
+    // avcodec is unreliable when it comes to length, so the only way to be 
+    // absolutely accurate is to decode the whole stream
+    long frames = 0;
+    if (do_scan || (info.flags & INFO_FFMPEG)) {
+        while (!stream->end_of_stream) {
+            info.decode(decoder, &stream0, 44100);
+            if (resampler)
+                fx_resample(resampler, &stream0, &stream1);
+              
+            float* buff[2] = {stream->buffer[0], stream->buffer[1]};
+            // there is a strange bug in the replaygain code that can cause it to report the wrong
+            // value if the input buffer has an odd lengh, until the root of the cause is found,
+            // this will have to do :(
+            if (do_scan) 
+                rg_analyze(ctx, buff, stream->frames & (INT_MAX - 1));
+            frames += stream->frames;
+            if (frames > MAX_LENGTH * SAMPLERATE) 
+                die("exceeded max length");
+        }
+    }
+    
+    char* str = NULL;
+    str = info.metadata(decoder, "artist");
+    if (str)
+        printf("artist:%s\n", str);
+    util_free(str);
+    str = info.metadata(decoder, "title");
+    if (str)
+        printf("title:%s\n", str); 
+    util_free(str);
+    printf("type:%s\n", info.codec);
+
+    // ffmpeg's length is not reliable
+    float duration = (info.flags & INFO_FFMPEG) ?
+        (float)frames / SAMPLERATE :
+        (float)info.frames / info.samplerate;
+    printf("length:%f\n", duration);
+    
+    if (do_scan)
+        printf("replaygain:%f\n", rg_title_gain(ctx));
+    rg_free(ctx);
+#ifdef ENABLE_BASS
+    if ((info.flags & INFO_BASS) && (info.flags & INFO_MOD))
+        printf("loopiness:%f\n", bass_loopiness(path));
+#endif
+    if (info.bitrate)
+        printf("bitrate:%f\n", info.bitrate);
+    else if (info.flags & INFO_FFMPEG)
+        printf("bitrate:%f\n", fake_bitrate(path, frames * SAMPLERATE));
+    if (info.samplerate)
+        printf("samplerate:%d\n", info.samplerate);
 
     return EXIT_SUCCESS;
 }

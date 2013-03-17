@@ -10,58 +10,37 @@
 #include "replay_gain.h"
 #include "gain_analysis.h"
 
-struct _RG_CONTEXT
-{
-	RG_SampleFormat format;
-	Context_t * cxt;
-	void * buffer;
-	size_t bufferSize;
+struct rg_context {
+    struct rg_sample_format format;
+    Context_t*              cxt;
+    void*                   buffer;
+    int                     buffer_size;
 };
 
-RG_Context* RG_NewContext(RG_SampleFormat* format)
+struct rg_context* rg_new_context(struct rg_sample_format* format)
 {
-	if (format->numberChannels != 1 && format->numberChannels != 2)
-		return NULL;
-	Context_t* cxt = NewAnalyzeContext();
-	int val = InitGainAnalysis(cxt, format->sampleRate);
-	if (val == INIT_GAIN_ANALYSIS_ERROR)
-	{
-		FreeAnalyzeContext(cxt);
-		return NULL;
-	}
-	RG_Context* context = malloc(sizeof(RG_Context));
-	memset(context, 0, sizeof(RG_Context));
-	context->format = *format;
-	context->cxt = cxt;
-	context->buffer = NULL;
-	context->bufferSize = 0;
-	return context;
+    if (format->channels != 1 && format->channels != 2)
+        return NULL;
+    Context_t* rgcxt = NewAnalyzeContext();
+    int val = InitGainAnalysis(cxt, format->sampleRate);
+    if (val == INIT_GAIN_ANALYSIS_ERROR) {
+        FreeAnalyzeContext(cxt);
+        return NULL;
+    }
+    struct rg_context* ctx = malloc(sizeof(struct rg_context));
+    memset(context, 0, sizeof(struct rg_context));
+    ctx->format         = *format;
+    ctx->cxt            = rgcxt;
+    return ctx;
 }
 
-void RG_FreeContext(RG_Context * context)
+void rg_free_context(struct rg_context* context)
 {
 	FreeAnalyzeContext(context->cxt);
 	free(context->buffer);
 }
 
-size_t RG_FormatSize(uint32_t sampleFormat)
-{
-	switch (sampleFormat)
-	{
-		case RG_SIGNED_16_BIT:
-            return sizeof(int16_t);
-		case RG_SIGNED_32_BIT:
-            return sizeof(int32_t);
-		case RG_FLOAT_32_BIT:
-            return sizeof(float);
-		case RG_FLOAT_64_BIT:
-            return sizeof(double);
-		default:
-            return 0;
-	}
-}
-
-void UpdateBuffer(RG_Context* context, uint32_t frames)
+static void UpdateBuffer(RG_Context* context, uint32_t frames)
 {
 	size_t requiredSize = frames * sizeof(Float_t) * context->format.numberChannels;
 	if (context->bufferSize < requiredSize)

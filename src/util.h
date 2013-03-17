@@ -17,6 +17,13 @@
 #define MAX_CHANNELS    2
 #define MAGIC_NUMBER    0xaa55aa55
 #define MEM_ALIGN       16
+
+#define INFO_SEEKABLE   1
+#define INFO_FFMPEG     (1 << 1)
+#define INFO_BASS       (1 << 2)  
+#define INFO_MOD        (1 << 16)
+#define INFO_AMIGAMOD   (1 << 17)
+
 #define BSTR(buf) ((char*)(buf).buff)
 #define XSTR_(s) "-"#s
 #define XSTR(s) XSTR_(s)
@@ -48,13 +55,14 @@ struct stream {
 struct info {
     void        (*decode)(void*, struct stream*, int);
     void        (*free)(void*);
-    long        length;
+    char*       (*metadata)(void*, const char*);
     const char* codec;
     float       bitrate;
+//    float       length; // in seconds
+    long        frames;
     int         channels;
     int         samplerate;
-    bool        seekable;
-    bool        amiga_mod;
+    int         flags;
 };
 
 
@@ -66,7 +74,7 @@ void    util_free(void* ptr);
 char*   util_strdup(const char* str);
 char*   util_trim(char* str);
 bool    util_isfile(const char* path);
-
+long    util_filesize(const char* path);
 
 int     socket_open(const char* host, int port);
 bool    socket_read(int socket, struct buffer* buffer);

@@ -19,8 +19,8 @@
 #include "effects.h"
 #include "bassdecoder.h"
 
-#define IS_MOD(dec)         ((dec)->channel_info.ctype & BASS_CTYPE_MUSIC_MOD)
-#define IS_AMIGAMOD(dec)    ((dec)->channel_info.ctype == BASS_CTYPE_MUSIC_MOD)
+#define IS_MOD(dec)         (bool)((dec)->channel_info.ctype & BASS_CTYPE_MUSIC_MOD)
+#define IS_AMIGAMOD(dec)    (bool)((dec)->channel_info.ctype == BASS_CTYPE_MUSIC_MOD)
 
 struct bassdecoder {
     struct buffer       read_buffer;
@@ -191,19 +191,23 @@ void bass_info(void* handle, struct info* info)
 {
     struct bassdecoder* d = handle;
     memset(info, 0, sizeof(struct info)); 
+    info->decode        = bass_decode;
+    info->free          = bass_free;
+    info->metadata        = bass_metadata;
     info->channels      = d->channel_info.chans;
     info->samplerate    = d->channel_info.freq;
-    info->length        = d->last_frame;
-    if (IS_MOD(d)) {
-        info->bitrate = 0;
-    } else {
+    info->frames        = d->last_frame;
+    info->flags         = INFO_BASS;
+    info->codec         = codec_type(d); 
+    if (IS_MOD(d)) 
+        info->flags |= INFO_MOD;
+    if (IS_AMIGAMOD(d))
+        info->flags |= INFO_AMIGAMOD;
+    if (!IS_MOD(d)) {
         float size = BASS_StreamGetFilePosition(d->channel, BASS_FILEPOS_END);
         float duration = (float)d->last_frame / d->channel_info.freq;
         info->bitrate = size / (125 * duration);
     }
-    info->codec         = codec_type(d); 
-    info->seekable      = false;
-    info->amiga_mod     = IS_AMIGAMOD(d);
 }
 
 

@@ -4,9 +4,9 @@ INPUT_DEMOSAUCE = $(BASSOURCE) cast.o demosauce.o effects.o ffdecoder.o log.o se
 LINK_DEMOSAUCE = $(shell pkg-config --libs shout samplerate) $(LINK_FFMPEG) $(LINK_BASS)
 
 INPUT_SCAN = $(BASSOURCE) ffdecoder.o log.o scan.o util.o effects.o
-LINK_SCAN = $(shell pkg-config --libs samplerate) $(LINK_FFMPEG) $(LINK_BASS) libreplaygain/libreplaygain.a
+LINK_SCAN = $(shell pkg-config --libs samplerate) $(LINK_FFMPEG) $(LINK_BASS) replaygain/libreplaygain.a
 
-all: demosauce scan
+all: clean demosauce scan
 	
 demosauce: $(INPUT_DEMOSAUCE)
 	$(CC) $(LDFLAGS) $(INPUT_DEMOSAUCE) $(LINK_DEMOSAUCE) -o demosauce

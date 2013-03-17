@@ -39,7 +39,7 @@ struct ffdecoder {
     int                 stream_index;
     int                 packet_buffer_pos;
     int                 channels;
-    long                length;
+    long                frames;
 };
 
 static bool initialized = false;
@@ -113,7 +113,7 @@ void* ff_load(const char* path)
         goto error;
     
     if (d.format_context->duration > 0) 
-        d.length = d.format_context->duration * d.codec_context->sample_rate / AV_TIME_BASE;
+        d.frames = d.format_context->duration * d.codec_context->sample_rate / AV_TIME_BASE;
     
     struct ffdecoder* dec = util_malloc(sizeof(struct ffdecoder));
     memmove(dec, &d, sizeof(struct ffdecoder));
@@ -252,14 +252,15 @@ void ff_info(void* handle, struct info* info)
 {
     struct ffdecoder* d = handle;
     memset(info, 0, sizeof(struct info));
-    info->decode    = ff_decode;
-    info->free      = ff_free;         
-    info->length    = d->length;
-    info->codec     = codec_type(d);
-    info->bitrate   = d->codec_context->bit_rate / 1000.0f;
-    info->channels  = d->codec_context->channels;
-    info->samplerate = d->codec_context->sample_rate;
-    info->seekable  = true;
+    info->decode        = ff_decode;
+    info->free          = ff_free;         
+    info->metadata      = ff_metadata;
+    info->frames        = d->frames;
+    info->codec         = codec_type(d);
+    info->bitrate       = d->codec_context->bit_rate / 1000.0f;
+    info->channels      = d->codec_context->channels;
+    info->samplerate    = d->codec_context->sample_rate;
+    info->flags         = INFO_FFMPEG | INFO_SEEKABLE;
 }
 
 bool ff_probe_name(const char* file_name)

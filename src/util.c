@@ -58,8 +58,15 @@ void util_free(void* ptr)
 bool util_isfile(const char* path)
 {
     struct stat buf = {0};
-    stat(path, &buf);
-    return S_ISREG(buf.st_mode);
+    int err = stat(path, &buf);
+    return !err && S_ISREG(buf.st_mode);
+}
+
+long util_filesize(const char* path)
+{
+    struct stat buf = {0};
+    int err = stat(path, &buf);
+    return err ? -1 : buf.st_size;
 }
 
 //-----------------------------------------------------------------------------

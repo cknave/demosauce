@@ -12,7 +12,9 @@
 #include <string.h>
 #include <limits.h>
 #include <assert.h>
+#include <samplerate.h>
 #include "effects.h"
+#include "log.h"
 
 float db_to_amp(float db)
 {
@@ -26,17 +28,65 @@ float amp_to_db(float amp)
 
 //-----------------------------------------------------------------------------
 
+struct fx_resampler {
+    int         channels;
+    double      ratio;
+    SRC_STATE*  state[MAX_CHANNELS];
+};
+
+
 void* fx_resample_init(int channels, int sr_from, int sr_to)
 {
+    assert(channels >= 1 && channels <= MAX_CHANNELS);
+    int err = 0;
+    struct fx_resampler* r = util_malloc(sizeof(struct fx_resampler));
+    r->channels = channels;
+    r->ratio    = (double)sr_to / sr_from;
+    if (!src_is_valid_ratio(r->ratio))
+        goto error;
+    for (int ch = 0; ch < channels; ch++) {
+        r->state[ch] = src_new(SRC_SINC_FASTEST, 1, &err);
+        if (err)
+            goto error;
+    }
+    return r;
+
+error:
+    LOG_ERROR("[util] failed to create resampler (%s)", src_strerror(err));
+    fx_resample_free(r);
     return NULL;
 }
 
 void fx_resample_free(void* handle)
 {
+    struct fx_resampler* r = handle;
+    for (int ch = 0; ch < r->channels; ch++)
+        src_delete(r->state[ch]);
+    util_free(r);
 }
 
 void fx_resample(void* handle, struct stream* s1, struct stream* s2)
 {
+    struct fx_resampler* r = handle;
+    s2->channels = s1->channels;
+    stream_resize(s2, s1->frames * r->ratio + 1);
+    for (int ch = 0; ch < r->channels; ch++) {
+        SRC_DATA src = {
+            s1->buffer[ch],     // data_in
+            s2->buffer[ch],     // data_out
+            s1->frames,         // input_frames
+            s2->max_frames,     // output_frames
+            0,                  // input_frames_used
+            0,                  // output_frames_gen
+            s1->end_of_stream,  // end_of_input
+            r->ratio            // src_ratio
+        };
+        int err = src_process(r->state[ch], &src);
+        if (err)
+            LOG_ERROR("[util] resampler error (%s)", src_strerror(err));
+        assert(src.input_frames_used == 0);
+        s2->frames = src.output_frames_gen;
+    }
 }
 
 //-----------------------------------------------------------------------------
@@ -136,3 +186,4 @@ void fx_deinterleave(const float* in, float* lout, float* rout, int len)
         rout[i] = in[i * 2 + 1];
     }
 }
+

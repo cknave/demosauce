@@ -81,7 +81,8 @@ static void configure_effects(float forced_length)
     }
 
     keyval_str(mix_str, 8, config.data, "mix", "auto");
-    mixer_enabled = settings_encoder_channels == 2 && (strcmp(mix_str, "auto") || info.amiga_mod);
+    mixer_enabled = (settings_encoder_channels == 2) && 
+        (strcmp(mix_str, "auto") || (info.flags & INFO_AMIGAMOD));
     if (mixer_enabled) {
         float ratio = keyval_real(config.data, "mix", 0.4);
         ratio = MAX(MIN(ratio, 1.0), 0.0);
@@ -95,11 +96,11 @@ static void configure_effects(float forced_length)
 
     fader_enabled = keyval_bool(config.data, "fade_out", false); 
     if (fader_enabled) {
-        float length = forced_length > 0 ?  forced_length : info.length;
+        float length = forced_length > 0 ? forced_length : (info.frames / info.samplerate);
         long start = (length - 5) * settings_encoder_samplerate;
         long end = length * settings_encoder_samplerate;
         fx_fade_init(&fader, start, end, 1, 0);
-        LOG_DEBUG("[update_machines] fading out at %f seconds", length);
+        LOG_DEBUG("[cast] fading out at %f seconds", length);
     }
 }
 
@@ -156,7 +157,7 @@ static void* load_next(void* data)
 #ifdef ENABLE_BASS
         if ((decoder = bass_load(path, buffer.data))) {
             bass_info(decoder, &info);
-            if (forced_length > info.length) 
+            if (forced_length > info.frames / info.samplerate) 
                 bass_set_loop_duration(decoder, forced_length);
         }
 #endif
@@ -170,7 +171,7 @@ static void* load_next(void* data)
         }
     }
 
-    if (decoder && info.length == 0)
+    if (decoder && info.frames == 0)
         LOG_WARN("[cast] no length %s", path);
 
     if (!decoder) {

@@ -14,7 +14,7 @@
 #include "util.h"
 
 void    bass_loadso(char** argv); 
-void*   bass_load(const char* path, const char* options);
+void*   bass_load(const char* path, const char* options, int samplerate);
 void    bass_free(void* handle);
 void    bass_decode(void* hadle, struct stream* s, int frames);
 void    bass_seek(void* handle, long position);

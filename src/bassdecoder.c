@@ -52,10 +52,10 @@ void bass_free(void* handle)
     util_free(handle);
 }
 
-void* bass_load(const char* path, const char* options)
+void* bass_load(const char* path, const char* options, int samplerate)
 {
     if (!initialized) {
-        if (!BASS_Init(0, 44100, 0, 0, NULL)) {
+        if (!BASS_Init(0, samplerate, 0, 0, NULL)) {
             LOG_ERROR("[bassdecoder] BASS_Init failed");
             return false; 
         }
@@ -72,7 +72,7 @@ void* bass_load(const char* path, const char* options)
     struct bassdecoder d = {{0}};
     d.channel = BASS_StreamCreateFile(FALSE, path, 0, 0, stream_flags);
     if (!d.channel) 
-        d.channel = BASS_MusicLoad(FALSE, path, 0, 0 , music_flags, settings_encoder_samplerate);
+        d.channel = BASS_MusicLoad(FALSE, path, 0, 0 , music_flags, samplerate);
     if (!d.channel) 
         return false;
 

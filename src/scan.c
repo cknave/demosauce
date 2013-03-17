@@ -56,7 +56,7 @@ int main(int argc, char** argv)
     struct stream*  stream      = &stream0;;
 
 #ifdef ENABLE_BASS
-    if ((decoder = bass_load(path, "prescan=true")))
+    if ((decoder = bass_load(path, "prescan=true", SAMPLERATE)))
         bass_info(decoder, &info);
 #endif
     if (!decoder && (decoder = ff_load(path))) {

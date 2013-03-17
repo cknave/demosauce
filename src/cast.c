@@ -155,7 +155,7 @@ static void* load_next(void* data)
         }
         forced_length = keyval_real(buffer.data, "length", 0);
 #ifdef ENABLE_BASS
-        if ((decoder = bass_load(path, buffer.data))) {
+        if ((decoder = bass_load(path, buffer.data, settings_encoder_samplerate))) {
             bass_info(decoder, &info);
             if (forced_length > info.frames / info.samplerate) 
                 bass_set_loop_duration(decoder, forced_length);

@@ -1,12 +1,10 @@
 #!/bin/sh
 OUTPUT='libreplaygain.a'
-CMD="gcc -Wall -std=gnu99 -O3 -ffast-math -c gain_analysis.c replay_gain.c"
-echo $CMD
-$CMD
+
+gcc -Wall -std=c99 -O3 -ffast-math -c gain_analysis.c replay_gain.c
+
 if test $? -eq 0; then
 	rm -f $OUTPUT
-	CMD="ar rs $OUTPUT *.o"
-	echo $CMD
-	$CMD
+	ar rs $OUTPUT *.o
 	rm *.o
 fi

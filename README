@@ -2,7 +2,7 @@ demosauce - fancy icecast source client
 
 BUILDING
 ==================
-officially we support only linux (tested on ubuntu, gentoo), but the code is written with portability in mind.
+officially we support only linux (tested on ubuntu, gentoo), but the code is written with portability in mind (exept windows).
 
 Libraries
 ------------------
@@ -10,9 +10,9 @@ required libs:
 libsamplerate, libshout, libicu, libavcodec, libavformat, libgetopt
 
 optional libs:
-BASS, libid3tag
+bass, libid3tag
 
-you can use BASS for module playback (mod, s3m, xm, it files). the configure script will ask and to the work for you. alternatively you can get the binaries for your system here http://www.un4seen.com/bass.html. extract the bass.h header file and bass.dll for your platform. libid3tag is required for bass.
+you can use BASS for module playback (mod, s3m, xm, it). the configure script will ask and to the work for you. alternatively you can get the binaries for your system here http://www.un4seen.com/bass.html. extract the bass.h header file and bass.so for your platform. libid3tag is required for bass.
 
 Linux
 ------------------
@@ -32,8 +32,8 @@ copy contrib/demosauce.conf.example to demosauce.conf. then edit it. the comment
 
 RUN
 ==================
-you can either run demosauce with a full demovibes server (which demosauce was build for) or provide your own script. that script will listen on a certain port for a command (NEXTSONG) upon which it will return information about the next song to be played. the format is a couple of key-value pairs. if you're using demosauce with demovibes, just run the sockulf.py script in the demobibes directory.  
-for a simple custom example script, check contrib/simple-sockulf.py. it will play all mp3 files in a given directory in a random order. you can use that script as the basis for you own solution. you probably only have to change the djDerp class. 
+you can either run demosauce with a full demovibes server (which demosauce was written for) or provide your own script. that script will listen on a certain port for a command (NEXTSONG) upon which it will return information about the next song to be played. the format is a couple of key-value pairs. if you're using demosauce with demovibes, just run the sockulf.py script in the demobibes directory.  
+for a simple custom example script, check contrib/simple-sockulf.py. it will play all playable files in a given directory in a random order. you can use that script as the basis for you own solution. you probably only have to change the djDerp class. 
 
 LICENSE
 ==================

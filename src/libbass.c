@@ -12,166 +12,97 @@
 *   linking isn't flexible enough
 */
 
-#ifdef __linux__
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <dlfcn.h>
 #include <bass.h>
 
-static void* dl_handle = 0;
+// and now for some major preprocessor hackery
+#define JOIN2(a,b)  a##b
+#define JOIN(a,b)   JOIN2(a,b)
 
-static BOOL     (*SetConfig)(BOOL, DWORD) = 0;
-static BOOL     (*Init)(int, DWORD, DWORD, void*, void *) = 0;
-static int      (*ErrorGetCode)() = 0;
+#define NARG2(_6,_5,_4,_3,_2,_1,n,...) n
+#define NARG(...) NARG2(__VA_ARGS__,6,5,4,3,2,1)
 
-static HSTREAM  (*StreamCreateFile)(BOOL, const void*, QWORD, QWORD, DWORD) = 0;
-static BOOL     (*StreamFree)(HSTREAM) = 0;
-static QWORD    (*StreamGetFilePosition)(HSTREAM, DWORD) = 0;
+#define ARG_1(type)         type a1
+#define ARG_2(type, ...)    ARG_1(__VA_ARGS__),type a2
+#define ARG_3(type, ...)    ARG_2(__VA_ARGS__),type a3
+#define ARG_4(type, ...)    ARG_3(__VA_ARGS__),type a4
+#define ARG_5(type, ...)    ARG_4(__VA_ARGS__),type a5
+#define ARG_6(type, ...)    ARG_5(__VA_ARGS__),type a6
+#define ARG_N(n, ...)       JOIN(ARG_,n)(__VA_ARGS__)
+#define ARG_DECL(...)       ARG_N(NARG(__VA_ARGS__),__VA_ARGS__)
+#define ARG_CALL(...)       ARG_N(NARG(__VA_ARGS__),)
 
-static HMUSIC   (*MusicLoad)(BOOL, const void*, QWORD, DWORD, DWORD, DWORD) = 0;
-static BOOL     (*MusicFree)(HMUSIC) = 0;
+// x macros for bass functions
+#define FUNCTION_DEFS                                                                   \
+    X(BOOL,         SetConfig,              BOOL,DWORD)                                 \
+    X(BOOL,         Init,                   int,DWORD,void*,void*)                      \
+    X(int,          ErrorGetCode,           void)                                       \
+    X(HSTERAM,      StreamCreateFile,       BOOL,const void*,QWORD,QWORD,DWORD)         \
+    X(BOOL,         StreamFree,             HSTREAM)                                    \
+    X(QWORD,        StreamGetFilePosition,  HSTREAM,DWORD)                              \
+    X(HMUSIC,       MusicLoad,              BOOL,const void*,QWORD,DWORD,DWORD,DWORD)   \
+    X(BOOL,         MusicFree,              HMUSIC)                                     \
+    X(DWORD,        ChannelFlags,           DWORD,DWORD,DWORD)                          \
+    X(BOOL,         ChannelGetInfo,         DWORD,BASS_CHANNELINFO*)                    \
+    X(QWORD,        ChannelGetData,         DWORD,void*,DWORD)                          \
+    X(BOOL,         ChannelGetPosition,     DWORD,QWORD,DWORD)                          \
+    X(const char*,  ChannelGetTags,         DWORD,DWORD)
 
-static DWORD    (*ChannelFlags)(DWORD, DWORD, DWORD) = 0;
-static BOOL     (*ChannelGetInfo)(DWORD, BASS_CHANNELINFO*) = 0;
-static QWORD    (*ChannelGetLength)(DWORD, DWORD) = 0;
-static DWORD    (*ChannelGetData)(DWORD, void*, DWORD) = 0;
-static BOOL     (*ChannelSetPosition)(DWORD, QWORD, DWORD) = 0;
-static const char* (*ChannelGetTags)(DWORD, DWORD) = 0;
+#define X(ret, name, ...) static ret (*name)(__VA_ARGS__);
+FUNCTION_DEFS
+#undef X
+
+#define X(ret, name, ...) ret BASSDEF(BASS_##name)(ARG_DECL(__VA_ARGS__)){return name(ARG_CALL(__VA_ARGS__));}
+FUNCTION_DEFS
+#undef X
+
+static void* handle;
+static int   error;
 
 static void* bind(const char* symbol)
 {
-    void* sym = dlsym(dl_handle, symbol);
+    void* sym = dlsym(handle, symbol);
     if (!sym) {
+        error = 1;
         printf("libbass.so missing symbol: %s\n", symbol);
-        exit(EXIT_FAILURE);
     }
     return sym;
 }
 
 static int load(const char* file)
 {
-    dl_handle = dlopen(file, RTLD_LAZY);
-    if (!dl_handle)
+    handle = dlopen(file, RTLD_LAZY);
+    if (!handle)
         return 0;
-    SetConfig = (BOOL (*)(BOOL, DWORD)) bind("BASS_SetConfig");
-    Init = (BOOL (*)(int, DWORD, DWORD, void*, void*)) bind("BASS_Init");
-    ErrorGetCode = (int (*)()) bind("BASS_ErrorGetCode");
-
-    StreamCreateFile = (HSTREAM (*)(BOOL, const void*, QWORD, QWORD, DWORD)) bind("BASS_StreamCreateFile");
-    StreamFree = (BOOL (*)(HSTREAM)) bind("BASS_StreamFree");
-    StreamGetFilePosition = (QWORD (*)(HSTREAM, DWORD)) bind("BASS_StreamGetFilePosition");
     
-    MusicLoad = (HMUSIC (*)(BOOL, const void*, QWORD, DWORD, DWORD, DWORD)) bind("BASS_MusicLoad");
-    MusicFree = (BOOL (*)(HMUSIC)) bind("BASS_MusicFree");
+    #define X(ret, name, ...) name=(ret(*)(__VA_ARGS__))bind(#name);
+    FUNCTION_DEFS
+    #undef X
 
-    ChannelGetData = (DWORD (*)(DWORD, void*, DWORD)) bind("BASS_ChannelGetData");
-    ChannelGetTags = (const char* (*)(DWORD, DWORD)) bind("BASS_ChannelGetTags");
-    ChannelFlags = (DWORD (*)(DWORD, DWORD, DWORD)) bind("BASS_ChannelFlags");
-    ChannelGetInfo = (BOOL (*)(DWORD, BASS_CHANNELINFO*)) bind("BASS_ChannelGetInfo");
-    ChannelGetLength = (QWORD (*)(DWORD, DWORD)) bind("BASS_ChannelGetLength");
-    ChannelSetPosition = (BOOL (*)(DWORD, QWORD, DWORD)) bind("BASS_ChannelSetPosition");
-
-    return 1;
+    return error ? 0 : 1;
 }
 
-BOOL BASSDEF(BASS_SetConfig)(DWORD option, DWORD value)
+int bass_loadso(char** argv)
 {
-    return SetConfig(option, value);
-}
-
-BOOL BASSDEF(BASS_Init)(int device, DWORD freq, DWORD flags, void *win, void *dsguid)
-{
-    return Init(device, freq, flags, win, dsguid);
-}
-
-int BASSDEF(BASS_ErrorGetCode)() 
-{
-    return ErrorGetCode();
-}
-
-DWORD BASSDEF(BASS_ChannelFlags)(DWORD handle, DWORD flags, DWORD mask)
-{
-    return ChannelFlags(handle, flags, mask);
-}
-
-HSTREAM BASSDEF(BASS_StreamCreateFile)(BOOL mem, const void *file, QWORD offset, QWORD length, DWORD flags)
-{
-    return StreamCreateFile(mem, file, offset, length, flags);
-}
-
-HMUSIC BASSDEF(BASS_MusicLoad)(BOOL mem, const void *file, QWORD offset, DWORD length, DWORD flags, DWORD freq)
-{
-    return MusicLoad(mem, file, offset, length, flags, freq);
-}
-
-BOOL BASSDEF(BASS_ChannelGetInfo)(DWORD handle, BASS_CHANNELINFO *info)
-{
-    return ChannelGetInfo(handle, info);
-}
-
-QWORD BASSDEF(BASS_ChannelGetLength)(DWORD handle, DWORD mode)
-{
-    return ChannelGetLength(handle, mode);
-}
-
-BOOL BASSDEF(BASS_MusicFree)(HMUSIC handle)
-{
-    return MusicFree(handle);
-}
-
-BOOL BASSDEF(BASS_StreamFree)(HSTREAM handle)
-{
-    return StreamFree(handle);
-}
-
-DWORD BASSDEF(BASS_ChannelGetData)(DWORD handle, void *buffer, DWORD length)
-{
-    return ChannelGetData(handle, buffer, length);
-}
-
-QWORD BASSDEF(BASS_StreamGetFilePosition)(HSTREAM handle, DWORD mode)
-{
-    return StreamGetFilePosition(handle, mode);
-}
-
-const char *BASSDEF(BASS_ChannelGetTags)(DWORD handle, DWORD tags)
-{
-    return ChannelGetTags(handle, tags);
-}
-
-BOOL BASSDEF(BASS_ChannelSetPosition)(DWORD handle, QWORD pos, DWORD mode)
-{
-    return ChannelSetPosition(handle, pos, mode);
-}
-
-void bass_loadso(char** argv)
-{
-    char path[4000];
-    char* path_end = 0;
-    if (strlen(argv[0]) >= 4000) {
-        puts("path is too log");
-        exit(EXIT_FAILURE);
+    char path[4096];
+    if (strlen(argv[0]) < sizeof(path) - 32) {
+        strcpy(path, argv[0]);
+        char* path_end = strrchr(path, '/') + 1;
+        strcpy(path_end, "libbass.so");
+        if (load(path))
+            return 1;
+        strcpy(path_end, "bass/libbass.so");
+        if (load(path))
+            return 1;
     }
-
-    strcpy(path, argv[0]);
-    path_end = strrchr(path, '/') + 1;
-
-    strcpy(path_end, "libbass.so");
-    if (load(path))
-        return;
-    strcpy(path_end, "bass/libbass.so");
-    if (load(path))
-        return;
     if (load("/usr/local/lib/libbass.so"))
-        return;
+        return 1;
     if (load("/usr/lib/libbass.so"))
-        return;
-    
-    puts("can't find libbass.so");
-    exit(EXIT_FAILURE);
+        return 1;
+    puts("can't locate libbass.so");
+    return 0;
 }
-
-#endif
 

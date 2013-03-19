@@ -12,80 +12,85 @@
 *   linking isn't flexible enough
 */
 
-#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <dlfcn.h>
 #include <bass.h>
+#include "util.h"
 
-// and now for some major preprocessor hackery
-#define JOIN2(a,b)  a##b
-#define JOIN(a,b)   JOIN2(a,b)
+// I had a lot of preprocessor hackery here to detect void functions. 
+// it almost worked but void* made a mess of thins :(
+// instead i added an extra column that holds the number of arguments, 
+// or 'V' for a void function. more verbose, but much cleaner to
+// implement
 
-#define NARG2(_6,_5,_4,_3,_2,_1,n,...) n
-#define NARG(...) NARG2(__VA_ARGS__,6,5,4,3,2,1)
+#define JOIN(a,b)           JOIN2(a,b)
+#define JOIN2(a,b)          a##b
 
+#define ARG_V(type)         type
+#define ARG_0()             
 #define ARG_1(type)         type a1
-#define ARG_2(type, ...)    ARG_1(__VA_ARGS__),type a2
-#define ARG_3(type, ...)    ARG_2(__VA_ARGS__),type a3
-#define ARG_4(type, ...)    ARG_3(__VA_ARGS__),type a4
-#define ARG_5(type, ...)    ARG_4(__VA_ARGS__),type a5
-#define ARG_6(type, ...)    ARG_5(__VA_ARGS__),type a6
-#define ARG_N(n, ...)       JOIN(ARG_,n)(__VA_ARGS__)
-#define ARG_DECL(...)       ARG_N(NARG(__VA_ARGS__),__VA_ARGS__)
-#define ARG_CALL(...)       ARG_N(NARG(__VA_ARGS__),)
+#define ARG_2(type,...)     type a2,ARG_1(__VA_ARGS__)
+#define ARG_3(type,...)     type a3,ARG_2(__VA_ARGS__)
+#define ARG_4(type,...)     type a4,ARG_3(__VA_ARGS__)
+#define ARG_5(type,...)     type a5,ARG_4(__VA_ARGS__)
+#define ARG_6(type,...)     type a6,ARG_5(__VA_ARGS__)
+#define ARG_DECL(n,...)     JOIN(ARG_,n)(__VA_ARGS__)
+#define ARG_CALL(n)         JOIN(ARG_,n)()
 
 // x macros for bass functions
 #define FUNCTION_DEFS                                                                   \
-    X(BOOL,         SetConfig,              BOOL,DWORD)                                 \
-    X(BOOL,         Init,                   int,DWORD,void*,void*)                      \
-    X(int,          ErrorGetCode,           void)                                       \
-    X(HSTERAM,      StreamCreateFile,       BOOL,const void*,QWORD,QWORD,DWORD)         \
-    X(BOOL,         StreamFree,             HSTREAM)                                    \
-    X(QWORD,        StreamGetFilePosition,  HSTREAM,DWORD)                              \
-    X(HMUSIC,       MusicLoad,              BOOL,const void*,QWORD,DWORD,DWORD,DWORD)   \
-    X(BOOL,         MusicFree,              HMUSIC)                                     \
-    X(DWORD,        ChannelFlags,           DWORD,DWORD,DWORD)                          \
-    X(BOOL,         ChannelGetInfo,         DWORD,BASS_CHANNELINFO*)                    \
-    X(QWORD,        ChannelGetData,         DWORD,void*,DWORD)                          \
-    X(BOOL,         ChannelGetPosition,     DWORD,QWORD,DWORD)                          \
-    X(const char*,  ChannelGetTags,         DWORD,DWORD)
+    X(BOOL,         Init,                   5,int,DWORD,DWORD,void*,void*)              \
+    X(int,          ErrorGetCode,           0)                                          \
+    X(BOOL,         SetConfig,              2,DWORD,DWORD)                              \
+    X(HSTREAM,      StreamCreateFile,       5,BOOL,const void*,QWORD,QWORD,DWORD)       \
+    X(BOOL,         StreamFree,             1,HSTREAM)                                  \
+    X(QWORD,        StreamGetFilePosition,  2,HSTREAM,DWORD)                            \
+    X(HMUSIC,       MusicLoad,              6,BOOL,const void*,QWORD,DWORD,DWORD,DWORD) \
+    X(BOOL,         MusicFree,              1,HMUSIC)                                   \
+    X(DWORD,        ChannelFlags,           3,DWORD,DWORD,DWORD)                        \
+    X(BOOL,         ChannelGetInfo,         2,DWORD,BASS_CHANNELINFO*)                  \
+    X(DWORD,        ChannelGetData,         3,DWORD,void*,DWORD)                        \
+    X(QWORD,        ChannelGetPosition,     2,DWORD,DWORD)                              \
+    X(QWORD,        ChannelGetLength,       2,DWORD,DWORD)                              \
+    X(const char*,  ChannelGetTags,         2,DWORD,DWORD)                              \
+    X(BOOL,         ChannelSetPosition,     3,DWORD,QWORD,DWORD)
 
-#define X(ret, name, ...) static ret (*name)(__VA_ARGS__);
+#define X(ret,name,args,...) static ret (*name)(__VA_ARGS__);
 FUNCTION_DEFS
 #undef X
 
-#define X(ret, name, ...) ret BASSDEF(BASS_##name)(ARG_DECL(__VA_ARGS__)){return name(ARG_CALL(__VA_ARGS__));}
+#define X(ret,name,args,...) ret BASSDEF(BASS_##name)(ARG_DECL(args,__VA_ARGS__)){return name(ARG_CALL(args));}
 FUNCTION_DEFS
 #undef X
 
 static void* handle;
-static int   error;
+static bool  error;
 
 static void* bind(const char* symbol)
 {
     void* sym = dlsym(handle, symbol);
     if (!sym) {
-        error = 1;
+        error = true;
         printf("libbass.so missing symbol: %s\n", symbol);
     }
     return sym;
 }
 
-static int load(const char* file)
+static bool load(const char* file)
 {
     handle = dlopen(file, RTLD_LAZY);
     if (!handle)
-        return 0;
+        return false;
     
-    #define X(ret, name, ...) name=(ret(*)(__VA_ARGS__))bind(#name);
+    #define X(ret,name,agrs,...) name=(ret(*)(__VA_ARGS__))bind(#name);
     FUNCTION_DEFS
     #undef X
 
-    return error ? 0 : 1;
+    return error ? false : true;
 }
 
-int bass_loadso(char** argv)
+bool bass_loadso(char** argv)
 {
     char path[4096];
     if (strlen(argv[0]) < sizeof(path) - 32) {
@@ -93,16 +98,16 @@ int bass_loadso(char** argv)
         char* path_end = strrchr(path, '/') + 1;
         strcpy(path_end, "libbass.so");
         if (load(path))
-            return 1;
+            return true;
         strcpy(path_end, "bass/libbass.so");
         if (load(path))
-            return 1;
+            return true;
     }
     if (load("/usr/local/lib/libbass.so"))
-        return 1;
+        return true;
     if (load("/usr/lib/libbass.so"))
-        return 1;
+        return true;
     puts("can't locate libbass.so");
-    return 0;
+    return false;
 }
 

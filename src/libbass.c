@@ -87,7 +87,7 @@ static bool load(const char* file)
     FUNCTION_DEFS
     #undef X
 
-    return error ? false : true;
+    return !error;
 }
 
 bool bass_loadso(char** argv)

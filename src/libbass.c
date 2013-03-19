@@ -19,10 +19,9 @@
 #include "util.h"
 
 // I had a lot of preprocessor hackery here to detect void functions. 
-// it almost worked but void* made a mess of thins :(
-// instead i added an extra column that holds the number of arguments, 
-// or 'V' for a void function. more verbose, but much cleaner to
-// implement
+// it almost worked but void* made a mess of things :(
+// instead I added an extra column that holds the number of arguments, 
+// or 'V' for a void function. more verbose, but much cleaner to implement
 
 #define JOIN(a,b)           JOIN2(a,b)
 #define JOIN2(a,b)          a##b

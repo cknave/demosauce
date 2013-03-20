@@ -230,6 +230,7 @@ static char* get_id3_tag(const TAG_ID3* tags, const char* key)
 static char* get_id3v2_tag(const id3_byte_t* tags, const char* key)
 {
     const char* frame_id = NULL;
+    id3_utf8_t* utf_str = NULL;
     if (!strcmp(key, "artist")) 
         frame_id = ID3_FRAME_ARTIST;
     else if (!strcmp(key, "title"))
@@ -254,7 +255,7 @@ static char* get_id3v2_tag(const id3_byte_t* tags, const char* key)
     if (!ucs_str)
         goto id3_quit_frame;
 
-    id3_utf8_t* utf_str = id3_ucs4_utf8duplicate(ucs_str);
+    utf_str = id3_ucs4_utf8duplicate(ucs_str);
     // TODO: free ucs string?
 id3_quit_frame:
     id3_frame_delete(frame);
@@ -302,11 +303,12 @@ float bass_loopiness(const char* path)
     // i got a bit lazy here, but this part isn't so crucial anyways
     // flags to make decoding as fast as possible. still use 44100 hz, because lower setting might
     // remove upper frequencies that could indicate a loop
-    float loopiness = 0;
-    DWORD flags = BASS_MUSIC_DECODE | BASS_SAMPLE_MONO | BASS_MUSIC_NONINTER | BASS_MUSIC_PRESCAN;
-    DWORD samplerate = 44100;
+    float loopiness     = 0;
+    DWORD flags         = BASS_MUSIC_DECODE | BASS_SAMPLE_MONO | BASS_MUSIC_NONINTER | BASS_MUSIC_PRESCAN;
+    DWORD samplerate    = 44100;
     size_t check_frames = samplerate / 20;
-    size_t check_bytes = check_frames * sizeof(int16_t);
+    size_t check_bytes  = check_frames * sizeof(int16_t);
+    int16_t* out        = NULL;
 
     HMUSIC channel = BASS_MusicLoad(FALSE, path, 0, 0 , flags, samplerate);
 
@@ -319,7 +321,7 @@ float bass_loopiness(const char* path)
     if (!BASS_ChannelSetPosition(channel, length - check_bytes, BASS_POS_BYTE)) 
         return 0;
 
-    int16_t* out = util_malloc(sizeof(int16_t) * check_frames);
+    out = util_malloc(sizeof(int16_t) * check_frames);
     memset(out, 0, sizeof(int16_t) * check_frames);
     DWORD read_bytes = 0;
     while (read_bytes < check_bytes && BASS_ErrorGetCode() == BASS_OK) {

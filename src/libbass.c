@@ -82,7 +82,7 @@ static bool load(const char* file)
     if (!handle)
         return false;
     
-    #define X(ret,name,agrs,...) name=(ret(*)(__VA_ARGS__))bind(#name);
+    #define X(ret,name,agrs,...) name=(ret(*)(__VA_ARGS__))bind("BASS_"#name);
     FUNCTION_DEFS
     #undef X
 
@@ -106,7 +106,7 @@ bool bass_loadso(char** argv)
         return true;
     if (load("/usr/lib/libbass.so"))
         return true;
-    puts("can't locate libbass.so");
+    puts("failed to load libbass.so");
     return false;
 }
 

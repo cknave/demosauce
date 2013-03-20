@@ -46,9 +46,11 @@
 
 int main(int argc, char** argv)
 {
-    puts(DEMOSAUCE_VERSION);
+#ifdef ENABLE_BASS
     if (!bass_loadso(argv))
         return EXIT_FAILURE;
+#endif
+    puts(DEMOSAUCE_VERSION);
     settings_init(argc, argv);
     log_set_console_level(settings_log_console_level);
     log_set_file(settings_log_file, settings_log_file_level);

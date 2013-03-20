@@ -93,30 +93,49 @@ char* util_trim(char* str)
     return str;
 }
 
+static const char* skip_line(const char* str)
+{
+    str = strchr(str, '\n');
+    return str ? str + 1 : NULL;
+}
+
 char* keyval_str(char* out, int size, const char* heap, const char* key, const char* fallback)
 {
-    const char* tmp = strstr(heap, key);
-    if (!tmp)
-        goto error; 
-    tmp += strlen(key);
-    tmp = strpbrk(tmp, "=\n\r");
-    if (!tmp || *tmp != '=')
-        goto error;
-    tmp += strspn(tmp + 1, " \t");
-    size_t span = strcspn(tmp, "\n\r");
-    while (span && isspace(tmp[span - 1]))
-        span--;
+    const char* tmp         = heap;
+    size_t      span        = 0;
+    bool        have_key    = false;
 
-    if (out && span >= size) {
-        LOG_DEBUG("[keyval_str] buffer too small for value (%s)", key);
-        goto error;
+    while (tmp && *tmp) {
+        tmp += strspn(tmp, " \t");                  // skip space before key
+        if (strncmp(tmp, key, strlen(key))) {       // see if matches key
+            tmp = skip_line(tmp);
+            continue;
+        }
+        tmp += strlen(key);
+        tmp += strspn(tmp, " \t");                  // skip space after key 
+        if (!*tmp || *tmp != '=') {                 // check for =
+            tmp = skip_line(tmp);
+            continue;
+        }
+        have_key = true;
+        tmp += strspn(tmp + 1, " \t") + 1;          // skip space before value
+        span = strcspn(tmp, "\n");                  // add # for line comments
+        while (span && isspace(tmp[span - 1]))      // remove tailing whitespace
+            span--;
+        break;
     }
-    char* value = out ? out : util_malloc(span + 1);
-    memmove(value, tmp, span);
-    value[span] = 0;
-    return value;
 
-error:
+    if (have_key) {
+        if (!out || span < size) {
+            char* value = out ? out : util_malloc(span + 1);
+            memmove(value, tmp, span);
+            value[span] = 0;
+            return value;
+        } else {
+            LOG_DEBUG("keyval_str] buffer too small for value (%s)", key);
+        }
+    }
+    
     if (!out && fallback) {
         return util_strdup(fallback);
     } else if (out && fallback && strlen(fallback) < size) {

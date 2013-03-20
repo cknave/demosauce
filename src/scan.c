@@ -40,7 +40,8 @@ void die(const char* msg)
 int main(int argc, char** argv)
 {
 #ifdef ENABLE_BASS
-    bass_loadso(argv);
+    if (!bass_loadso(argv))
+        return EXIT_FAILURE;
 #endif
     if (argc < 2 || (!strcmp(argv[1], "--") && argc < 3)) {
         puts("demosauce scan tool 0.4.0"ID_STR"\nsyntax: scan [--no-replaygain] file");
@@ -56,7 +57,7 @@ int main(int argc, char** argv)
     struct stream*  stream      = &stream0;;
 
 #ifdef ENABLE_BASS
-    if ((decoder = bass_load(path, "prescan=true", SAMPLERATE)))
+    if ((decoder = bass_load(path, "bass_prescan=true", SAMPLERATE)))
         bass_info(decoder, &info);
 #endif
     if (!decoder && (decoder = ff_load(path))) {

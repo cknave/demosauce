@@ -59,14 +59,18 @@ bool util_isfile(const char* path)
 {
     struct stat buf = {0};
     int err = stat(path, &buf);
-    return !err && S_ISREG(buf.st_mode);
+    bool isfile = !err && S_ISREG(buf.st_mode);
+    LOG_DEBUG("[util_isfile] %s %d", path, isfile);
+    return isfile;
 }
 
 long util_filesize(const char* path)
 {
     struct stat buf = {0};
     int err = stat(path, &buf);
-    return err ? -1 : buf.st_size;
+    long size = err ? -1 : buf.st_size;
+    LOG_DEBUG("[util_filesize] %s %ld", path, size);
+    return size;
 }
 
 //-----------------------------------------------------------------------------
@@ -82,14 +86,16 @@ char* util_strdup(const char* str)
 
 char* util_trim(char* str)
 {
-    char* tmp = str;
-    while (isspace(*str))
-        str++;
-    memmove(str, tmp, strlen(tmp));
-    tmp += strlen(tmp) - 1;
-    while (tmp > str && isspace(*tmp))
-        tmp--;
-    *tmp = 0;
+    if (str) {
+        char* tmp = str;
+        while (isspace(*str))
+            str++;
+        memmove(str, tmp, strlen(tmp));
+        tmp += strlen(tmp);
+        while (tmp > str && isspace(tmp[-1]))
+            tmp--;
+        *tmp = 0;
+    }
     return str;
 }
 
@@ -130,18 +136,20 @@ char* keyval_str(char* out, int size, const char* heap, const char* key, const c
             char* value = out ? out : util_malloc(span + 1);
             memmove(value, tmp, span);
             value[span] = 0;
+            LOG_DEBUG("[keyval_str] %s = %s", key, value);
             return value;
         } else {
-            LOG_DEBUG("keyval_str] buffer too small for value (%s)", key);
+            LOG_WARN("[keyval_str] buffer too small for value (%s)", key);
         }
     }
-    
+
+    LOG_DEBUG("[keyval_str] %s = %s (fallback)", key, fallback);    
     if (!out && fallback) {
         return util_strdup(fallback);
     } else if (out && fallback && strlen(fallback) < size) {
         return strcpy(out, fallback);
     } else if (out && size) {
-        LOG_DEBUG("[keyval_str] buffer too small for fallback (%s, %s)", key, fallback);
+        LOG_WARN("[keyval_str] buffer too small for fallback (%s, %s)", key, fallback);
         return strcpy(out, "");
     } else {
         return NULL;

@@ -304,11 +304,11 @@ float bass_loopiness(const char* path)
     // flags to make decoding as fast as possible. still use 44100 hz, because lower setting might
     // remove upper frequencies that could indicate a loop
     float loopiness     = 0;
-    DWORD flags         = BASS_MUSIC_DECODE | BASS_SAMPLE_MONO | BASS_MUSIC_NONINTER | BASS_MUSIC_PRESCAN;
-    DWORD samplerate    = 44100;
-    size_t check_frames = samplerate / 20;
-    size_t check_bytes  = check_frames * sizeof(int16_t);
-    int16_t* out        = NULL;
+    int flags           = BASS_MUSIC_DECODE | BASS_SAMPLE_MONO | BASS_MUSIC_NONINTER | BASS_MUSIC_PRESCAN;
+    int samplerate      = 44100;
+    int check_frames    = samplerate / 20;
+    int check_bytes     = check_frames * sizeof(int16_t);
+    int16_t* buf        = NULL;
 
     HMUSIC channel = BASS_MusicLoad(FALSE, path, 0, 0 , flags, samplerate);
 
@@ -319,24 +319,23 @@ float bass_loopiness(const char* path)
 
     QWORD length = BASS_ChannelGetLength(channel, BASS_POS_BYTE);
     if (!BASS_ChannelSetPosition(channel, length - check_bytes, BASS_POS_BYTE)) 
-        return 0;
+        goto error;
 
-    out = util_malloc(sizeof(int16_t) * check_frames);
-    memset(out, 0, sizeof(int16_t) * check_frames);
-    DWORD read_bytes = 0;
-    while (read_bytes < check_bytes && BASS_ErrorGetCode() == BASS_OK) {
-        DWORD r = BASS_ChannelGetData(channel, out, check_bytes - read_bytes);
-        out += r * sizeof(int16_t);
-        read_bytes += r;
+    buf = util_malloc(check_bytes);
+    memset(buf, 0, check_bytes);
+    for (int i = 0; i < check_bytes && BASS_ErrorGetCode() == BASS_OK;) {
+        DWORD r = BASS_ChannelGetData(channel, (char*)buf + i, check_bytes - i);
+        i += r;
     }
-    BASS_MusicFree(channel);
 
     long accu = 0;
-    for (size_t i = 0; i < check_frames; i++) 
-        accu += fabs(*out++);
+    for (int i = 0; i < check_frames; i++) 
+        accu += fabs(buf[i]);
     loopiness = (float)accu / check_frames / -INT16_MIN;
+
 error:
-    util_free(out);
+    BASS_MusicFree(channel);
+    util_free(buf);
     return loopiness;
 }
 

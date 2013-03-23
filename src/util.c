@@ -25,11 +25,13 @@
 #include "log.h"
 #include "effects.h"
 
+#define MEM_ALIGN (sizeof(void*) * 4)
+
 void* util_malloc(size_t size)
 {
     void* ptr = NULL;
-    int r = posix_memalign(&ptr, MEM_ALIGN, size);
-    return r ? NULL : ptr;
+    int err = posix_memalign(&ptr, MEM_ALIGN, size);
+    return err ? NULL : ptr;
 }    
 
 void* util_realloc(void* ptr, size_t size)
@@ -233,7 +235,7 @@ void socket_close(int socket)
 void buffer_resize(struct buffer* buf, size_t size) 
 {
     if (buf->size < size) {
-        buf->data = util_realloc(buf->data, buf->size);
+        buf->data = util_realloc(buf->data, size);
         buf->size = size;
     }
 }
@@ -256,7 +258,7 @@ void stream_resize(struct stream* s, int frames)
     assert(s->channels >= 1 && s->channels <= MAX_CHANNELS);
     if (s->max_frames < frames) { 
         for (int ch = 0; ch < s->channels; ch++) 
-            util_realloc(s->buffer[ch], frames * sizeof(float));
+            s->buffer[ch] = util_realloc(s->buffer[ch], frames * sizeof(float));
         s->max_frames = frames;
     }
 }

@@ -48,7 +48,7 @@ int main(int argc, char** argv)
         return EXIT_FAILURE;
     }
     const char*     path        = argv[argc - 1];
-    bool            do_scan     = !strcmp(argv[1], "--no-replaygain");
+    bool            do_scan     = strcmp(argv[1], "--no-replaygain");
     struct info     info        = {0};
     void*           decoder     = NULL;
     void*           resampler   = NULL;
@@ -97,7 +97,7 @@ int main(int argc, char** argv)
             // value if the input buffer has an odd lengh, until the root of the cause is found,
             // this will have to do :(
             if (do_scan) 
-                rg_analyze(ctx, buff, stream->frames & (INT_MAX - 1));
+                rg_analyze(ctx, buff, stream->frames & (INT_MIN + 1));
             frames += stream->frames;
             if (frames > MAX_LENGTH * SAMPLERATE) 
                 die("exceeded max length");

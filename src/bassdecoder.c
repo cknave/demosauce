@@ -55,11 +55,11 @@ void bass_free(void* handle)
 void* bass_load(const char* path, const char* options, int samplerate)
 {
     if (!initialized) {
+        BASS_SetConfig(BASS_CONFIG_UPDATEPERIOD, 0);
         if (!BASS_Init(0, samplerate, 0, 0, NULL)) {
             LOG_ERROR("[bassdecoder] BASS_Init failed");
             return false; 
         }
-        BASS_SetConfig(BASS_CONFIG_UPDATEPERIOD, 0);
         initialized = true;
     }
 

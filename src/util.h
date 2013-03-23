@@ -15,8 +15,7 @@
 #include <stdbool.h>
  
 #define MAX_CHANNELS    2
-#define MAGIC_NUMBER    0xaa55aa55
-#define MEM_ALIGN       16
+//#define MAGIC_NUMBER    0xaa55aa55
 
 #define INFO_SEEKABLE   1
 #define INFO_FFMPEG     (1 << 1)
@@ -58,7 +57,6 @@ struct info {
     char*       (*metadata)(void*, const char*);
     const char* codec;
     float       bitrate;
-//    float       length; // in seconds
     long        frames;
     int         channels;
     int         samplerate;

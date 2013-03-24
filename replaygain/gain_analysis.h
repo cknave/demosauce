@@ -49,17 +49,13 @@ typedef signed int      Int32_t;
 
 #define YULE_ORDER      10
 #define BUTTER_ORDER    2
-#define YULE_FILTER     filterYule
-#define BUTTER_FILTER   filterButter
-#define RMS_PERCENTILE  0.95            // percentile which is louder than the proposed level
-#define MAX_SAMP_FREQ   96000.          // maximum allowed sample frequency [Hz]
-#define RMS_WINDOW_TIME 0.050           // Time slice size [s]
-#define STEPS_per_dB    100.            // Table entries per dB
-#define MAX_dB          120.            // Table entries for 0...MAX_dB (normal max. values are 70...80 dB)
+#define MAX_SAMP_FREQ   96000
+#define RMS_WINDOW      20             // maximum allowed sample frequency [Hz]
+#define STEPS_per_dB    100            // Table entries per dB
+#define MAX_dB          120            // Table entries for 0...MAX_dB (normal max. values are 70...80 dB)
 
 #define MAX_ORDER               (BUTTER_ORDER > YULE_ORDER ? BUTTER_ORDER : YULE_ORDER)
-#define MAX_SAMPLES_PER_WINDOW  (size_t) (MAX_SAMP_FREQ * RMS_WINDOW_TIME + 1)      // max. Samples per Time slice
-#define PINK_REF                64.82 //298640883795                              // calibration value
+#define MAX_SAMPLES_PER_WINDOW  (size_t) (MAX_SAMP_FREQ / RMS_WINDOW + 1)      // max. Samples per Time slice
 
 struct rg_state {
     Float_t     linprebuf [MAX_ORDER * 2];

@@ -1,7 +1,7 @@
 /*
  *  ReplayGainAnalysis - analyzes input samples and give the recommended dB change
  *  Copyright (C) 2001-2009 David Robinson and Glen Sawyer
- *  Improvements and optimizations added by Frank Klemm, and by Marcel Müller
+ *  Improvements and optimizations added by Frank Klemm, and by Marcel Müller 
  *
  *  This library is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU Lesser General Public
@@ -95,6 +95,37 @@
 
 #include "gain_analysis.h"
 
+#define YULE_FILTER         filterYule
+#define BUTTER_FILTER       filterButter
+#define RMS_PERCENTILE      0.95        // percentile which is louder than the proposed level
+#define RMS_WINDOW_TIME     (1./RMS_WINDOW) // 0.050 Time slice size [s]
+#define PINK_REF            64.82 //298640883795                              // calibration value
+
+// what follows is a really lazy & cheap fix to allow more than one instance without rewriting
+// most of the old code. i feel ashamed. ~maep
+#define CTX         struct rg_state* ctx
+
+#define linprebuf   (ctx->linprebuf)
+#define linpre      (ctx->linpre)
+#define lstepbuf    (ctx->lstepbuf) 
+#define lstep       (ctx->lstep)
+#define loutbuf     (ctx->loutbuf)
+#define lout        (ctx->lout)
+#define rinprebuf   (ctx->rinprebuf)
+#define rinpre      (ctx->rinpre)                    
+#define rstepbuf    (ctx->rstepbuf)
+#define rstep       (ctx->rstep)
+#define routbuf     (ctx->routbuf)
+#define rout        (ctx->rout)
+#define sampleWindow (ctx->sampleWindow)            
+#define totsamp     (ctx->totsamp)
+#define lsum        (ctx->lsum)
+#define rsum        (ctx->rsum)
+#define freqindex   (ctx->freqindex)
+#define first       (ctx->first)
+#define AA          (ctx->A)
+#define BB          (ctx->B)
+
 // for each filter:
 // [0] 48 kHz, [1] 44.1 kHz, [2] 32 kHz, [3] 24 kHz, [4] 22050 Hz, [5] 16 kHz, [6] 12 kHz, [7] is 11025 Hz, [8] 8 kHz
 
@@ -105,9 +136,9 @@
 #endif
 
 static const Float_t ABYule[12][2*YULE_ORDER + 1] = {
-    {0.006471345933032, -7.22103125152679, -0.02567678242161,  24.7034187975904,   0.049805860704367, -52.6825833623896,  -0.05823001743528,  77.4825736677539,   0.040611847441914, -82.0074753444205,  -0.010912036887501, 63.1566097101925,  -0.00901635868667,  -34.889569769245,    0.012448886238123, 13.2126852760198,  -0.007206683749426, -3.09445623301669,  0.002167156433951, 0.340344741393305, -0.000261819276949},
-    {0.015415414474287, -7.19001570087017, -0.07691359399407,  24.4109412087159,   0.196677418516518, -51.6306373580801,  -0.338855114128061, 75.3978476863163,   0.430094579594561, -79.4164552507386,  -0.415015413747894, 61.0373661948115,   0.304942508151101, -33.7446462547014,  -0.166191795926663, 12.8168791146274,   0.063198189938739, -3.01332198541437, -0.015003978694525, 0.223619893831468,  0.001748085184539},
-    {0.021776466467053, -5.74819833657784, -0.062376961003801, 16.246507961894,    0.107731165328514, -29.9691822642542,  -0.150994515142316, 40.027597579378,    0.170334807313632, -40.3209196052655,  -0.157984942890531, 30.8542077487718,   0.121639833268721, -17.5965138737281,  -0.074094040816409,  7.10690214103873,  0.031282852041061, -1.82175564515191, -0.00755421235941,  0.223619893831468,  0.00117925454213 },
+	{0.006471345933032, -7.22103125152679, -0.02567678242161,  24.7034187975904,   0.049805860704367, -52.6825833623896,  -0.05823001743528,  77.4825736677539,   0.040611847441914, -82.0074753444205,  -0.010912036887501, 63.1566097101925,  -0.00901635868667,  -34.889569769245,    0.012448886238123, 13.2126852760198,  -0.007206683749426, -3.09445623301669,  0.002167156433951, 0.340344741393305, -0.000261819276949},
+	{0.015415414474287, -7.19001570087017, -0.07691359399407,  24.4109412087159,   0.196677418516518, -51.6306373580801,  -0.338855114128061, 75.3978476863163,   0.430094579594561, -79.4164552507386,  -0.415015413747894, 61.0373661948115,   0.304942508151101, -33.7446462547014,  -0.166191795926663, 12.8168791146274,   0.063198189938739, -3.01332198541437, -0.015003978694525, 0.223619893831468,  0.001748085184539},
+	{0.021776466467053, -5.74819833657784, -0.062376961003801, 16.246507961894,    0.107731165328514, -29.9691822642542,  -0.150994515142316, 40.027597579378,    0.170334807313632, -40.3209196052655,  -0.157984942890531, 30.8542077487718,   0.121639833268721, -17.5965138737281,  -0.074094040816409,  7.10690214103873,  0.031282852041061, -1.82175564515191, -0.00755421235941,  0.223619893831468,  0.00117925454213 },
     {0.03857599435200,  -3.84664617118067, -0.02160367184185,   7.81501653005538, -0.00123395316851,  -11.34170355132042, -0.00009291677959,  13.05504219327545, -0.01655260341619,  -12.28759895145294,  0.02161526843274,   9.48293806319790, -0.02074045215285,   -5.87257861775999,  0.00594298065125,   2.75465861874613,  0.00306428023191,  -0.86984376593551,  0.00012025322027,  0.13919314567432,   0.00288463683916 },
     {0.05418656406430,  -3.47845948550071, -0.02911007808948,   6.36317777566148, -0.00848709379851,   -8.54751527471874, -0.00851165645469,   9.47693607801280, -0.00834990904936,   -8.81498681370155,  0.02245293253339,   6.85401540936998, -0.02596338512915,   -4.39470996079559,  0.01624864962975,   2.19611684890774, -0.00240879051584,  -0.75104302451432,  0.00674613682247,  0.13149317958808,  -0.00187763777362 },
     {0.15457299681924,  -2.37898834973084, -0.09331049056315,   2.84868151156327, -0.06247880153653,   -2.64577170229825,  0.02163541888798,   2.23697657451713, -0.05588393329856,   -1.67148153367602,  0.04781476674921,   1.00595954808547,  0.00222312597743,   -0.45953458054983,  0.03174092540049,   0.16378164858596, -0.01390589421898,  -0.05032077717131,  0.00651420667831,  0.02347897407020,  -0.00881362733839 },
@@ -120,9 +151,9 @@ static const Float_t ABYule[12][2*YULE_ORDER + 1] = {
 };
 
 static const Float_t ABButter[12][2*BUTTER_ORDER + 1] = {
-    {0.99308203517541, -1.98611621154089, -1.98616407035082,  0.986211929160751, 0.99308203517541 },
-    {0.992472550461293,-1.98488843762334, -1.98494510092258,  0.979389350028798, 0.992472550461293},
-    {0.989641019334721,-1.97917472731008, -1.97928203866944,  0.979389350028798, 0.989641019334721},
+	{0.99308203517541, -1.98611621154089, -1.98616407035082,  0.986211929160751, 0.99308203517541 },
+	{0.992472550461293,-1.98488843762334, -1.98494510092258,  0.979389350028798, 0.992472550461293},
+	{0.989641019334721,-1.97917472731008, -1.97928203866944,  0.979389350028798, 0.989641019334721},
     {0.98621192462708, -1.97223372919527, -1.97242384925416,  0.97261396931306,  0.98621192462708 },
     {0.98500175787242, -1.96977855582618, -1.97000351574484,  0.97022847566350,  0.98500175787242 },
     {0.97938932735214, -1.95835380975398, -1.95877865470428,  0.95920349965459,  0.97938932735214 },
@@ -146,46 +177,48 @@ static const Float_t ABButter[12][2*BUTTER_ORDER + 1] = {
 // If your compiler complains that "'operation on 'output' may be undefined", you can
 // either ignore the warnings or uncomment the three "y" lines (and comment out the indicated line)
 
-static void filterYule (const Float_t* input, Float_t* output, size_t nSamples, const Float_t* kernel)
+static void
+filterYule (const Float_t* input, Float_t* output, size_t nSamples, const Float_t* kernel)
 {
 
     while (nSamples--) {
-        *output =  1e-10  /* 1e-10 is a hack to avoid slowdown because of denormals */
-                   + input [0]  * kernel[0]
-                   - output[-1] * kernel[1]
-                   + input [-1] * kernel[2]
-                   - output[-2] * kernel[3]
-                   + input [-2] * kernel[4]
-                   - output[-3] * kernel[5]
-                   + input [-3] * kernel[6]
-                   - output[-4] * kernel[7]
-                   + input [-4] * kernel[8]
-                   - output[-5] * kernel[9]
-                   + input [-5] * kernel[10]
-                   - output[-6] * kernel[11]
-                   + input [-6] * kernel[12]
-                   - output[-7] * kernel[13]
-                   + input [-7] * kernel[14]
-                   - output[-8] * kernel[15]
-                   + input [-8] * kernel[16]
-                   - output[-9] * kernel[17]
-                   + input [-9] * kernel[18]
-                   - output[-10]* kernel[19]
-                   + input [-10]* kernel[20];
+       *output =  1e-10  /* 1e-10 is a hack to avoid slowdown because of denormals */
+         + input [0]  * kernel[0]
+         - output[-1] * kernel[1]
+         + input [-1] * kernel[2]
+         - output[-2] * kernel[3]
+         + input [-2] * kernel[4]
+         - output[-3] * kernel[5]
+         + input [-3] * kernel[6]
+         - output[-4] * kernel[7]
+         + input [-4] * kernel[8]
+         - output[-5] * kernel[9]
+         + input [-5] * kernel[10]
+         - output[-6] * kernel[11]
+         + input [-6] * kernel[12]
+         - output[-7] * kernel[13]
+         + input [-7] * kernel[14]
+         - output[-8] * kernel[15]
+         + input [-8] * kernel[16]
+         - output[-9] * kernel[17]
+         + input [-9] * kernel[18]
+         - output[-10]* kernel[19]
+         + input [-10]* kernel[20];
         ++output;
         ++input;
     }
 }
 
-static void filterButter (const Float_t* input, Float_t* output, size_t nSamples, const Float_t* kernel)
-{
+static void
+filterButter ( const Float_t* input, Float_t* output, size_t nSamples, const Float_t* kernel)
+{   
     while (nSamples--) {
-        *output =
-            input [0]  * kernel[0]
-            - output[-1] * kernel[1]
-            + input [-1] * kernel[2]
-            - output[-2] * kernel[3]
-            + input [-2] * kernel[4];
+        *output =  
+           input [0]  * kernel[0]
+         - output[-1] * kernel[1]
+         + input [-1] * kernel[2]
+         - output[-2] * kernel[3]
+         + input [-2] * kernel[4];
         ++output;
         ++input;
     }
@@ -194,80 +227,56 @@ static void filterButter (const Float_t* input, Float_t* output, size_t nSamples
 
 // returns a INIT_GAIN_ANALYSIS_OK if successful, INIT_GAIN_ANALYSIS_ERROR if not
 
-int ResetSampleFrequency (struct rg_state* s, long samplefreq)
-{
+int
+ResetSampleFrequency (CTX, long samplefreq) {
     int  i;
 
     // zero out initial values
     for ( i = 0; i < MAX_ORDER; i++ )
-        s->linprebuf[i] = s->lstepbuf[i] = s->loutbuf[i] = s->rinprebuf[i] = s->rstepbuf[i] = s->routbuf[i] = 0.;
+        linprebuf[i] = lstepbuf[i] = loutbuf[i] = rinprebuf[i] = rstepbuf[i] = routbuf[i] = 0.;
 
     switch ( (int)(samplefreq) ) {
-    case 96000:
-        s->freqindex = 0;
-        break;
-    case 88200:
-        s->freqindex = 1;
-        break;
-    case 64000:
-        s->freqindex = 2;
-        break;
-    case 48000:
-        s->freqindex = 3;
-        break;
-    case 44100:
-        s->freqindex = 4;
-        break;
-    case 32000:
-        s->freqindex = 5;
-        break;
-    case 24000:
-        s->freqindex = 6;
-        break;
-    case 22050:
-        s->freqindex = 7;
-        break;
-    case 16000:
-        s->freqindex = 8;
-        break;
-    case 12000:
-        s->freqindex = 9;
-        break;
-    case 11025:
-        s->freqindex = 10;
-        break;
-    case  8000:
-        s->freqindex = 11;
-        break;
-    default:
-        return INIT_GAIN_ANALYSIS_ERROR;
+        case 96000: freqindex = 0; break;
+        case 88200: freqindex = 1; break;
+        case 64000: freqindex = 2; break;
+        case 48000: freqindex = 3; break;
+        case 44100: freqindex = 4; break;
+        case 32000: freqindex = 5; break;
+        case 24000: freqindex = 6; break;
+        case 22050: freqindex = 7; break;
+        case 16000: freqindex = 8; break;
+        case 12000: freqindex = 9; break;
+        case 11025: freqindex = 10; break;
+        case  8000: freqindex = 11; break;
+        default:    return INIT_GAIN_ANALYSIS_ERROR;
     }
 
-    s->sampleWindow = (int) ceil (samplefreq * RMS_WINDOW_TIME);
+    sampleWindow = (int) ceil (samplefreq * RMS_WINDOW_TIME);
 
-    s->lsum         = 0.;
-    s->rsum         = 0.;
-    s->totsamp      = 0;
+    lsum         = 0.;
+    rsum         = 0.;
+    totsamp      = 0;
 
-    memset (s->A, 0, sizeof(s->A) );
+    memset ( AA, 0, sizeof(AA) );
 
     return INIT_GAIN_ANALYSIS_OK;
 }
 
-int InitGainAnalysis (struct rg_state* s, long samplefreq)
+int
+InitGainAnalysis (CTX, long samplefreq)
 {
-    if (ResetSampleFrequency(s, samplefreq) != INIT_GAIN_ANALYSIS_OK) {
+    if (ResetSampleFrequency(ctx, samplefreq) != INIT_GAIN_ANALYSIS_OK) {
         return INIT_GAIN_ANALYSIS_ERROR;
     }
 
-    s->linpre       = s->linprebuf + MAX_ORDER;
-    s->rinpre       = s->rinprebuf + MAX_ORDER;
-    s->lstep        = s->lstepbuf  + MAX_ORDER;
-    s->rstep        = s->rstepbuf  + MAX_ORDER;
-    s->lout         = s->loutbuf   + MAX_ORDER;
-    s->rout         = s->routbuf   + MAX_ORDER;
+    linpre       = linprebuf + MAX_ORDER;
+    rinpre       = rinprebuf + MAX_ORDER;
+    lstep        = lstepbuf  + MAX_ORDER;
+    rstep        = rstepbuf  + MAX_ORDER;
+    lout         = loutbuf   + MAX_ORDER;
+    rout         = routbuf   + MAX_ORDER;
 
-    memset (s->B, 0, sizeof(s->B) );
+    memset ( BB, 0, sizeof(BB) );
 
     return INIT_GAIN_ANALYSIS_OK;
 }
@@ -275,11 +284,11 @@ int InitGainAnalysis (struct rg_state* s, long samplefreq)
 // returns GAIN_ANALYSIS_OK if successful, GAIN_ANALYSIS_ERROR if not
 
 static __inline Float_t fsqr(const Float_t d)
-{
-    return d*d;
+{  return d*d;
 }
 
-int AnalyzeSamples (struct rg_state* s, const Float_t* left_samples, const Float_t* right_samples, size_t num_samples, int num_channels )
+int
+AnalyzeSamples (CTX, const Float_t* left_samples, const Float_t* right_samples, size_t num_samples, int num_channels )
 {
     const Float_t*  curleft;
     const Float_t*  curright;
@@ -295,124 +304,121 @@ int AnalyzeSamples (struct rg_state* s, const Float_t* left_samples, const Float
     batchsamples = (long)num_samples;
 
     switch ( num_channels) {
-    case  1:
-        right_samples = left_samples;
-    case  2:
-        break;
-    default:
-        return GAIN_ANALYSIS_ERROR;
+    case  1: right_samples = left_samples;
+    case  2: break;
+    default: return GAIN_ANALYSIS_ERROR;
     }
 
     if ( num_samples < MAX_ORDER ) {
-        memcpy ( s->linprebuf + MAX_ORDER, left_samples , num_samples * sizeof(Float_t) );
-        memcpy ( s->rinprebuf + MAX_ORDER, right_samples, num_samples * sizeof(Float_t) );
-    } else {
-        memcpy ( s->linprebuf + MAX_ORDER, left_samples,  MAX_ORDER   * sizeof(Float_t) );
-        memcpy ( s->rinprebuf + MAX_ORDER, right_samples, MAX_ORDER   * sizeof(Float_t) );
+        memcpy ( linprebuf + MAX_ORDER, left_samples , num_samples * sizeof(Float_t) );
+        memcpy ( rinprebuf + MAX_ORDER, right_samples, num_samples * sizeof(Float_t) );
+    }
+    else {
+        memcpy ( linprebuf + MAX_ORDER, left_samples,  MAX_ORDER   * sizeof(Float_t) );
+        memcpy ( rinprebuf + MAX_ORDER, right_samples, MAX_ORDER   * sizeof(Float_t) );
     }
 
     while ( batchsamples > 0 ) {
-        cursamples = batchsamples > s->sampleWindow - s->totsamp  ?  
-            s->sampleWindow - s->totsamp : 
-            batchsamples;
+        cursamples = batchsamples > sampleWindow-totsamp  ?  sampleWindow - totsamp  :  batchsamples;
         if ( cursamplepos < MAX_ORDER ) {
-            curleft  = s->linpre + cursamplepos;
-            curright = s->rinpre + cursamplepos;
+            curleft  = linpre+cursamplepos;
+            curright = rinpre+cursamplepos;
             if (cursamples > MAX_ORDER - cursamplepos )
                 cursamples = MAX_ORDER - cursamplepos;
-        } else {
+        }
+        else {
             curleft  = left_samples  + cursamplepos;
             curright = right_samples + cursamplepos;
         }
 
-        YULE_FILTER ( curleft , s->lstep + s->totsamp, cursamples, ABYule[s->freqindex]);
-        YULE_FILTER ( curright, s->rstep + s->totsamp, cursamples, ABYule[s->freqindex]);
+        YULE_FILTER ( curleft , lstep + totsamp, cursamples, ABYule[freqindex]);
+        YULE_FILTER ( curright, rstep + totsamp, cursamples, ABYule[freqindex]);
 
-        BUTTER_FILTER ( s->lstep + s->totsamp, s->lout + s->totsamp, cursamples, ABButter[s->freqindex]);
-        BUTTER_FILTER ( s->rstep + s->totsamp, s->rout + s->totsamp, cursamples, ABButter[s->freqindex]);
+        BUTTER_FILTER ( lstep + totsamp, lout + totsamp, cursamples, ABButter[freqindex]);
+        BUTTER_FILTER ( rstep + totsamp, rout + totsamp, cursamples, ABButter[freqindex]);
 
-        curleft = s->lout + s->totsamp;                   // Get the squared values
-        curright = s->rout + s->totsamp;
+        curleft = lout + totsamp;                   // Get the squared values
+        curright = rout + totsamp;
 
         i = cursamples % 16;
-        while (i--) {
-            s->lsum += fsqr(*curleft++);
-            s->rsum += fsqr(*curright++);
+        while (i--)
+        {   lsum += fsqr(*curleft++);
+            rsum += fsqr(*curright++);
         }
         i = cursamples / 16;
-        while (i--) {
-            s->lsum += fsqr(curleft[0])
-                    + fsqr(curleft[1])
-                    + fsqr(curleft[2])
-                    + fsqr(curleft[3])
-                    + fsqr(curleft[4])
-                    + fsqr(curleft[5])
-                    + fsqr(curleft[6])
-                    + fsqr(curleft[7])
-                    + fsqr(curleft[8])
-                    + fsqr(curleft[9])
-                    + fsqr(curleft[10])
-                    + fsqr(curleft[11])
-                    + fsqr(curleft[12])
-                    + fsqr(curleft[13])
-                    + fsqr(curleft[14])
-                    + fsqr(curleft[15]);
+        while (i--)
+        {   lsum += fsqr(curleft[0])
+                  + fsqr(curleft[1])
+                  + fsqr(curleft[2])
+                  + fsqr(curleft[3])
+                  + fsqr(curleft[4])
+                  + fsqr(curleft[5])
+                  + fsqr(curleft[6])
+                  + fsqr(curleft[7])
+                  + fsqr(curleft[8])
+                  + fsqr(curleft[9])
+                  + fsqr(curleft[10])
+                  + fsqr(curleft[11])
+                  + fsqr(curleft[12])
+                  + fsqr(curleft[13])
+                  + fsqr(curleft[14])
+                  + fsqr(curleft[15]);
             curleft += 16;
-            s->rsum += fsqr(curright[0])
-                    + fsqr(curright[1])
-                    + fsqr(curright[2])
-                    + fsqr(curright[3])
-                    + fsqr(curright[4])
-                    + fsqr(curright[5])
-                    + fsqr(curright[6])
-                    + fsqr(curright[7])
-                    + fsqr(curright[8])
-                    + fsqr(curright[9])
-                    + fsqr(curright[10])
-                    + fsqr(curright[11])
-                    + fsqr(curright[12])
-                    + fsqr(curright[13])
-                    + fsqr(curright[14])
-                    + fsqr(curright[15]);
+            rsum += fsqr(curright[0])
+                  + fsqr(curright[1])
+                  + fsqr(curright[2])
+                  + fsqr(curright[3])
+                  + fsqr(curright[4])
+                  + fsqr(curright[5])
+                  + fsqr(curright[6])
+                  + fsqr(curright[7])
+                  + fsqr(curright[8])
+                  + fsqr(curright[9])
+                  + fsqr(curright[10])
+                  + fsqr(curright[11])
+                  + fsqr(curright[12])
+                  + fsqr(curright[13])
+                  + fsqr(curright[14])
+                  + fsqr(curright[15]);
             curright += 16;
         }
 
         batchsamples -= cursamples;
         cursamplepos += cursamples;
-        s->totsamp   += cursamples;
-        if (s->totsamp == s->sampleWindow) {  // Get the Root Mean Square (RMS) for this set of samples
-            Float_t val  = STEPS_per_dB * 10. * log10((s->lsum + s->rsum) / s->totsamp * 0.5 + 1.e-37);
-            int ival = (int)val;
-            if (ival < 0) 
-                ival = 0;
-            if (ival >= (int)(sizeof(s->A)/sizeof(*s->A))) 
-                ival = sizeof(s->A)/sizeof(*s->A) - 1;
-            s->A[ival]++;
-            s->lsum = s->rsum = 0.;
-            memmove(s->loutbuf , s->loutbuf + s->totsamp, MAX_ORDER * sizeof(Float_t));
-            memmove(s->routbuf , s->routbuf + s->totsamp, MAX_ORDER * sizeof(Float_t));
-            memmove(s->lstepbuf, s->lstepbuf + s->totsamp, MAX_ORDER * sizeof(Float_t));
-            memmove(s->rstepbuf, s->rstepbuf + s->totsamp, MAX_ORDER * sizeof(Float_t));
-            s->totsamp = 0;
+        totsamp      += cursamples;
+        if ( totsamp == sampleWindow ) {  // Get the Root Mean Square (RMS) for this set of samples
+            double  val  = STEPS_per_dB * 10. * log10 ( (lsum+rsum) / totsamp * 0.5 + 1.e-37 );
+            int     ival = (int) val;
+            if ( ival <                     0 ) ival = 0;
+            if ( ival >= (int)(sizeof(AA)/sizeof(*AA)) ) ival = sizeof(AA)/sizeof(*AA) - 1;
+            AA [ival]++;
+            lsum = rsum = 0.;
+            memmove ( loutbuf , loutbuf  + totsamp, MAX_ORDER * sizeof(Float_t) );
+            memmove ( routbuf , routbuf  + totsamp, MAX_ORDER * sizeof(Float_t) );
+            memmove ( lstepbuf, lstepbuf + totsamp, MAX_ORDER * sizeof(Float_t) );
+            memmove ( rstepbuf, rstepbuf + totsamp, MAX_ORDER * sizeof(Float_t) );
+            totsamp = 0;
         }
-        if (s->totsamp > s->sampleWindow)   // somehow I really screwed up: Error in programming! Contact author about totsamp > sampleWindow
+        if ( totsamp > sampleWindow )   // somehow I really screwed up: Error in programming! Contact author about totsamp > sampleWindow
             return GAIN_ANALYSIS_ERROR;
     }
-    if (num_samples < MAX_ORDER) {
-        memmove(s->linprebuf, s->linprebuf + num_samples, (MAX_ORDER-num_samples) * sizeof(Float_t) );
-        memmove(s->rinprebuf, s->rinprebuf + num_samples, (MAX_ORDER-num_samples) * sizeof(Float_t) );
-        memcpy(s->linprebuf + MAX_ORDER - num_samples, left_samples, num_samples * sizeof(Float_t) );
-        memcpy(s->rinprebuf + MAX_ORDER - num_samples, right_samples, num_samples * sizeof(Float_t) );
-    } else {
-        memcpy(s->linprebuf, left_samples  + num_samples - MAX_ORDER, MAX_ORDER * sizeof(Float_t));
-        memcpy(s->rinprebuf, right_samples + num_samples - MAX_ORDER, MAX_ORDER * sizeof(Float_t));
+    if ( num_samples < MAX_ORDER ) {
+        memmove ( linprebuf,                           linprebuf + num_samples, (MAX_ORDER-num_samples) * sizeof(Float_t) );
+        memmove ( rinprebuf,                           rinprebuf + num_samples, (MAX_ORDER-num_samples) * sizeof(Float_t) );
+        memcpy  ( linprebuf + MAX_ORDER - num_samples, left_samples,          num_samples             * sizeof(Float_t) );
+        memcpy  ( rinprebuf + MAX_ORDER - num_samples, right_samples,         num_samples             * sizeof(Float_t) );
+    }
+    else {
+        memcpy  ( linprebuf, left_samples  + num_samples - MAX_ORDER, MAX_ORDER * sizeof(Float_t) );
+        memcpy  ( rinprebuf, right_samples + num_samples - MAX_ORDER, MAX_ORDER * sizeof(Float_t) );
     }
 
     return GAIN_ANALYSIS_OK;
 }
 
 
-static Float_t analyzeResult (Uint32_t* Array, size_t len )
+static Float_t
+analyzeResult ( Uint32_t* Array, size_t len )
 {
     Uint32_t  elems;
     Int32_t   upper;
@@ -434,30 +440,32 @@ static Float_t analyzeResult (Uint32_t* Array, size_t len )
 }
 
 
-Float_t GetTitleGain(struct rg_state* s)
+Float_t
+GetTitleGain (CTX)
 {
     Float_t  retval;
     int    i;
 
-    retval = analyzeResult(s->A, sizeof(s->A)/sizeof(*s->A) );
+    retval = analyzeResult ( AA, sizeof(AA)/sizeof(*AA) );
 
-    for (i = 0; i < (int)(sizeof(s->A)/sizeof(*s->A)); i++) {
-        s->B[i] += s->A[i];
-        s->A[i]  = 0;
+    for ( i = 0; i < (int)(sizeof(AA)/sizeof(*AA)); i++ ) {
+        BB[i] += AA[i];
+        AA[i]  = 0;
     }
 
-    for (i = 0; i < MAX_ORDER; i++)
-        s->linprebuf[i] = s->lstepbuf[i] = s->loutbuf[i] = s->rinprebuf[i] = s->rstepbuf[i] = s->routbuf[i] = 0.f;
+    for ( i = 0; i < MAX_ORDER; i++ )
+        linprebuf[i] = lstepbuf[i] = loutbuf[i] = rinprebuf[i] = rstepbuf[i] = routbuf[i] = 0.f;
 
-    s->totsamp = 0;
-    s->lsum = s->rsum = 0.;
+    totsamp = 0;
+    lsum    = rsum = 0.;
     return retval;
 }
 
 
-Float_t GetAlbumGain(struct rg_state* s)
+Float_t
+GetAlbumGain (CTX)
 {
-    return analyzeResult(s->B, sizeof(s->B)/sizeof(*s->B) );
+    return analyzeResult (BB, sizeof(BB)/sizeof(*BB) );
 }
 
 /* end of gain_analysis.c */

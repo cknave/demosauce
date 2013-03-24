@@ -11,13 +11,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include <limits.h>
 #include <replay_gain.h>
 #include "bassdecoder.h"
 #include "ffdecoder.h"
 #include "effects.h"
 #include "util.h"
-#include "../../microwav/microwav.h"
 
 #define MAX_LENGTH 3600     // abort scan if track is too long, in seconds
 #define SAMPLERATE 44100
@@ -84,8 +82,6 @@ int main(int argc, char** argv)
 
     struct rg_context* ctx = rg_new(SAMPLERATE, RG_FLOAT32, info.channels, false);
 
-//    FILE* wav = mwav_open_writer("debug.wav", 1, SAMPLERATE, 4);
-
     // avcodec is unreliable when it comes to length, so the only way to be 
     // absolutely accurate is to decode the whole stream
     long frames = 0;
@@ -94,19 +90,17 @@ int main(int argc, char** argv)
             info.decode(decoder, &stream0, SAMPLERATE);
             if (resampler)
                 fx_resample(resampler, &stream0, &stream1);
-//            fwrite(stream->buffer[1], sizeof(float), stream->frames, wav);  
             float* buff[2] = {stream->buffer[0], stream->buffer[1]};
             // there is a strange bug in the replaygain code that can cause it to report the wrong
             // value if the input buffer has an odd lengh, until the root of the cause is found,
             // this will have to do :(
             if (do_scan) 
-                rg_analyze(ctx, buff, stream->frames & (INT_MIN + 1));
+                rg_analyze(ctx, buff, stream->frames & -2);
             frames += stream->frames;
             if (frames > MAX_LENGTH * SAMPLERATE) 
                 die("exceeded max length");
         }
     }
-//    mwav_close_writer(wav);
 
     char* str = NULL;
     str = info.metadata(decoder, "artist");
@@ -136,7 +130,7 @@ int main(int argc, char** argv)
         printf("bitrate:%f\n", info.bitrate);
     else if (info.flags & INFO_FFMPEG)
         printf("bitrate:%f\n", fake_bitrate(path, frames * SAMPLERATE));
-    if (info.samplerate)
+    if (!(info.flags & INFO_MOD) && info.samplerate)
         printf("samplerate:%d\n", info.samplerate);
 
     return EXIT_SUCCESS;

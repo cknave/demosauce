@@ -1,7 +1,7 @@
 #!/bin/sh
 OUTPUT='libreplaygain.a'
 
-gcc -Wall -std=c99 -march=native -O3 -ffast-math -c gain_analysis.c replay_gain.c
+gcc -Wall -std=c99 -O3 -ffast-math -c gain_analysis.c replay_gain.c
 
 if test $? -eq 0; then
 	rm -f $OUTPUT

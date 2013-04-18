@@ -36,13 +36,13 @@ struct ffdecoder {
     AVFormatContext*    format_context;
     AVCodecContext*     codec_context;
     AVCodec*            codec;
+    AVPacket            packet;
+    AVPacket            tmp_packet;
     int                 stream_index;
     int                 packet_buffer_pos;
     int                 channels;
     long                frames;
 };
-
-static bool initialized = false;
 
 static void ff_free2(struct ffdecoder* d)
 {
@@ -64,6 +64,7 @@ void ff_free(void* handle)
 
 void* ff_load(const char* path)
 {
+    static bool initialized = false;
     if (!initialized) {
         av_register_all();
         initialized = true;
@@ -159,6 +160,25 @@ static int decode_frame(struct ffdecoder* d, AVPacket* p, char* buffer, int size
     return decoded_size;
 }
 
+static void decode_frame2(struct ffdecoder* d, AVPacket* p, char* buffer, int size)
+{
+    while (p->size > 0 || (!p->data && new_packet)) {
+        avcodec_get_frame_defaults(p->frame);
+        new_packet = 0;
+        len = avcodec_decode_audio4(d->codec_context, d->frame, &got_frame, pkt_tmp);
+        if (len < 0) {
+            pkt_tmp->size = 0;
+            break;
+        }
+        pkt_tmp->data += len;
+        pkt_tmp->size += len;
+        if (!got_frame) {
+            // flush something
+            continue;
+        }
+    }
+}
+
 void ff_decode(void* handle, struct stream* s, int frames)
 {
     struct ffdecoder* d = handle;
@@ -173,25 +193,20 @@ void ff_decode(void* handle, struct stream* s, int frames)
     int need_bytes  = frames * s->channels * sizeof(int16_t); 
     int min_bytes   = MAX(192000, need_bytes); // small buffers seem to cause trouble!
     int buffer_size = MIN(AVCODEC_MAX_AUDIO_FRAME_SIZE * 3, min_bytes * 2);
-    if (d->packet_buffer.size < buffer_size)
-        buffer_resize(&d->packet_buffer, buffer_size);
+    if (d->pckt_buff.size < buffer_size)
+        buffer_resize(&d->pkt_buff, buffer_size);
     
     AVPacket packet = {0};
     while (d->packet_buffer_pos < min_bytes) {
         if (av_read_frame(d->format_context, &packet) < 0) // demux/read packet
             break; // end of stream
-        if (packet.stream_index != d->stream_index) 
-            continue;
-        d->packet_buffer_pos += decode_frame(d, &packet, (char*)d->packet_buffer.data + d->packet_buffer_pos, buffer_size);
+        if (packet.stream_index == d->stream_index) 
+            d->pkt_buff_pos += decode_frame(d, &packet, (char*)d->pkt_buff.data + d->pkt_buff_pos, buffer_size);
+        av_free_packet(&packet);
     }
 
-    // according to the docs, av_free_packet should be called at some point after av_read_frame
-    // without these checks, mysterious segfaults start appearing with small buffers. stable my ass!
-    if (packet.data != 0 && packet.size != 0) 
-        av_free_packet(&packet);
-
-    s->end_of_stream = d->packet_buffer_pos < need_bytes;
-    int used_bytes = MIN(need_bytes, d->packet_buffer_pos);
+    s->end_of_stream = d->pkt_buff_pos < need_bytes;
+    int used_bytes = MIN(need_bytes, d->pkt_buff_pos);
     int used_frames = used_bytes / (d->channels * sizeof(int16_t));
 
     buffer_resize(&d->float_buffer, d->channels * used_frames * sizeof(float));

@@ -41,7 +41,7 @@
 extern "C" {
 #endif
 
-typedef double          Float_t;         // Type used for filtering
+typedef float           Float_t;         // Type used for filtering
 typedef unsigned short  Uint16_t;
 typedef signed short    Int16_t;
 typedef unsigned int    Uint32_t;
@@ -72,8 +72,8 @@ struct rg_state {
     Float_t*    rout;
     long        sampleWindow;                                    // number of samples required to reach number of milliseconds required for RMS window
     long        totsamp;
-    double      lsum;
-    double      rsum;
+    Float_t     lsum;
+    Float_t     rsum;
     int         freqindex;
     int         first;
     Uint32_t    A[(size_t)(STEPS_per_dB * MAX_dB)];

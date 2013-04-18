@@ -101,6 +101,8 @@ int main(int argc, char** argv)
                 die("exceeded max length");
         }
     }
+    fx_resample_free(resampler);
+    info.free(decoder);
 
     char* str = NULL;
     str = info.metadata(decoder, "artist");

@@ -31,8 +31,6 @@ struct bassdecoder {
     long                last_frame;
 };
 
-static bool initialized;
-
 static void bass_free2(struct bassdecoder* d)
 {
     util_free(d->read_buffer.data);
@@ -54,6 +52,7 @@ void bass_free(void* handle)
 
 void* bass_load(const char* path, const char* options, int samplerate)
 {
+    static bool initialized = false;
     if (!initialized) {
         BASS_SetConfig(BASS_CONFIG_UPDATEPERIOD, 0);
         if (!BASS_Init(0, samplerate, 0, 0, NULL)) {

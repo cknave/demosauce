@@ -387,7 +387,7 @@ AnalyzeSamples (CTX, const Float_t* left_samples, const Float_t* right_samples, 
         cursamplepos += cursamples;
         totsamp      += cursamples;
         if ( totsamp == sampleWindow ) {  // Get the Root Mean Square (RMS) for this set of samples
-            double  val  = STEPS_per_dB * 10. * log10 ( (lsum+rsum) / totsamp * 0.5 + 1.e-37 );
+            Float_t val  = STEPS_per_dB * 10. * log10 ( (lsum+rsum) / totsamp * 0.5 + 1.e-37 );
             int     ival = (int) val;
             if ( ival <                     0 ) ival = 0;
             if ( ival >= (int)(sizeof(AA)/sizeof(*AA)) ) ival = sizeof(AA)/sizeof(*AA) - 1;

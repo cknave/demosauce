@@ -22,7 +22,7 @@
 
 // for some formats avcodec fails to provide a bitrate so I just
 // make an educated guess. if the file contains large amounts of 
-// other data, this will be completely wrong.
+// other data besides music, this will be completely wrong.
 static float fake_bitrate(const char* path, float duration)
 {
     long bytes = util_filesize(path);

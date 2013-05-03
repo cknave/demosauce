@@ -33,7 +33,7 @@ struct bassdecoder {
 
 static void bass_free2(struct bassdecoder* d)
 {
-    util_free(d->read_buffer.data);
+    buffer_free(&d->read_buffer);
     if (d->channel) {
         if (d->channel_info.ctype & BASS_CTYPE_MUSIC_MOD) 
             BASS_MusicFree(d->channel);
@@ -146,7 +146,8 @@ void bass_decode(void* handle, struct stream* s, int frames)
     int frames_read = bytes_read != -1 ? bytes_read / (sizeof(float) * ch) : 0;
     d->current_frame += frames_read;
 
-    stream_fill(s, d->read_buffer.data, frames_read, ch);
+    s->frames = 0;
+    stream_append_convert(s, &d->read_buffer.data, SF_F32I, frames_read, ch);
     s->end_of_stream = (frames_read != frames_to_read) || (d->current_frame >= d->last_frame);
     if(s->end_of_stream) 
         LOG_DEBUG("[bassdecoder] eos %d frames left", s->frames);

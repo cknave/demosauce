@@ -245,6 +245,12 @@ void buffer_zero(struct buffer* buf)
     memset(buf->data, 0, buf->size);
 }
 
+void buffer_free(struct buffer* buf)
+{
+    util_free(buf->data);
+    memset(buf, 0, sizeof(struct buffer));
+}
+
 //-----------------------------------------------------------------------------
 
 void stream_free(struct stream* s)
@@ -263,31 +269,36 @@ void stream_resize(struct stream* s, int frames)
     }
 }
 
-void stream_fill(struct stream* s, const float* source, int frames, int channels)
+void stream_append(struct stream* s, struct stream* source, int frames)
+{
+    frames = CLAMP(0, frames, source->frames);
+    s->channels = source->channels;
+    s->frames += frames;
+    for (int ch = 0; ch < s->channels; ch++)
+        memmove(s->buffer[ch], source->buffer[ch], frames * sizeof(float));
+}
+
+void stream_append_convert(struct stream* s, void** source, int type, int frames, int channels)
 {
     assert(channels >= 1 && channels <= MAX_CHANNELS);
-    if (channels != s->channels)
-        s->channels = channels;
-    stream_resize(s, frames);
-    s->frames = frames;
-    if (channels == 1)
-        memmove(s->buffer[0], source, frames * sizeof(float));
-    else // channels == 2 
-        fx_deinterleave(source, s->buffer[0], s->buffer[1], frames);
+    s->channels = channels;
+    s->frames += frames;
+    stream_resize(s, s->frames);
+    fx_convert_to_float(source, s->buffer, type, frames, channels);
 }
 
 void stream_drop(struct stream* s, int frames)
 {
-    assert(frames <= s->frames);
-    int remaining_frames = s->frames - frames;
-    if (remaining_frames > 0)
-        for (int i = 0; i < s->channels; i++)
-            memmove(s->buffer[i], s->buffer[i] + frames, remaining_frames * sizeof(float));
-    s->frames = remaining_frames;
+    frames = CLAMP(0, frames, s->frames);
+    s->frames -= frames;
+    if (s->frames > 0)
+        for (int ch = 0; ch < s->channels; ch++)
+            memmove(s->buffer[ch], s->buffer[ch] + frames, s->frames * sizeof(float));
 }
 
 void stream_zero(struct stream* s, int offset, int frames)
 {
+    // TODO replace assert with MIN
     assert(offset + frames <= s->max_frames);
     for (int i = 0; i < s->channels; i++)
         memset(s->buffer[i] + offset, 0, s->frames * sizeof(float));

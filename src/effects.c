@@ -179,11 +179,59 @@ void fx_mix_process(struct fx_mix* fx, struct stream* s)
 
 //-----------------------------------------------------------------------------
 
-void fx_deinterleave(const float* in, float* lout, float* rout, int len)
+static void ci16i(const void** vin, float** out, int len, int channels)
 {
-    for (int i = 0; i < len; i++) {
-        lout[i] = in[i * 2];
-        rout[i] = in[i * 2 + 1];
+    const int16_t* in = vin[0]; 
+    float* lout = out[0];
+    if (channels == 1) {
+        for (int i = 0; i < len; i++) 
+            lout[i] = (float)in[i] / -(INT16_MIN);
+    } else { // channels == 2
+        float* rout = out[1];
+        for (int i = 0; i < len; i++) {
+            lout[i] = (float)in[i * 2] / -(INT16_MIN);
+            rout[i] = (float)in[i * 2 + 1] / -(INT16_MIN);
+        }
     }
+}
+
+static void ci16p(const void** vin, float** out, int len, int channels)
+{
+    for (int ch = 0; ch < channels; ch++) {
+        const int16_t* in = vin[ch];
+        float* lout = out[ch];
+        for (int i = 0; i < len; i++) 
+            lout[i] = (float)in[i] / -(INT16_MIN);
+    }
+}
+
+static void cf32i(const void** vin, float** out, int len, int channels)
+{
+    if (channels == 1) {
+        memmove(out[0], vin[0], len * sizeof(float));
+    } else { // channels == 2
+        const float* in = vin[0];
+        float* lout = out[0];
+        float* rout = out[1];
+        for (int i = 0; i < len; i++) {
+            lout[i] = in[i * 2];
+            rout[i] = in[i * 2 + 1];
+        }
+    }
+}
+
+static void cf32p(const void** vin, float** out, int len, int channels)
+{
+    for (int ch = 0; ch < channels; ch++) 
+        memmove(out[ch], vin[ch], len * sizeof(float));
+}
+
+static void (*convert[])(const void**, float**, int, int) = {ci16i, ci16p, cf32i, cf32p}; 
+
+void fx_convert_to_float(void** in, float** out, int type, int size, int channels)
+{
+    assert(channels >= 1 && channels <= 2);
+    assert(type >= SF_I16I && type <= SF_F32P);
+    convert[type]((const void**)in, out, size, channels);
 }
 

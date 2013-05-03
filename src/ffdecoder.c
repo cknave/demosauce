@@ -8,12 +8,11 @@
 *   copyright MMXIII by maep
 */
 
-// fix missing UINT64_C macro
+// fixes missing UINT64_C macro on some distros
 #define __STDC_CONSTANT_MACROS
 
 #include <string.h>
 #include <strings.h>
-#include <samplerate.h>
 #ifdef AVCODEC_FIX0
     #include <avcodec.h>
     #include <avformat.h>
@@ -29,23 +28,29 @@
     #define AV_VERSION_INT(a, b, c) (a << 16 | b << 8 | c)
 #endif
 
+#define BUFFER_SIZE (AVCODEC_MAX_AUDIO_FRAME_SIZE)
+
 struct ffdecoder {
-    struct buffer       packet_buffer;
-    struct buffer       decode_buffer;
-    struct buffer       float_buffer;
+#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(53, 25, 0)
+    struct buffer       buffer;
+#endif
+    struct stream       stream;
     AVFormatContext*    format_context;
     AVCodecContext*     codec_context;
     AVCodec*            codec;
     AVPacket            packet;
     AVPacket            tmp_packet;
     int                 stream_index;
-    int                 packet_buffer_pos;
-    int                 channels;
+    int                 format;
     long                frames;
 };
 
 static void ff_free2(struct ffdecoder* d)
 {
+#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(53, 8, 0)
+    buffer_free(&d->buffer);
+#endif
+    stream_free(&d->stream);
     if (d->codec_context)
         avcodec_close(d->codec_context);
     if (d->format_context)
@@ -54,6 +59,17 @@ static void ff_free2(struct ffdecoder* d)
 #else
         avformat_close_input(&d->format_context);
 #endif
+}
+
+static int get_format(AVCodecContext* codec_context)
+{
+    switch (codec_context->sample_fmt) {
+    case AV_SAMPLE_FMT_S16:     return SF_I16I;
+    case AV_SAMPLE_FMT_FLT:     return SF_F32I;
+    case AV_SAMPLE_FMT_S16P:    return SF_I16P;
+    case AV_SAMPLE_FMT_FLTP:    return SF_F32P;
+    default:                    return -1;
+    };
 }
 
 void ff_free(void* handle)
@@ -67,13 +83,14 @@ void* ff_load(const char* path)
     static bool initialized = false;
     if (!initialized) {
         av_register_all();
+        // avformat_network_init();
         initialized = true;
     }
 
     LOG_DEBUG("[ffdecoder] loading %s", path);
     
     int err = 0;
-    struct ffdecoder d = {{0}};
+    struct ffdecoder d = {{{0}}};
 #if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(53, 4, 0)
     err = av_open_input_file(&d.format_context, path, 0, 0, 0);
 #else
@@ -106,6 +123,10 @@ void* ff_load(const char* path)
     if (!d.codec) 
         goto error;
 
+    d.format = get_format(d.codec_context);
+    if (d.format < 0)
+        goto error;
+
 #if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(53, 8, 0)
     if (avcodec_open(d.codec_context, d.codec) < 0)
 #else
@@ -116,6 +137,9 @@ void* ff_load(const char* path)
     if (d.format_context->duration > 0) 
         d.frames = d.format_context->duration * d.codec_context->sample_rate / AV_TIME_BASE;
     
+#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(53, 25, 0)
+    buffer_resize(&d.buffer, BUFFER_SIZE);
+#endif
     struct ffdecoder* dec = util_malloc(sizeof(struct ffdecoder));
     memmove(dec, &d, sizeof(struct ffdecoder));
     LOG_INFO("[ffdecoder] loaded %s", path);
@@ -127,95 +151,66 @@ error:
     return NULL;
 }
 
-static int decode_frame(struct ffdecoder* d, AVPacket* p, char* buffer, int size)
+static void decode_frame(struct ffdecoder* d, AVPacket* p)
 {
-    int ret = 0, decoded_size = 0;
-    //store size & data for later freeing
-    unsigned char* packet_data = p->data;
-    int packet_size = p->size;
-
+    void* packet_data = p->data;
+    int   packet_size = p->size;
+    
     while (p->size > 0) {
-        int data_size = size - decoded_size;
-        if (d->decode_buffer.size < size) // the decode buffer is needed due to alignment issues with sse
-            buffer_resize(&d->decode_buffer, size);
-
-        int16_t* buf = d->decode_buffer.data;
+        int ret = 0;
+#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(53, 25, 0)
+        int data_size = BUFFER_SIZE;
+        int16_t* buf = d->buffer.data;
 #if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(52, 23, 0)
         ret = avcodec_decode_audio2(d->codec_context, buf, &data_size, p->data, p->size);
 #else
         ret = avcodec_decode_audio3(d->codec_context, buf, &data_size, p);
 #endif
-        // avcodec_decode_audio4 works completely different so I will keep that for the rewrite
-        if (ret < 0) // error, skip frame
-            return 0;
-        memmove(buffer + decoded_size, buf, data_size);
-        
+        if (ret < 0)
+            goto error;
+        int frames = data_size / (d->codec_context->channels * sizeof(int16_t));
+        void* buffs[] = {buf, buf + frames};
+        stream_append_convert(&d->stream, buffs, d->format, frames, d->codec_context->channels);
+#else
+        int got_frame = 0;
+        AVFrame frame = {{0}};
+        ret = avcodec_decode_audio4(d->codec_context, &frame, &got_frame, p);
+        if (ret < 0 || !got_frame)
+            goto error;
+        int frames = frame.nb_samples;
+        void** buffs = (void**)frame.extended_data;
+        stream_append_convert(&d->stream, buffs, d->format, frames, d->codec_context->channels);
+#endif
         p->data += ret;
         p->size -= ret;
-        decoded_size += data_size;
     }
 
+error:    
     p->data = packet_data;
     p->size = packet_size;
-    return decoded_size;
-}
-
-static void decode_frame2(struct ffdecoder* d, AVPacket* p, char* buffer, int size)
-{
-    while (p->size > 0 || (!p->data && new_packet)) {
-        avcodec_get_frame_defaults(p->frame);
-        new_packet = 0;
-        len = avcodec_decode_audio4(d->codec_context, d->frame, &got_frame, pkt_tmp);
-        if (len < 0) {
-            pkt_tmp->size = 0;
-            break;
-        }
-        pkt_tmp->data += len;
-        pkt_tmp->size += len;
-        if (!got_frame) {
-            // flush something
-            continue;
-        }
-    }
 }
 
 void ff_decode(void* handle, struct stream* s, int frames)
 {
     struct ffdecoder* d = handle;
-
-    if (d->packet_buffer_pos < 0) {
-        LOG_ERROR("[ffdecoder] dirr tidledi derp");
-        stream_zero(s, 0, frames);
-        s->end_of_stream = true;
-        return;
-    }
-
-    int need_bytes  = frames * s->channels * sizeof(int16_t); 
-    int min_bytes   = MAX(192000, need_bytes); // small buffers seem to cause trouble!
-    int buffer_size = MIN(AVCODEC_MAX_AUDIO_FRAME_SIZE * 3, min_bytes * 2);
-    if (d->pckt_buff.size < buffer_size)
-        buffer_resize(&d->pkt_buff, buffer_size);
     
-    AVPacket packet = {0};
-    while (d->packet_buffer_pos < min_bytes) {
-        if (av_read_frame(d->format_context, &packet) < 0) // demux/read packet
-            break; // end of stream
+    while (!d->stream.frames < frames) {
+        AVPacket packet = {0};
+        int err = av_read_frame(d->format_context, &packet); // demux/read packet
+        if (err < 0) { // enf of stream
+            d->stream.end_of_stream = true;
+            break; 
+        }
         if (packet.stream_index == d->stream_index) 
-            d->pkt_buff_pos += decode_frame(d, &packet, (char*)d->pkt_buff.data + d->pkt_buff_pos, buffer_size);
+            decode_frame(d, &packet);
         av_free_packet(&packet);
     }
-
-    s->end_of_stream = d->pkt_buff_pos < need_bytes;
-    int used_bytes = MIN(need_bytes, d->pkt_buff_pos);
-    int used_frames = used_bytes / (d->channels * sizeof(int16_t));
-
-    buffer_resize(&d->float_buffer, d->channels * used_frames * sizeof(float));
-    src_short_to_float_array(d->packet_buffer.data, d->float_buffer.data, d->channels * used_frames);
-    stream_fill(s, d->float_buffer.data, used_frames, d->channels);
-    
-    memmove(d->packet_buffer.data, (char*)d->packet_buffer.data + used_bytes, d->packet_buffer_pos - used_bytes);
-    d->packet_buffer_pos -= used_bytes;
-
+   
+    s->frames = 0;
+    stream_append(s, &d->stream, frames);
+    stream_drop(&d->stream, frames);
+    s->end_of_stream = !d->stream.frames && d->stream.end_of_stream;
+   
     if (s->end_of_stream) 
         LOG_DEBUG("[ffdecoder] eos avcodec %d frames left", s->frames);
 }

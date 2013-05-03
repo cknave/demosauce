@@ -39,7 +39,7 @@ void*   fx_resample_init(int channels, int sr_from, int sr_to);
 void    fx_resample_free(void* handle);
 void    fx_resample(void* handle, struct stream* s1, struct stream* s2);
 
-void    fx_deinterleave(const float* in, float* outr, float* outl, int size);
+void    fx_convert_to_float(void** in, float** out, int type, int size, int channels);
 
 void    fx_fade_init(struct fx_fade* fx, long start_frame, long end_frame, float begin_amp, float end_amp);
 void    fx_fade(struct fx_fade* fx, struct stream* s);

@@ -37,6 +37,13 @@
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define CLAMP(a, b, c) ((b) < (a) ? (a) : (b) > (c) ? (c) : (b))
 
+enum sampleformat {     // planar formats must have odd number
+    SF_I16I     = 0,    // interleaved 16 bit int    
+    SF_I16P     = 1,    // planar 16 bit int
+    SF_F32I     = 2,    // interleaved 32 bit float
+    SF_F32P     = 3     // planar 32 bit float
+};
+
 struct buffer {
     void*           data;
     size_t          size;
@@ -44,7 +51,7 @@ struct buffer {
 
 struct stream {
     float*      buffer[MAX_CHANNELS];
-    size_t      buffer_size;
+//    size_t      buffer_size;
     long        frames;
     long        max_frames;
     int         channels;
@@ -74,6 +81,7 @@ char*   util_trim(char* str);
 bool    util_isfile(const char* path);
 long    util_filesize(const char* path);
 
+
 int     socket_open(const char* host, int port);
 bool    socket_read(int socket, struct buffer* buffer);
 void    socket_close(int socket);
@@ -87,11 +95,13 @@ bool    keyval_bool(const char* str, const char* key, bool fallback);
 
 void    buffer_resize(struct buffer* b, size_t size);
 void    buffer_zero(struct buffer* b);
+void    buffer_free(struct buffer* b);
 
 
 void    stream_free(struct stream* s);
 void    stream_resize(struct stream* s, int frames);
-void    stream_fill(struct stream* s, const float* source, int frames, int channels);
+void    stream_append(struct stream* s, struct stream* source, int frames);
+void    stream_append_convert(struct stream* s, void** source, int type, int frames, int channels);
 void    stream_drop(struct stream* s, int frames);
 void    stream_zero(struct stream* s, int offset, int frames);
 

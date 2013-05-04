@@ -17,6 +17,8 @@
 #include "effects.h"
 #include "util.h"
 
+//#include "../../microwav/microwav.h"
+
 #define MAX_LENGTH 3600     // abort scan if track is too long, in seconds
 #define SAMPLERATE 44100
 
@@ -82,6 +84,7 @@ int main(int argc, char** argv)
 
     struct rg_context* ctx = rg_new(SAMPLERATE, RG_FLOAT32, info.channels, false);
 
+//    FILE* wav = mwav_open_writer("dump.wav", 1, SAMPLERATE, 4);
     // avcodec is unreliable when it comes to length, so the only way to be 
     // absolutely accurate is to decode the whole stream
     long frames = 0;
@@ -91,6 +94,7 @@ int main(int argc, char** argv)
             if (resampler)
                 fx_resample(resampler, &stream0, &stream1);
             float* buff[2] = {stream->buffer[0], stream->buffer[1]};
+//            fwrite(stream->buffer[0], 1, stream->frames * sizeof(float), wav);
             // there is a strange bug in the replaygain code that can cause it to report the wrong
             // value if the input buffer has an odd lengh, until the root of the cause is found,
             // this will have to do :(
@@ -102,7 +106,7 @@ int main(int argc, char** argv)
         }
     }
     fx_resample_free(resampler);
-    info.free(decoder);
+//    mwav_close_writer(wav);
 
     char* str = NULL;
     str = info.metadata(decoder, "artist");
@@ -135,5 +139,6 @@ int main(int argc, char** argv)
     if (!(info.flags & INFO_MOD) && info.samplerate)
         printf("samplerate:%d\n", info.samplerate);
 
+    info.free(decoder);
     return EXIT_SUCCESS;
 }

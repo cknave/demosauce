@@ -262,11 +262,11 @@ void stream_free(struct stream* s)
 void stream_resize(struct stream* s, int frames)
 {
     assert(s->channels >= 1 && s->channels <= MAX_CHANNELS);
-    if (s->max_frames < frames) { 
-        for (int ch = 0; ch < s->channels; ch++) 
-            s->buffer[ch] = util_realloc(s->buffer[ch], frames * sizeof(float));
-        s->max_frames = frames;
-    }
+    if (s->max_frames >= frames)
+        return;
+    for (int ch = 0; ch < s->channels; ch++) 
+        s->buffer[ch] = util_realloc(s->buffer[ch], frames * sizeof(float));
+    s->max_frames = frames;
 }
 
 void stream_append(struct stream* s, struct stream* source, int frames)
@@ -274,6 +274,7 @@ void stream_append(struct stream* s, struct stream* source, int frames)
     frames = CLAMP(0, frames, source->frames);
     s->channels = source->channels;
     s->frames += frames;
+    stream_resize(s, s->frames);
     for (int ch = 0; ch < s->channels; ch++)
         memmove(s->buffer[ch], source->buffer[ch], frames * sizeof(float));
 }

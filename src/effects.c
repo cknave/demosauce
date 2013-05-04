@@ -59,6 +59,8 @@ error:
 
 void fx_resample_free(void* handle)
 {
+    if (!handle)
+        return;
     struct fx_resampler* r = handle;
     for (int ch = 0; ch < r->channels; ch++)
         src_delete(r->state[ch]);
@@ -84,7 +86,7 @@ void fx_resample(void* handle, struct stream* s1, struct stream* s2)
         int err = src_process(r->state[ch], &src);
         if (err)
             LOG_ERROR("[util] resampler error (%s)", src_strerror(err));
-        assert(src.input_frames_used == 0);
+        assert(src.input_frames_used == s1->frames);
         s2->frames = src.output_frames_gen;
     }
 }

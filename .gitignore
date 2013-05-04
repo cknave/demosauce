@@ -6,4 +6,5 @@ ladspainfo
 demosauce
 demosauce.conf
 config.mk
+dump.wav
 test

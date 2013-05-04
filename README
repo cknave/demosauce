@@ -2,12 +2,12 @@ demosauce - fancy icecast source client
 
 BUILDING
 ==================
-officially we support only linux (tested on ubuntu, gentoo), but the code is written with portability in mind (exept windows).
+officially we support only linux, but the code is written with portability in mind.
 
 Libraries
 ------------------
 required libs:
-libsamplerate, libshout, libicu, libavcodec, libavformat, libgetopt
+libsamplerate, libshout, libavcodec, libavformat, libgetopt
 
 optional libs:
 bass, libid3tag
@@ -25,6 +25,10 @@ you will need to install the required libraries manually.
 BSD
 ------------------
 no bass support for bsd. installDependencies.sh could be patched to work with bsd flavours, maybe YOU can help :D
+
+Windows
+------------------
+lol
 
 SETUP
 ==================

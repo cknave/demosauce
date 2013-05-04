@@ -299,8 +299,8 @@ char* ff_metadata(void* handle, const char* key)
     else if (!strcmp(key, "title"))
         value = d->format_context->title;
 #else
-    AVDictionary* dict = d->format_context->metadata;
-    value = av_dict_get(dict, key, 0, 0)->value;
+    AVDictionaryEntry* entry = av_dict_get(d->format_context->metadata, key, 0, 0);;
+    value = entry ? entry->value : NULL;
 #endif
     char* v = util_strdup(value);
     util_trim(v);

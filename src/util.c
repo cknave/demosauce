@@ -88,16 +88,16 @@ char* util_strdup(const char* str)
 
 char* util_trim(char* str)
 {
-    if (str) {
-        char* tmp = str;
-        while (isspace(*str))
-            str++;
-        memmove(str, tmp, strlen(tmp));
-        tmp += strlen(tmp);
-        while (tmp > str && isspace(tmp[-1]))
-            tmp--;
-        *tmp = 0;
-    }
+    if (!str)
+        return NULL;
+    char* tmp = str;
+    while (isspace(*str))
+        str++;
+    memmove(str, tmp, strlen(tmp));
+    tmp += strlen(tmp);
+    while (tmp > str && isspace(tmp[-1]))
+        tmp--;
+    *tmp = 0;
     return str;
 }
 

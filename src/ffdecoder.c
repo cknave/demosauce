@@ -24,6 +24,8 @@
 #include "effects.h"
 #include "ffdecoder.h"
 
+#include "../../microwav/microwav.h"
+
 #ifndef AV_VERSION_INT 
     #define AV_VERSION_INT(a, b, c) (a << 16 | b << 8 | c)
 #endif
@@ -44,6 +46,8 @@ struct ffdecoder {
     int                 format;
     long                frames;
 };
+
+static FILE* wav = NULL;
 
 static void ff_free2(struct ffdecoder* d)
 {
@@ -74,6 +78,7 @@ static int get_format(AVCodecContext* codec_context)
 
 void ff_free(void* handle)
 {
+    mwav_close_writer(wav);
     ff_free2(handle);
     util_free(handle);
 }
@@ -143,6 +148,7 @@ void* ff_load(const char* path)
     struct ffdecoder* dec = util_malloc(sizeof(struct ffdecoder));
     memmove(dec, &d, sizeof(struct ffdecoder));
     LOG_INFO("[ffdecoder] loaded %s", path);
+    wav = mwav_open_writer("dump.wav", 1, d.codec_context->sample_rate, 4);
     return dec;
 
 error:
@@ -168,6 +174,7 @@ static void decode_frame(struct ffdecoder* d, AVPacket* p)
 #endif
         if (ret < 0)
             goto error;
+        // TODO: check format
         int frames = data_size / (d->codec_context->channels * sizeof(int16_t));
         void* buffs[] = {buf, buf + frames};
         stream_append_convert(&d->stream, buffs, d->format, frames, d->codec_context->channels);
@@ -194,7 +201,7 @@ void ff_decode(void* handle, struct stream* s, int frames)
 {
     struct ffdecoder* d = handle;
     
-    while (!d->stream.frames < frames) {
+    while (d->stream.frames < frames) {
         AVPacket packet = {0};
         int err = av_read_frame(d->format_context, &packet); // demux/read packet
         if (err < 0) { // enf of stream
@@ -206,6 +213,7 @@ void ff_decode(void* handle, struct stream* s, int frames)
         av_free_packet(&packet);
     }
    
+//        fwrite(d->stream.buffer[0], 4, d->stream.frames, wav);
     s->frames = 0;
     stream_append(s, &d->stream, frames);
     stream_drop(&d->stream, frames);

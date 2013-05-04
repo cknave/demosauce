@@ -95,7 +95,8 @@ void fx_resample(void* handle, struct stream* s1, struct stream* s2)
 
 void fx_map_process(struct stream* s, int channels)
 {
-    assert(channels >= 1 && channels <= MAX_CHANNELS);
+    // only handles 1 and 2, not MAX_CHANNELS
+    assert(channels >= 1 && channels <= 2);
     if (s->channels == 1 && channels == 2) {
         s->channels = 2;
         stream_resize(s, s->frames);
@@ -232,7 +233,8 @@ static void (*convert[])(const void**, float**, int, int) = {ci16i, ci16p, cf32i
 
 void fx_convert_to_float(void** in, float** out, int type, int size, int channels)
 {
-    assert(channels >= 1 && channels <= 2);
+    // some converter functions only support 2, not MAX_CHANNELS
+    assert(channels >= 1 && channels <= 2); 
     assert(type >= SF_I16I && type <= SF_F32P);
     convert[type]((const void**)in, out, size, channels);
 }

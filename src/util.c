@@ -282,10 +282,13 @@ void stream_append(struct stream* s, struct stream* source, int frames)
 void stream_append_convert(struct stream* s, void** source, int type, int frames, int channels)
 {
     assert(channels >= 1 && channels <= MAX_CHANNELS);
+    float* buffs[MAX_CHANNELS] = {0};
     s->channels = channels;
+    stream_resize(s, s->frames + frames);
+    for (int ch = 0; ch < MAX_CHANNELS; ch++)
+        buffs[ch] = s->buffer[ch] + s->frames;
+    fx_convert_to_float(source, buffs, type, frames, channels);
     s->frames += frames;
-    stream_resize(s, s->frames);
-    fx_convert_to_float(source, s->buffer, type, frames, channels);
 }
 
 void stream_drop(struct stream* s, int frames)

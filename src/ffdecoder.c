@@ -24,8 +24,6 @@
 #include "effects.h"
 #include "ffdecoder.h"
 
-#include "../../microwav/microwav.h"
-
 #ifndef AV_VERSION_INT 
     #define AV_VERSION_INT(a, b, c) (a << 16 | b << 8 | c)
 #endif
@@ -47,8 +45,6 @@ struct ffdecoder {
     long                frames;
 };
 
-static FILE* wav = NULL;
-
 static void ff_free2(struct ffdecoder* d)
 {
 #if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(53, 8, 0)
@@ -65,6 +61,12 @@ static void ff_free2(struct ffdecoder* d)
 #endif
 }
 
+void ff_free(void* handle)
+{
+    ff_free2(handle);
+    util_free(handle);
+}
+
 static int get_format(AVCodecContext* codec_context)
 {
     switch (codec_context->sample_fmt) {
@@ -74,13 +76,6 @@ static int get_format(AVCodecContext* codec_context)
     case AV_SAMPLE_FMT_FLTP:    return SF_F32P;
     default:                    return -1;
     };
-}
-
-void ff_free(void* handle)
-{
-    mwav_close_writer(wav);
-    ff_free2(handle);
-    util_free(handle);
 }
 
 void* ff_load(const char* path)
@@ -148,7 +143,6 @@ void* ff_load(const char* path)
     struct ffdecoder* dec = util_malloc(sizeof(struct ffdecoder));
     memmove(dec, &d, sizeof(struct ffdecoder));
     LOG_INFO("[ffdecoder] loaded %s", path);
-    wav = mwav_open_writer("dump.wav", 1, d.codec_context->sample_rate, 4);
     return dec;
 
 error:
@@ -176,7 +170,7 @@ static void decode_frame(struct ffdecoder* d, AVPacket* p)
             goto error;
         // TODO: check format
         int frames = data_size / (d->codec_context->channels * sizeof(int16_t));
-        void* buffs[] = {buf, buf + frames};
+        void* buffs[MAX_CHANNELS] = {buf, buf + frames};
         stream_append_convert(&d->stream, buffs, d->format, frames, d->codec_context->channels);
 #else
         int got_frame = 0;
@@ -213,12 +207,10 @@ void ff_decode(void* handle, struct stream* s, int frames)
         av_free_packet(&packet);
     }
    
-//        fwrite(d->stream.buffer[0], 4, d->stream.frames, wav);
     s->frames = 0;
     stream_append(s, &d->stream, frames);
     stream_drop(&d->stream, frames);
     s->end_of_stream = !d->stream.frames && d->stream.end_of_stream;
-   
     if (s->end_of_stream) 
         LOG_DEBUG("[ffdecoder] eos avcodec %d frames left", s->frames);
 }

@@ -192,7 +192,7 @@ int socket_open(const char* host, int port)
     if (snprintf(portstr, sizeof(portstr), "%d", port) < 0)
         goto error;
 
-    hints.ai_family = AF_UNSPEC;
+    hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
     if (getaddrinfo(host, portstr, &hints, &info))
         goto error;

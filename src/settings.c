@@ -16,10 +16,9 @@
 #include "util.h"
 #include "settings.h"
 
-static int      settings_config_version     = 34;
+static int      settings_config_version;
 const char*     settings_demovibes_host     = "localhost";
 int             settings_demovibes_port     = 32167;
-const char*     settings_encoder_command;
 int             settings_encoder_samplerate = 44100;
 int             settings_encoder_bitrate    = 224;
 int             settings_encoder_channels   = 2;
@@ -32,7 +31,6 @@ const char*     settings_cast_name;
 const char*     settings_cast_url;
 const char*     settings_cast_genre;
 const char*     settings_cast_description;
-int             settings_decode_buffer_size = 200;
 const char*     settings_error_title        = "sorry, out of juice";
 const char*     settings_log_file           = "demosauce.log";
 enum log_level  settings_log_file_level     = log_info;
@@ -80,7 +78,6 @@ static void read_config(void)
     GETSTR(cast_url);
     GETSTR(cast_genre);
     GETSTR(cast_description);
-    GETINT(decode_buffer_size);
     GETSTR(error_title);
     GETSTR(log_file);
 

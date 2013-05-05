@@ -184,7 +184,7 @@ bool keyval_bool(const char* heap, const char* key, bool fallback)
 int socket_open(const char* host, int port)
 {
     int fd = -1;
-    char portstr[10] = {0};
+    char portstr[8] = {0};
     struct addrinfo* info = NULL;
     struct addrinfo hints = {0};
     

@@ -137,10 +137,9 @@ static void update_metadata(void)
 
 static void* load_next(void* data)
 {
-    static struct buffer    buffer;
-    static char             path[4096];
-    float                   forced_length   = 0;
-    int                     tries           = 0;
+    static char path[4096];
+    float       forced_length   = 0;
+    int         tries           = 0;
 
     if (decoder && info.free)
         info.free(decoder);
@@ -148,15 +147,15 @@ static void* load_next(void* data)
     
     while (tries++ < LOAD_TRIES && !decoder) {
         get_next_song();
-        keyval_str(path, sizeof(path), buffer.data, "path", "");
+        keyval_str(path, sizeof(path), config.data, "path", "");
         
         if (!util_isfile(path)) {
             LOG_ERROR("[cast] file doesn't exist: '%s'", path);
             continue;
         }
-        forced_length = keyval_real(buffer.data, "length", 0);
+        forced_length = keyval_real(config.data, "length", 0);
 #ifdef ENABLE_BASS
-        if ((decoder = bass_load(path, buffer.data, settings_encoder_samplerate))) {
+        if ((decoder = bass_load(path, config.data, settings_encoder_samplerate))) {
             bass_info(decoder, &info);
             if (forced_length > info.frames / info.samplerate) 
                 bass_set_loop_duration(decoder, forced_length);

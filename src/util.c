@@ -62,7 +62,7 @@ bool util_isfile(const char* path)
     struct stat buf = {0};
     int err = stat(path, &buf);
     bool isfile = !err && S_ISREG(buf.st_mode);
-    LOG_DEBUG("[util_isfile] '%s' %s", path, BOOL_STR(isfile));
+    LOG_DEBUG("[isfile] '%s' %s", path, BOOL_STR(isfile));
     return isfile;
 }
 
@@ -71,7 +71,7 @@ long util_filesize(const char* path)
     struct stat buf = {0};
     int err = stat(path, &buf);
     long size = err ? -1 : buf.st_size;
-    LOG_DEBUG("[util_filesize] '%s' %ld", path, size);
+    LOG_DEBUG("[filesize] '%s' %ld", path, size);
     return size;
 }
 
@@ -138,20 +138,20 @@ char* keyval_str(char* out, int size, const char* heap, const char* key, const c
             char* value = out ? out : util_malloc(span + 1);
             memmove(value, tmp, span);
             value[span] = 0;
-            LOG_DEBUG("[keyval_str] '%s' = '%s'", key, value);
+            LOG_DEBUG("[keyval] '%s' = '%s'", key, value);
             return value;
         } else {
-            LOG_WARN("[keyval_str] buffer too small for value '%s'", key);
+            LOG_WARN("[keyval] buffer too small for value '%s'", key);
         }
     }
 
-    LOG_DEBUG("[keyval_str] '%s' = '%s' (fallback)", key, fallback);    
+    LOG_DEBUG("[keyval] '%s' = '%s' (fallback)", key, fallback);    
     if (!out && fallback) {
         return util_strdup(fallback);
     } else if (out && fallback && strlen(fallback) < size) {
         return strcpy(out, fallback);
     } else if (out && size) {
-        LOG_WARN("[keyval_str] buffer too small for fallback (%s, %s)", key, fallback);
+        LOG_WARN("[keyval] buffer too small for fallback (%s, %s)", key, fallback);
         return strcpy(out, "");
     } else {
         return NULL;
@@ -208,7 +208,7 @@ int socket_open(const char* host, int port)
     }
 
     freeaddrinfo(info);
-    if (fd < 0)
+    if (fd >= 0)
         return fd;
 
 error:

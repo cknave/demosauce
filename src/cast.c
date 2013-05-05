@@ -48,8 +48,7 @@ static void get_next_song()
         buffer_resize(&config, strlen(settings_debug_song) + 1);
         strcpy(config.data, settings_debug_song);
     } else {
-        // int socket = socket_open(settings_demovibes_host, settings_demovibes_port);
-        int socket = socket_open("127.0.0.1", settings_demovibes_port);
+        int socket = socket_open(settings_demovibes_host, settings_demovibes_port);
         if (socket < 0) {
             LOG_ERROR("[cast] can't connect to demosauce");
             return;

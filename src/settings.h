@@ -17,7 +17,6 @@ void settings_init(int argc, char** argv);
 
 extern const char*      settings_demovibes_host;
 extern int              settings_demovibes_port;
-extern const char*      settings_encoder_command;
 extern int              settings_encoder_samplerate;
 extern int              settings_encoder_bitrate;
 extern int              settings_encoder_channels;
@@ -30,7 +29,6 @@ extern const char*      settings_cast_name;
 extern const char*      settings_cast_url;
 extern const char*      settings_cast_genre;
 extern const char*      settings_cast_description;
-extern int              settings_decode_buffer_size;
 extern const char*      settings_error_title;
 extern const char*      settings_log_file;
 extern enum log_level   settings_log_file_level;

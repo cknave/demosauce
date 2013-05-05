@@ -15,7 +15,6 @@
 #include <stdbool.h>
  
 #define MAX_CHANNELS    2
-//#define MAGIC_NUMBER    0xaa55aa55
 
 #define INFO_SEEKABLE   1
 #define INFO_FFMPEG     (1 << 1)
@@ -23,19 +22,20 @@
 #define INFO_MOD        (1 << 16)
 #define INFO_AMIGAMOD   (1 << 17)
 
-#define BSTR(buf) ((char*)(buf).buff)
-#define XSTR_(s) "-"#s
-#define XSTR(s) XSTR_(s)
+#define BOOL_STR(x)     ((x) ? "true" : "false") 
+#define BSTR(buf)       ((char*)(buf).buff)
+#define XSTR_(s)        "-"#s
+#define XSTR(s)         XSTR_(s)
 #ifdef BUILD_ID
-    #define ID_STR XSTR(BUILD_ID)
+    #define ID_STR      XSTR(BUILD_ID)
 #else
     #define ID_STR
 #endif
 #define DEMOSAUCE_VERSION "demosauce 0.4.0"ID_STR" - C++ is to C as Lung Cancer is to Lung"
-#define COUNT(array) (sizeof(array) / sizeof(array[0]))
-#define MIN(a, b) ((a) < (b) ? (a) : (b))
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
-#define CLAMP(a, b, c) ((b) < (a) ? (a) : (b) > (c) ? (c) : (b))
+#define COUNT(array)    (sizeof(array) / sizeof(array[0]))
+#define MIN(a, b)       ((a) < (b) ? (a) : (b))
+#define MAX(a, b)       ((a) > (b) ? (a) : (b))
+#define CLAMP(a, b, c)  ((b) < (a) ? (a) : (b) > (c) ? (c) : (b))
 
 enum sampleformat {     // planar formats must have odd number
     SF_I16I     = 0,    // interleaved 16 bit int    

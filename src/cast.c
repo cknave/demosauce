@@ -23,6 +23,7 @@
 #endif
 #include "cast.h"
 
+#define BUFFER_SIZE 200 // miliseconds
 #define LOAD_TRIES 3
 
 static lame_t           lame;
@@ -47,8 +48,8 @@ static void get_next_song()
         buffer_resize(&config, strlen(settings_debug_song) + 1);
         strcpy(config.data, settings_debug_song);
     } else {
-        int socket = socket_open(settings_cast_host, settings_cast_port);
-        if (!socket) {
+        int socket = socket_open(settings_demovibes_host, settings_demovibes_port);
+        if (socket < 0) {
             LOG_ERROR("[cast] open connection to demosauce");
             return;
         }
@@ -125,7 +126,7 @@ static void update_metadata(void)
         len += 3;
     }
     strcpy(cast_title + len, title);
-    LOG_DEBUG("[cast] updating metadata to %s", cast_title);
+    LOG_DEBUG("[cast] updating metadata to '%s'", cast_title);
 
     shout_metadata_t* metadata = shout_metadata_new();
     shout_metadata_add(metadata, "song", cast_title);
@@ -150,7 +151,7 @@ static void* load_next(void* data)
         keyval_str(path, sizeof(path), buffer.data, "path", "");
         
         if (!util_isfile(path)) {
-            LOG_ERROR("[cast] file doesn't exist: %s", path);
+            LOG_ERROR("[cast] file doesn't exist: '%s'", path);
             continue;
         }
         forced_length = keyval_real(buffer.data, "length", 0);
@@ -166,13 +167,13 @@ static void* load_next(void* data)
         }
         
         if (!decoder) {
-            LOG_ERROR("[cast] can't load %s", path);
+            LOG_ERROR("[cast] can't load '%s'", path);
             sleep(3);
         }
     }
 
     if (decoder && info.frames == 0)
-        LOG_WARN("[cast] no length %s", path);
+        LOG_WARN("[cast] no length '%s'", path);
 
     if (!decoder) {
         LOG_WARN("[cast] load failed three times, sending one minute sound of silence");
@@ -257,7 +258,7 @@ static bool cast_connect(void)
 void cast_run(void)
 {
     static unsigned char mp3buf[2048];
-    int decode_frames = (settings_encoder_samplerate * settings_decode_buffer_size) / 1000;
+    int decode_frames = (settings_encoder_samplerate * BUFFER_SIZE) / 1000;
     load_next(NULL);
 
     while (true) {

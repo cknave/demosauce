@@ -62,7 +62,7 @@ bool util_isfile(const char* path)
     struct stat buf = {0};
     int err = stat(path, &buf);
     bool isfile = !err && S_ISREG(buf.st_mode);
-    LOG_DEBUG("[util_isfile] %s %d", path, isfile);
+    LOG_DEBUG("[util_isfile] '%s' %s", path, BOOL_STR(isfile));
     return isfile;
 }
 
@@ -71,7 +71,7 @@ long util_filesize(const char* path)
     struct stat buf = {0};
     int err = stat(path, &buf);
     long size = err ? -1 : buf.st_size;
-    LOG_DEBUG("[util_filesize] %s %ld", path, size);
+    LOG_DEBUG("[util_filesize] '%s' %ld", path, size);
     return size;
 }
 
@@ -138,14 +138,14 @@ char* keyval_str(char* out, int size, const char* heap, const char* key, const c
             char* value = out ? out : util_malloc(span + 1);
             memmove(value, tmp, span);
             value[span] = 0;
-            LOG_DEBUG("[keyval_str] %s = %s", key, value);
+            LOG_DEBUG("[keyval_str] '%s' = '%s'", key, value);
             return value;
         } else {
-            LOG_WARN("[keyval_str] buffer too small for value (%s)", key);
+            LOG_WARN("[keyval_str] buffer too small for value '%s'", key);
         }
     }
 
-    LOG_DEBUG("[keyval_str] %s = %s (fallback)", key, fallback);    
+    LOG_DEBUG("[keyval_str] '%s' = '%s' (fallback)", key, fallback);    
     if (!out && fallback) {
         return util_strdup(fallback);
     } else if (out && fallback && strlen(fallback) < size) {
@@ -188,26 +188,32 @@ int socket_open(const char* host, int port)
     struct addrinfo* info = NULL;
     struct addrinfo hints = {0};
     
+    LOG_DEBUG("[socket] opening %s:%d", host, port);
     if (snprintf(portstr, sizeof(portstr), "%d", port) < 0)
-        return -1;
+        goto error;
 
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
     if (getaddrinfo(host, portstr, &hints, &info))
-        return -1;
+        goto error;
 
     for (struct addrinfo* i = info; i; i = i->ai_next) {
         fd = socket(info->ai_family, info->ai_socktype, info->ai_protocol);
         if (fd < 0)
-            continue;
-        if (connect(fd, info->ai_addr, info->ai_addrlen) < 0)
-           close(fd);
-        else
-            break;
+            continue;   // error
+        if (connect(fd, info->ai_addr, info->ai_addrlen) == 0)
+            break;      // success
+        close(fd);
+        fd = -1;
     }
 
     freeaddrinfo(info);
-    return fd;
+    if (fd < 0)
+        return fd;
+
+error:
+    LOG_DEBUG("[socket] failed to open %s:%d", host, port);
+    return -1;
 }
 
 bool socket_read(int socket, struct buffer* buffer)
@@ -215,14 +221,19 @@ bool socket_read(int socket, struct buffer* buffer)
     ssize_t bytes = 0;
     char buff[4096];
     if (send(socket, "NEXTSONG", 8, 0) == -1)
-        return false;
+        goto error;
     bytes = recv(socket, buff, sizeof(buff) - 1, 0);
     if (bytes < 0)
-       return false;
+       goto error;
     buffer_resize(buffer, bytes + 1);
     memmove(buffer->data, buff, bytes);
     ((char*)buffer->data)[bytes] = 0;
+    LOG_DEBUG("[socket] read %d byets", bytes);
     return true;
+
+error:
+    LOG_DEBUG("[socket] read failed");
+    return false;
 }
 
 void socket_close(int socket)

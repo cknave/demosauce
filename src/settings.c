@@ -109,9 +109,6 @@ static void check_sanity(void)
 
     if (settings_cast_port < 1 || settings_cast_port > 65535) 
         die("setting cast_port out of range (1-65535)");
-
-    if (settings_decode_buffer_size < 1 || settings_decode_buffer_size > 10000) 
-        die("setting decode_buffer_size out of range (1-10000)");
 }
 
 #define HELP_MESSAGE DEMOSAUCE_VERSION"\n\t-h print help\n\t-c <path> config file\n\t-d <options> debug options\n\t-V print version\n"

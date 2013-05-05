@@ -91,9 +91,9 @@ char* util_trim(char* str)
     if (!str)
         return NULL;
     char* tmp = str;
-    while (isspace(*str))
-        str++;
-    memmove(str, tmp, strlen(tmp));
+    while (isspace(*tmp))
+        tmp++;
+    memmove(str, tmp, strlen(tmp) + 1);
     tmp += strlen(tmp);
     while (tmp > str && isspace(tmp[-1]))
         tmp--;

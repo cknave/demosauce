@@ -150,7 +150,7 @@ char* keyval_str(char* out, int size, const char* heap, const char* key, const c
         return util_strdup(fallback);
     } else if (out && fallback && strlen(fallback) < size) {
         return strcpy(out, fallback);
-    } else if (out && size) {
+    } else if (out && fallback && size) {
         LOG_WARN("[keyval] buffer too small for fallback (%s, %s)", key, fallback);
         return strcpy(out, "");
     } else {
@@ -161,21 +161,21 @@ char* keyval_str(char* out, int size, const char* heap, const char* key, const c
 int keyval_int(const char* heap, const char* key, int fallback)
 {
     char tmp[16] = {0};
-    keyval_str(tmp, 16, heap, key, NULL);
+    keyval_str(tmp, sizeof(tmp), heap, key, NULL);
     return strlen(tmp) ? atoi(tmp) : fallback;
 }
 
 double keyval_real(const char* heap, const char* key, double fallback)
 {
     char tmp[16] = {0};
-    keyval_str(tmp, 16, heap, key, NULL);
+    keyval_str(tmp, sizeof(tmp), heap, key, NULL);
     return strlen(tmp) ? atof(tmp) : fallback;
 }
   
 bool keyval_bool(const char* heap, const char* key, bool fallback)
 {
     char tmp[8] = {0};
-    keyval_str(tmp, 8, heap, key, NULL);
+    keyval_str(tmp, sizeof(tmp), heap, key, NULL);
     return strlen(tmp) ? !strcasecmp(tmp, "true") : fallback;
 }
 
@@ -192,16 +192,16 @@ int socket_open(const char* host, int port)
     if (snprintf(portstr, sizeof(portstr), "%d", port) < 0)
         goto error;
 
-    hints.ai_family = AF_INET;
+    hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
     if (getaddrinfo(host, portstr, &hints, &info))
         goto error;
 
-    for (struct addrinfo* i = info; i; i = i->ai_next) {
-        fd = socket(info->ai_family, info->ai_socktype, info->ai_protocol);
+    for (struct addrinfo* ai = info; ai; ai = ai->ai_next) {
+        fd = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
         if (fd < 0)
             continue;   // error
-        if (connect(fd, info->ai_addr, info->ai_addrlen) == 0)
+        if (connect(fd, ai->ai_addr, ai->ai_addrlen) == 0)
             break;      // success
         close(fd);
         fd = -1;

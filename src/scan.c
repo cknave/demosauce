@@ -11,14 +11,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <getopt.h>
 #include <replay_gain.h>
 #include "bassdecoder.h"
 #include "ffdecoder.h"
 #include "effects.h"
 #include "util.h"
 
-#define MAX_LENGTH 3600     // abort scan if track is too long, in seconds
-#define SAMPLERATE 44100
+#define MAX_LENGTH      3600     // abort scan if track is too long, in seconds
+#define SAMPLERATE      44100
+#define HELP_MESSAGE    "demosauce scan tool 0.4.0"ID_STR"\nsyntax: scan [options] file\n\t-h help\n\t-r no replaygain analysis"
 
 // for some formats avcodec fails to provide a bitrate so I just
 // make an educated guess. if the file contains large amounts of 
@@ -38,31 +40,44 @@ void die(const char* msg)
 
 int main(int argc, char** argv)
 {
-#ifdef ENABLE_BASS
-    if (!bass_loadso(argv))
-        return EXIT_FAILURE;
-#endif
-    if (argc < 2 || (!strcmp(argv[1], "--") && argc < 3)) {
-        puts("demosauce scan tool 0.4.0"ID_STR"\nsyntax: scan [--no-replaygain] file");
-        return EXIT_FAILURE;
-    }
-    const char*     path        = argv[argc - 1];
-    bool            do_scan     = strcmp(argv[1], "--no-replaygain");
+    const char*     path        = NULL;
+    bool            analyze     = true;
     struct info     info        = {0};
     void*           decoder     = NULL;
     void*           resampler   = NULL;
     struct stream   stream0     = {{0}};
     struct stream   stream1     = {{0}};
-    struct stream*  stream      = &stream0;;
+    struct stream*  stream      = &stream0;
+
+#ifdef ENABLE_BASS
+    if (!bass_loadso(argv))
+        die("failed to load libbass.so");
+#endif
+    if (argc <= 1) 
+        die(HELP_MESSAGE);
+    
+    char c = 0;
+    while ((c = getopt(argc, argv, "hr")) != -1) {
+        switch (c) {
+        default:
+        case '?':
+            die(HELP_MESSAGE);
+        case 'h':
+            puts(HELP_MESSAGE);
+            return EXIT_SUCCESS;
+        case 'r':
+            analyze = false;
+            break;
+        };
+    }
+    path = argv[optind];
 
 #ifdef ENABLE_BASS
     if ((decoder = bass_load(path, "bass_prescan=true", SAMPLERATE)))
         bass_info(decoder, &info);
 #endif
-    if (!decoder && (decoder = ff_load(path))) {
+    if (!decoder && (decoder = ff_load(path)))
         ff_info(decoder, &info);
-        do_scan = true;
-    }
 
     if (!decoder) 
         die("unknown format");
@@ -85,16 +100,17 @@ int main(int argc, char** argv)
     // avcodec is unreliable when it comes to length, so the only way to be 
     // absolutely accurate is to decode the whole stream
     long frames = 0;
-    if (do_scan || (info.flags & INFO_FFMPEG)) {
+    if (analyze || (info.flags & INFO_FFMPEG)) {
         while (!stream->end_of_stream) {
             info.decode(decoder, &stream0, SAMPLERATE);
+            // TODO disable resampler if rg is disabled
             if (resampler)
                 fx_resample(resampler, &stream0, &stream1);
             float* buff[2] = {stream->buffer[0], stream->buffer[1]};
             // there is a strange bug in the replaygain code that can cause it to report the wrong
             // value if the input buffer has an odd lengh, until the root of the cause is found,
             // this will have to do :(
-            if (do_scan) 
+            if (analyze) 
                 rg_analyze(ctx, buff, stream->frames & -2);
             frames += stream->frames;
             if (frames > MAX_LENGTH * SAMPLERATE) 
@@ -119,7 +135,7 @@ int main(int argc, char** argv)
         (float)info.frames / info.samplerate;
     printf("length:%f\n", duration);
     
-    if (do_scan)
+    if (analyze)
         printf("replaygain:%f\n", rg_title_gain(ctx));
     rg_free(ctx);
 #ifdef ENABLE_BASS

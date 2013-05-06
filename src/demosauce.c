@@ -11,6 +11,7 @@
 /*
     a fancy source client for scenemusic.net
     slapped together by maep 2009 - 2011
+    ported from c++ to c in 2013
 
     BEHOLD, A FUCKING PONY!
 
@@ -47,8 +48,10 @@
 int main(int argc, char** argv)
 {
 #ifdef ENABLE_BASS
-    if (!bass_loadso(argv))
+    if (!bass_loadso(argv)) {
+        puts("failed to load libbass.so");
         return EXIT_FAILURE;
+    }
 #endif
     puts(DEMOSAUCE_VERSION);
     settings_init(argc, argv);

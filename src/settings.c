@@ -111,7 +111,7 @@ static void check_sanity(void)
         die("setting cast_port out of range (1-65535)");
 }
 
-#define HELP_MESSAGE DEMOSAUCE_VERSION"\n\t-h print help\n\t-c <path> config file\n\t-d <options> debug options\n\t-V print version\n"
+#define HELP_MESSAGE "syntax: demosauce [options]\n\t-h print help\n\t-c <path> config file\n\t-d <options> debug options\n\t-V print version\n"
 
 void settings_init(int argc, char** argv)
 {

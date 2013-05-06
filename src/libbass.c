@@ -106,7 +106,6 @@ bool bass_loadso(char** argv)
         return true;
     if (load("/usr/lib/libbass.so"))
         return true;
-    puts("failed to load libbass.so");
     return false;
 }
 

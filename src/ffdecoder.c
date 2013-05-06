@@ -82,9 +82,13 @@ void* ff_load(const char* path)
 {
     static bool initialized = false;
     if (!initialized) {
+        initialized = true;
         av_register_all();
         // avformat_network_init();
-        initialized = true;
+        // TODO reject mp3 with low score
+#ifdef NDEBUG
+        av_log_set_level(AV_LOG_QUIET);
+#endif
     }
 
     LOG_DEBUG("[ffdecoder] loading %s", path);

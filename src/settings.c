@@ -16,26 +16,9 @@
 #include "util.h"
 #include "settings.h"
 
-static int      settings_config_version;
-const char*     settings_demovibes_host     = "localhost";
-int             settings_demovibes_port     = 32167;
-int             settings_encoder_samplerate = 44100;
-int             settings_encoder_bitrate    = 224;
-int             settings_encoder_channels   = 2;
-const char*     settings_cast_host          = "localhost";
-int             settings_cast_port          = 8000; 
-const char*     settings_cast_mount         = "stream";
-const char*     settings_cast_user          = "soruce";
-const char*     settings_cast_password;
-const char*     settings_cast_name;
-const char*     settings_cast_url;
-const char*     settings_cast_genre;
-const char*     settings_cast_description;
-const char*     settings_error_title        = "sorry, out of juice";
-const char*     settings_log_file           = "demosauce.log";
-enum log_level  settings_log_file_level     = log_info;
-enum log_level  settings_log_console_level  = log_warn;
-const char*     settings_debug_song;
+#define X(type, key, value) SETTINGS_##type settings_##key = value;
+SETTINGS_LIST
+#undef X
 
 static const char* config_file_name = "demosauce.conf";
 
@@ -47,11 +30,7 @@ static void die(const char* msg)
 
 static void read_config(void)
 {
-    #define GETINT(key) settings_##key = keyval_int(buffer, #key, settings_##key)
-    #define GETSTR(key) settings_##key = keyval_str(NULL, 0, buffer, #key, settings_##key)
-    
     FILE* f = fopen(config_file_name, "r"); 
-    
     if (!f) 
         die("cat't read config file");
 
@@ -60,32 +39,17 @@ static void read_config(void)
     rewind(f);
     char* buffer = util_malloc(bsize + 1);
     fread(buffer, 1, bsize, f);
-    fclose(f);
     buffer[bsize] = 0;
-
-    GETINT(config_version);
-    GETSTR(demovibes_host);
-    GETINT(demovibes_port);
-    GETINT(encoder_samplerate);
-    GETINT(encoder_bitrate);
-    GETINT(encoder_channels);
-    GETSTR(cast_host);
-    GETINT(cast_port);
-    GETSTR(cast_mount);
-    GETSTR(cast_user);
-    GETSTR(cast_password);
-    GETSTR(cast_name);
-    GETSTR(cast_url);
-    GETSTR(cast_genre);
-    GETSTR(cast_description);
-    GETSTR(error_title);
-    GETSTR(log_file);
-
+    fclose(f);
+    
     char tmpstr[8] = {0};
-    keyval_str(tmpstr, 8, buffer, "log_file_level", "");
-    log_string_to_level(tmpstr, &settings_log_file_level);
-    keyval_str(tmpstr, 8, buffer, "log_console_level", "");
-    log_string_to_level(tmpstr, &settings_log_console_level);
+    #define GET_int(key) settings_##key = keyval_int(buffer, #key, settings_##key);
+    #define GET_str(key) settings_##key = keyval_str(NULL, 0, buffer, #key, settings_##key);
+    #define GET_log(key) keyval_str(tmpstr, sizeof(tmpstr), buffer, #key, NULL); \
+                         log_string_to_level(tmpstr, &settings_##key);
+    #define X(type, key, value) GET_##type(key)
+    SETTINGS_LIST
+    #undef X
 
     util_free(buffer);
 }

@@ -15,25 +15,35 @@
 
 void settings_init(int argc, char** argv);
 
-extern const char*      settings_demovibes_host;
-extern int              settings_demovibes_port;
-extern int              settings_encoder_samplerate;
-extern int              settings_encoder_bitrate;
-extern int              settings_encoder_channels;
-extern const char*      settings_cast_host;
-extern int              settings_cast_port;
-extern const char*      settings_cast_mount;
-extern const char*      settings_cast_user;
-extern const char*      settings_cast_password;
-extern const char*      settings_cast_name;
-extern const char*      settings_cast_url;
-extern const char*      settings_cast_genre;
-extern const char*      settings_cast_description;
-extern const char*      settings_error_title;
-extern const char*      settings_log_file;
-extern enum log_level   settings_log_file_level;
-extern enum log_level   settings_log_console_level;
-extern const char*      settings_debug_song;
+#define SETTINGS_LIST                           \
+    X(int, config_version,      0)              \
+    X(str, demovibes_host,      "localhost")    \
+    X(int, demovibes_port,      32167)          \
+    X(int, encoder_samplerate,  44100)          \
+    X(int, encoder_bitrate,     192)            \
+    X(int, encoder_channels,    2)              \
+    X(str, cast_host,           "localhost")    \
+    X(int, cast_port,           8000)           \
+    X(str, cast_mount,          "stream")       \
+    X(str, cast_user,           "source")       \
+    X(str, cast_password,       NULL)           \
+    X(str, cast_name,           NULL)           \
+    X(str, cast_url,            NULL)           \
+    X(str, cast_genre,          NULL)           \
+    X(str, cast_description,    NULL)           \
+    X(str, error_title,         "server error") \
+    X(str, log_file,            "demosauce.log")\
+    X(log, log_file_level,      log_info)       \
+    X(log, log_console_level,   log_warn)       \
+    X(str, debug_song,          NULL)
+
+#define SETTINGS_int    int
+#define SETTINGS_str    const char*
+#define SETTINGS_log    enum log_level
+
+#define X(type, key, value) extern SETTINGS_##type settings_##key;
+SETTINGS_LIST
+#undef X
 
 #endif
 

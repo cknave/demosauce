@@ -31,6 +31,7 @@ static shout_t*         shout;
 static struct stream    stream0;
 static struct stream    stream1;
 static struct buffer    config;
+static struct buffer    mp3buf;
 static struct info      info;
 static void*            decoder;
 static struct fx_fade   fader;
@@ -111,8 +112,8 @@ static void update_metadata(void)
     char artist[504]        = {0};
     char title[512]         = {0};
 
-    keyval_str(title, 504, config.data, "title", settings_error_title);
-    keyval_str(artist, 512, config.data, "artist", "");
+    keyval_str(title, sizeof(title), config.data, "title", settings_error_title);
+    keyval_str(artist, sizeof(title), config.data, "artist", "");
 
     // remove - in artist name, players use it for artist-title separation
     for (size_t i = 0; i < strlen(artist); i++)
@@ -180,6 +181,7 @@ static void* load_next(void* data)
         info.samplerate = settings_encoder_samplerate;
         info.channels   = settings_encoder_channels;
         forced_length   = 60;
+        buffer_zero(&config);
     }
 
     configure_effects(forced_length);
@@ -188,7 +190,7 @@ static void* load_next(void* data)
     return NULL;
 }
 
-void cast_init(void)
+static void cast_init(void)
 {
     shout_init();
     shout = shout_new();
@@ -197,16 +199,16 @@ void cast_init(void)
     lame_set_brate(lame, settings_encoder_bitrate);
     lame_set_num_channels(lame, settings_encoder_channels);
     lame_set_in_samplerate(lame, settings_encoder_samplerate);
+    lame_init_params(lame);
+    buffer_resize(&mp3buf, BUFFER_SIZE * settings_encoder_bitrate / CHAR_BIT * 2);
     stream1.channels = settings_encoder_channels;
 }
 
-/*
 static void cast_free(void)
 {
     shout_free(shout);
     lame_close(lame);
 }
-*/
 
 static struct stream* process(int frames)
 {
@@ -254,37 +256,54 @@ static bool cast_connect(void)
     return err == SHOUTERR_SUCCESS;
 }
 
-void cast_run(void)
+static void run_encoder(void)
 {
-    static unsigned char mp3buf[2048];
     int decode_frames = (settings_encoder_samplerate * BUFFER_SIZE) / 1000;
-    load_next(NULL);
 
     while (true) {
-        int err = 0;
-        if (cast_connect()) do {
-            struct stream* s = &stream1;
-            if (!decoder_ready) {
-                if (s->max_frames < decode_frames)
-                    stream_resize(s, decode_frames);
-                stream_zero(s, 0, decode_frames);
-                continue;
-            } else {
-                s = process(decode_frames);
-                remaining_frames -= s->frames;
-                if (s->end_of_stream || remaining_frames < 0) { 
-                    LOG_DEBUG("[cast] end of stream");
-                    decoder_ready = false;
-                    pthread_t thread = {0};
-                    pthread_create(&thread, NULL, load_next, NULL);
-                }
+        struct stream* s = &stream1;
+        if (!decoder_ready) {
+            if (s->max_frames < decode_frames)
+                stream_resize(s, decode_frames);
+            stream_zero(s, 0, decode_frames);
+        } else {
+            s = process(decode_frames);
+            remaining_frames -= s->frames;
+            if (s->end_of_stream || remaining_frames < 0) { 
+                LOG_DEBUG("[cast] end of stream");
+                decoder_ready = false;
+                pthread_t thread = {0};
+                pthread_create(&thread, NULL, load_next, NULL);
             }
-            int siz = lame_encode_buffer_ieee_float(lame, s->buffer[0], s->buffer[1], s->frames, mp3buf, sizeof(mp3buf)); 
-            shout_sync(shout);
-            err = shout_send(shout, mp3buf, siz);
-        } while (err == SHOUTERR_SUCCESS);
-        LOG_ERROR("[cast] icecast disconnected (%s)", shout_get_error(shout));
-        sleep(10); 
+        }
+        int siz = lame_encode_buffer_ieee_float(lame, s->buffer[0], s->buffer[1], s->frames, mp3buf.data, mp3buf.size);
+        if (siz <= 0) { 
+           LOG_ERROR("[cast] lame error (%d)", siz);
+           return;
+        }
+        shout_sync(shout);
+        int err = shout_send(shout, mp3buf.data, siz);
+        if (err != SHOUTERR_SUCCESS) {
+            LOG_ERROR("[cast] disconnect (%s)", shout_get_error(shout));
+            return;
+        }
+    }
+}
+
+void cast_run(void)
+{
+    bool load_1st = true;
+    while (true) {
+        cast_init();
+        if (cast_connect()) {
+            if (load_1st) {
+                load_next(NULL);
+                load_1st = false;
+            }
+            run_encoder();
+        }
+        cast_free();
+        sleep(15); 
     }
 }
 

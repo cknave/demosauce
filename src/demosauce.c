@@ -57,7 +57,6 @@ int main(int argc, char** argv)
     settings_init(argc, argv);
     log_set_console_level(settings_log_console_level);
     log_set_file(settings_log_file, settings_log_file_level);
-    cast_init();
     puts("The spice must flow!");
     cast_run();
     return EXIT_SUCCESS;

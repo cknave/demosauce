@@ -57,7 +57,7 @@ static void read_config(void)
 static void check_sanity(void)
 {
     if (settings_config_version != 34)
-        die("your config file is outdated, need config_version 34");
+        die("config file seems to be outdated, need config_version 34");
 
     if (settings_demovibes_port < 1 || settings_demovibes_port > 65535) 
         die("setting demovibes_port out of range (1-65535)");

@@ -12,6 +12,7 @@
 #include <string.h>
 #include <math.h>
 #include <strings.h>
+#include <limits.h>
 #include <id3tag.h>
 #include <bass.h>
 #include "log.h"
@@ -31,8 +32,9 @@ struct bassdecoder {
     long                last_frame;
 };
 
-static void bass_free2(struct bassdecoder* d)
+void bass_free(void* handle)
 {
+    struct bassdecoder* d = handle;
     buffer_free(&d->read_buffer);
     if (d->channel) {
         if (d->channel_info.ctype & BASS_CTYPE_MUSIC_MOD) 
@@ -42,11 +44,6 @@ static void bass_free2(struct bassdecoder* d)
         if (BASS_ErrorGetCode() != BASS_OK)
              LOG_WARN("[bassdecoder] failed to free channel (%d)", BASS_ErrorGetCode());
     }
-}
-
-void bass_free(void* handle)
-{
-    bass_free2(handle);
     util_free(handle);
 }
 
@@ -68,55 +65,51 @@ void* bass_load(const char* path, const char* options, int samplerate)
     DWORD stream_flags = BASS_STREAM_DECODE | (prescan ? BASS_STREAM_PRESCAN : 0) | BASS_SAMPLE_FLOAT;
     DWORD music_flags = BASS_MUSIC_DECODE | (prescan ? BASS_MUSIC_PRESCAN : 0) | BASS_MUSIC_FLOAT;
 
-    struct bassdecoder d = {{0}};
-    d.channel = BASS_StreamCreateFile(FALSE, path, 0, 0, stream_flags);
-    if (!d.channel) 
-        d.channel = BASS_MusicLoad(FALSE, path, 0, 0 , music_flags, samplerate);
-    if (!d.channel) 
-        return false;
+    DWORD channel = BASS_StreamCreateFile(FALSE, path, 0, 0, stream_flags);
+    if (!channel) 
+        channel = BASS_MusicLoad(FALSE, path, 0, 0 , music_flags, samplerate);
+    if (!channel) {
+        LOG_DEBUG("[bassdecoder] failed to load %s", path);
+        return NULL;
+    }
 
-    BASS_ChannelGetInfo(d.channel, &d.channel_info);
-    QWORD length = BASS_ChannelGetLength(d.channel, BASS_POS_BYTE);
-    d.last_frame = length / (sizeof(float) * d.channel_info.chans);
+    struct bassdecoder* d = util_malloc(sizeof(struct bassdecoder));
+    memset(d, 0, sizeof(struct bassdecoder));
+    d->channel = channel;
 
-    if (length == (QWORD)(-1))
-        goto error;
+    BASS_ChannelGetInfo(channel, &d->channel_info);
+    // may be negative, on unknown length
+    long len_bytes = (long)BASS_ChannelGetLength(channel, BASS_POS_BYTE);
+    d->last_frame = (len_bytes < 0) ? LONG_MAX : len_bytes / (sizeof(float) * d->channel_info.chans);
 
-    if (IS_MOD(&d)) {
+    if (IS_MOD(d)) {
         // interpolation, values: auto, auto, off, linear, sinc (bass uses linear as default)
         char inter_str[8] = {0};
         keyval_str(inter_str, 8, options, "bass_inter", "auto");
-        if ((IS_AMIGAMOD(&d) && !strcmp(inter_str, "auto")) || !strcmp(inter_str, "off")) 
-            BASS_ChannelFlags(d.channel, BASS_MUSIC_NONINTER, BASS_MUSIC_NONINTER);
+        if ((IS_AMIGAMOD(d) && !strcmp(inter_str, "auto")) || !strcmp(inter_str, "off")) 
+            BASS_ChannelFlags(channel, BASS_MUSIC_NONINTER, BASS_MUSIC_NONINTER);
         else if (!strcmp(inter_str, "sinc"))
-            BASS_ChannelFlags(d.channel, BASS_MUSIC_SINCINTER, BASS_MUSIC_SINCINTER);
+            BASS_ChannelFlags(channel, BASS_MUSIC_SINCINTER, BASS_MUSIC_SINCINTER);
 
         // ramping, values: auto, normal, sensitive
         char ramp_str[12] = {0};
         keyval_str(ramp_str, 12, options, "bass_ramp", "auto");
-        if ((!IS_AMIGAMOD(&d) && !strcmp(ramp_str, "auto")) || !strcmp(inter_str, "normal"))
-            BASS_ChannelFlags(d.channel, BASS_MUSIC_RAMP, BASS_MUSIC_RAMP);
+        if ((!IS_AMIGAMOD(d) && !strcmp(ramp_str, "auto")) || !strcmp(inter_str, "normal"))
+            BASS_ChannelFlags(channel, BASS_MUSIC_RAMP, BASS_MUSIC_RAMP);
         else if (!strcmp(ramp_str, "sensitive"))
-            BASS_ChannelFlags(d.channel, BASS_MUSIC_RAMPS, BASS_MUSIC_RAMPS);
+            BASS_ChannelFlags(channel, BASS_MUSIC_RAMPS, BASS_MUSIC_RAMPS);
 
         // playback mode, values: auto, bass, pt1, ft2 (bass is default)
         char mode_str[8] = {0};
         keyval_str(mode_str, 8, options, "bass_mode", "auto");
-        if ((IS_AMIGAMOD(&d) && !strcmp(mode_str, "auto")) || !strcmp(mode_str, "pt1"))
-            BASS_ChannelFlags(d.channel, BASS_MUSIC_PT1MOD, BASS_MUSIC_PT1MOD);
+        if ((IS_AMIGAMOD(d) && !strcmp(mode_str, "auto")) || !strcmp(mode_str, "pt1"))
+            BASS_ChannelFlags(channel, BASS_MUSIC_PT1MOD, BASS_MUSIC_PT1MOD);
         else if (!strcmp(mode_str, "ft2"))
-            BASS_ChannelFlags(d.channel, BASS_MUSIC_FT2MOD, BASS_MUSIC_FT2MOD);
+            BASS_ChannelFlags(channel, BASS_MUSIC_FT2MOD, BASS_MUSIC_FT2MOD);
     } 
 
-    struct bassdecoder* dec = util_malloc(sizeof(struct bassdecoder));
-    memmove(dec, &d, sizeof(struct bassdecoder));
     LOG_INFO("[bassdecoder] loaded %s", path);
-    return dec;
-
-error:
-    bass_free2(&d);
-    LOG_DEBUG("[bassdecoder] failed to load %s", path);
-    return NULL;
+    return d;
 }
 
 void bass_decode(void* handle, struct stream* s, int frames)
@@ -130,25 +123,19 @@ void bass_decode(void* handle, struct stream* s, int frames)
         return;
     }
 
-    int frames_to_read = CLAMP(frames, d->last_frame - d->current_frame, frames);
-    if (frames_to_read == 0) {
-        s->end_of_stream = true;
-        s->frames = 0;
-        return;
-    }
-
-    DWORD bytes_to_read = frames_to_read * ch * sizeof(float);
+    frames = CLAMP(0, d->last_frame - d->current_frame, frames);
+    DWORD bytes_to_read = frames * ch * sizeof(float);
     buffer_resize(&d->read_buffer, bytes_to_read);
     DWORD bytes_read = BASS_ChannelGetData(d->channel, d->read_buffer.data, bytes_to_read);
     if (bytes_read == -1 && BASS_ErrorGetCode() != BASS_ERROR_ENDED) 
         LOG_ERROR("[bassdecoder] failed to read from channel (%d)", BASS_ErrorGetCode());
     
-    int frames_read = bytes_read != -1 ? bytes_read / (sizeof(float) * ch) : 0;
+    int frames_read = (bytes_read != -1) ? bytes_read / (sizeof(float) * ch) : 0;
     d->current_frame += frames_read;
 
     s->frames = 0;
     stream_append_convert(s, &d->read_buffer.data, SF_F32I, frames_read, ch);
-    s->end_of_stream = (frames_read != frames_to_read) || (d->current_frame >= d->last_frame);
+    s->end_of_stream = (frames_read != frames) || (d->current_frame >= d->last_frame);
     if(s->end_of_stream) 
         LOG_DEBUG("[bassdecoder] eos %d frames left", s->frames);
 }
@@ -193,7 +180,7 @@ void bass_info(void* handle, struct info* info)
     memset(info, 0, sizeof(struct info)); 
     info->decode        = bass_decode;
     info->free          = bass_free;
-    info->metadata        = bass_metadata;
+    info->metadata      = bass_metadata;
     info->channels      = d->channel_info.chans;
     info->samplerate    = d->channel_info.freq;
     info->frames        = d->last_frame;
@@ -257,6 +244,7 @@ static char* get_id3v2_tag(const id3_byte_t* tags, const char* key)
 
     utf_str = id3_ucs4_utf8duplicate(ucs_str);
     // TODO: free ucs string?
+    // see "docu" http://www.mars.org/pipermail/mad-dev/2002-January/000439.html
 id3_quit_frame:
     id3_frame_delete(frame);
 id3_quit_tag:

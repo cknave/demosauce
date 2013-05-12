@@ -85,9 +85,7 @@ void settings_init(int argc, char** argv)
         default:
         case '?':
             if (strchr("cd", optopt))
-                puts("missing argument");
-            else
-                puts("unknown option");
+                puts("expecting argument");
             puts(HELP_MESSAGE);
             exit(EXIT_FAILURE);
         case 'h':

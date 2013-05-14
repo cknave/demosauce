@@ -24,7 +24,7 @@
 #include "cast.h"
 
 #define BUFFER_SIZE 200 // miliseconds
-#define LOAD_TRIES 3
+#define LOAD_TRIES  3
 
 static lame_t           lame;
 static shout_t*         shout;
@@ -43,12 +43,13 @@ static bool             mixer_enabled;
 static bool             fader_enabled;
 static sig_atomic_t     decoder_ready;
 
-static void get_next_song()
+static void get_next_song(void)
 {
     if (settings_debug_song) {
         buffer_resize(&config, strlen(settings_debug_song) + 1);
         strcpy(config.data, settings_debug_song);
     } else {
+        buffer_zero(&config);
         int socket = socket_open(settings_demovibes_host, settings_demovibes_port);
         if (socket < 0) {
             LOG_ERROR("[cast] can't connect to demosauce");

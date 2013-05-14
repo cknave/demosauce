@@ -49,10 +49,11 @@ void* fx_resample_init(int channels, int sr_from, int sr_to)
         if (err)
             goto error;
     }
+    LOG_DEBUG("[resample] init, %d channels, %f ratio", channels, r->ratio);
     return r;
 
 error:
-    LOG_ERROR("[util] failed to create resampler (%s)", src_strerror(err));
+    LOG_ERROR("[resample] init failed (%s)", src_strerror(err));
     fx_resample_free(r);
     return NULL;
 }
@@ -86,7 +87,7 @@ void fx_resample(void* handle, struct stream* s1, struct stream* s2)
         };
         int err = src_process(r->state[ch], &src);
         if (err)
-            LOG_ERROR("[util] resampler error (%s)", src_strerror(err));
+            LOG_ERROR("[resample] error (%s)", src_strerror(err));
         assert(src.input_frames_used == s1->frames);
         s2->frames = src.output_frames_gen;
     }
@@ -94,7 +95,7 @@ void fx_resample(void* handle, struct stream* s1, struct stream* s2)
 
 //-----------------------------------------------------------------------------
 
-void fx_map_process(struct stream* s, int channels)
+void fx_map(struct stream* s, int channels)
 {
     // only handles 1 and 2, not MAX_CHANNELS
     assert(channels >= 1 && channels <= 2);
@@ -124,7 +125,7 @@ void fx_fade_init(struct fx_fade* fx, long start_frame, long end_frame, float be
     fx->amp_inc     = (end_amp - begin_amp) / (end_frame - start_frame);
 }
 
-void fx_fade_process(struct fx_fade* fx, struct stream* s)
+void fx_fade(struct fx_fade* fx, struct stream* s)
 {
     long enda = (fx->start_frame < fx->current_frame) ? 0 :
         MIN(s->frames, fx->start_frame - fx->current_frame);
@@ -148,7 +149,7 @@ void fx_fade_process(struct fx_fade* fx, struct stream* s)
 
 //-----------------------------------------------------------------------------
 
-void fx_gain_process(struct stream* s, float amp)
+void fx_gain(struct stream* s, float amp)
 {
     for (int ch = 0; ch < s->channels; ch++) {
         float* out = s->buffer[ch];
@@ -167,7 +168,7 @@ void fx_mix_init(struct fx_mix* fx, float llamp, float lramp, float rramp, float
     fx->rlamp = rlamp;
 }
 
-void fx_mix_process(struct fx_mix* fx, struct stream* s)
+void fx_mix(struct fx_mix* fx, struct stream* s)
 {
     if (s->channels != 2)
         return;
@@ -189,12 +190,12 @@ static void ci16i(const void** vin, float** out, int len, int channels)
     float* lout = out[0];
     if (channels == 1) {
         for (int i = 0; i < len; i++) 
-            lout[i] = (float)in[i] / -(INT16_MIN);
+            lout[i] = (float)in[i] / -INT16_MIN;
     } else { // channels == 2
         float* rout = out[1];
         for (int i = 0; i < len; i++) {
-            lout[i] = (float)in[i * 2] / -(INT16_MIN);
-            rout[i] = (float)in[i * 2 + 1] / -(INT16_MIN);
+            lout[i] = (float)in[i * 2] / -INT16_MIN;
+            rout[i] = (float)in[i * 2 + 1] / -INT16_MIN;
         }
     }
 }
@@ -205,7 +206,7 @@ static void ci16p(const void** vin, float** out, int len, int channels)
         const int16_t* in = vin[ch];
         float* lout = out[ch];
         for (int i = 0; i < len; i++) 
-            lout[i] = (float)in[i] / -(INT16_MIN);
+            lout[i] = (float)in[i] / -INT16_MIN;
     }
 }
 

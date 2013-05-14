@@ -69,19 +69,23 @@ static void zero_generator(void* dummy, struct stream* s, int frames)
 
 static void configure_effects(float forced_length)
 {
-    char mix_str[8] = {0};
-    
+    // play length
     remaining_frames = LONG_MAX;
     if (forced_length > 0) {
         remaining_frames = settings_encoder_samplerate * forced_length;
         LOG_DEBUG("[cast] song length forced to %f seconds", forced_length);
     }
 
+    // resampler
+    fx_resample_free(resampler);
+    resampler = NULL;
     if (info.samplerate != settings_encoder_samplerate) {
         resampler = fx_resample_init(info.channels, info.samplerate, settings_encoder_samplerate);
         LOG_DEBUG("[cast] resampling from %d to %d Hz", info.samplerate, settings_encoder_samplerate);
     }
 
+    // channel mixing
+    char mix_str[8] = {0};
     keyval_str(mix_str, 8, config.data, "mix", "auto");
     mixer_enabled = (settings_encoder_channels == 2) && 
         (strcmp(mix_str, "auto") || (info.flags & INFO_AMIGAMOD));
@@ -92,10 +96,12 @@ static void configure_effects(float forced_length)
         LOG_DEBUG("[cast] mixing channels with %f ratio", ratio);
     }
 
+    // gain
     gain = keyval_real(config.data, "gain", 0.0);
     LOG_DEBUG("[cast] setting gain to %f dB", gain);
     gain = db_to_amp(gain);
 
+    // fade out
     fader_enabled = keyval_bool(config.data, "fade_out", false); 
     if (fader_enabled) {
         float length = forced_length > 0 ? forced_length : (info.frames / info.samplerate);
@@ -109,13 +115,13 @@ static void configure_effects(float forced_length)
 static void update_metadata(void)
 {
     char cast_title[1024]   = {0};
-    char artist[504]        = {0};
+    char artist[512]        = {0};
     char title[512]         = {0};
 
     keyval_str(title, sizeof(title), config.data, "title", settings_error_title);
-    keyval_str(artist, sizeof(title), config.data, "artist", "");
+    keyval_str(artist, sizeof(artist), config.data, "artist", "");
 
-    // remove - in artist name, players use it for artist-title separation
+    // remove '-' in artist name, players use it for artist-title separation
     for (size_t i = 0; i < strlen(artist); i++)
         if (cast_title[i] == '-')
             cast_title[i] = ' ';
@@ -144,6 +150,7 @@ static void* load_next(void* data)
 
     if (decoder && info.free)
         info.free(decoder);
+    decoder = NULL;
     memset(&info, 0, sizeof(struct info));
     
     while (tries++ < LOAD_TRIES && !decoder) {
@@ -200,7 +207,7 @@ static void cast_init(void)
     lame_set_num_channels(lame, settings_encoder_channels);
     lame_set_in_samplerate(lame, settings_encoder_samplerate);
     lame_init_params(lame);
-    buffer_resize(&mp3buf, BUFFER_SIZE * settings_encoder_bitrate / CHAR_BIT * 2);
+    buffer_resize(&mp3buf, BUFFER_SIZE * settings_encoder_bitrate / CHAR_BIT * 4);
     stream1.channels = settings_encoder_channels;
 }
 
@@ -218,7 +225,12 @@ static struct stream* process(int frames)
         fx_resample(resampler, &stream0, &stream1);
         s = &stream1;
     }
-    // other effects
+    if (mixer_enabled)
+        fx_mix(&mixer, s);
+    fx_map(s, settings_encoder_channels);
+    fx_gain(s, gain);
+    if (fader_enabled)
+        fx_fade(&fader, s);
     return s;
 }
 
@@ -227,9 +239,9 @@ static bool cast_connect(void)
     char bitrate[8]     = {0};
     char samplerate[8]  = {0};
     char channels[4]    = {0};
-    snprintf(bitrate, 7, "%d", settings_encoder_bitrate);
-    snprintf(samplerate, 7, "%d", settings_encoder_samplerate);
-    snprintf(channels, 3, "%d", settings_encoder_channels); 
+    snprintf(bitrate, sizeof(bitrate), "%d", settings_encoder_bitrate);
+    snprintf(samplerate, sizeof(samplerate), "%d", settings_encoder_samplerate);
+    snprintf(channels, sizeof(channels), "%d", settings_encoder_channels); 
 
     // setup connection
     shout_set_host(shout, settings_cast_host);
@@ -277,7 +289,7 @@ static void run_encoder(void)
             }
         }
         int siz = lame_encode_buffer_ieee_float(lame, s->buffer[0], s->buffer[1], s->frames, mp3buf.data, mp3buf.size);
-        if (siz <= 0) { 
+        if (siz < 0) { 
            LOG_ERROR("[cast] lame error (%d)", siz);
            return;
         }

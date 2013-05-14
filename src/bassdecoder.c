@@ -61,9 +61,11 @@ void* bass_load(const char* path, const char* options, int samplerate)
 
     LOG_DEBUG("[bassdecoder] loading %s", path);
 
+    // always prescan music or it may loop forever, BASS_MUSIC_STOPBACK would fix that
+    // but might also break some mods from playing correctly
     bool prescan = keyval_bool(options, "bass_prescan", false);    
     DWORD stream_flags = BASS_STREAM_DECODE | (prescan ? BASS_STREAM_PRESCAN : 0) | BASS_SAMPLE_FLOAT;
-    DWORD music_flags = BASS_MUSIC_DECODE | (prescan ? BASS_MUSIC_PRESCAN : 0) | BASS_MUSIC_FLOAT;
+    DWORD music_flags = BASS_MUSIC_DECODE | BASS_MUSIC_PRESCAN | BASS_MUSIC_FLOAT;
 
     DWORD channel = BASS_StreamCreateFile(FALSE, path, 0, 0, stream_flags);
     if (!channel) 
@@ -78,7 +80,6 @@ void* bass_load(const char* path, const char* options, int samplerate)
     d->channel = channel;
 
     BASS_ChannelGetInfo(channel, &d->channel_info);
-    // may be negative, on unknown length
     long len_bytes = (long)BASS_ChannelGetLength(channel, BASS_POS_BYTE);
     d->last_frame = (len_bytes < 0) ? LONG_MAX : len_bytes / (sizeof(float) * d->channel_info.chans);
 
@@ -142,7 +143,7 @@ void bass_decode(void* handle, struct stream* s, int frames)
 
 void bass_seek(void* handle, long position)
 {
-    // implement me!
+    // TODO implement me!
 }
 
 void bass_set_loop_duration(void* handle, double duration)
@@ -213,7 +214,9 @@ static char* get_id3_tag(const TAG_ID3* tags, const char* key)
     return value;
 }
 
-// and the award to the bested documented lib goes to: libid3tag! </irony>
+// and the award to the bestesd documented lib goes to libid3tag! the closest
+// thing i could find to a documentation was a mailing list entry from 2002
+// http://www.mars.org/pipermail/mad-dev/2002-January/000439.html
 static char* get_id3v2_tag(const id3_byte_t* tags, const char* key)
 {
     const char* frame_id = NULL;
@@ -244,7 +247,7 @@ static char* get_id3v2_tag(const id3_byte_t* tags, const char* key)
 
     utf_str = id3_ucs4_utf8duplicate(ucs_str);
     // TODO: free ucs string?
-    // see "docu" http://www.mars.org/pipermail/mad-dev/2002-January/000439.html
+
 id3_quit_frame:
     id3_frame_delete(frame);
 id3_quit_tag:

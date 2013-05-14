@@ -23,7 +23,6 @@
 #define INFO_AMIGAMOD   (1 << 17)
 
 #define BOOL_STR(x)     ((x) ? "true" : "false") 
-#define BSTR(buf)       ((char*)(buf).buff)
 #define XSTR_(s)        "-"#s
 #define XSTR(s)         XSTR_(s)
 #ifdef BUILD_ID
@@ -31,7 +30,8 @@
 #else
     #define ID_STR
 #endif
-#define DEMOSAUCE_VERSION "demosauce 0.4.0"ID_STR" - C++ is to C as Lung Cancer is to Lung"
+#define DEMOSAUCE_VERSION "demosauce 0.4.0"ID_STR" - C++ sucks edition"
+
 #define COUNT(array)    (sizeof(array) / sizeof(array[0]))
 #define MIN(a, b)       ((a) < (b) ? (a) : (b))
 #define MAX(a, b)       ((a) > (b) ? (a) : (b))
@@ -45,13 +45,12 @@ enum sampleformat {     // planar formats must have odd number
 };
 
 struct buffer {
-    void*           data;
-    size_t          size;
+    void*       data;
+    size_t      size;
 };
 
 struct stream {
     float*      buffer[MAX_CHANNELS];
-//    size_t      buffer_size;
     long        frames;
     long        max_frames;
     int         channels;
@@ -94,12 +93,12 @@ bool    keyval_bool(const char* str, const char* key, bool fallback);
     
 
 void    buffer_resize(struct buffer* b, size_t size);
-void    buffer_zero(struct buffer* b);
 void    buffer_free(struct buffer* b);
+void    buffer_zero(struct buffer* b);
 
 
-void    stream_free(struct stream* s);
 void    stream_resize(struct stream* s, int frames);
+void    stream_free(struct stream* s);
 void    stream_append(struct stream* s, struct stream* source, int frames);
 void    stream_append_convert(struct stream* s, void** source, int type, int frames, int channels);
 void    stream_drop(struct stream* s, int frames);

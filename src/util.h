@@ -5,7 +5,7 @@
 *   http://www.gnu.org/licenses/gpl.txt
 *   also, this is beerware! you are strongly encouraged to invite the
 *   authors of this software to a beer when you happen to meet them.
-*   copyright MMXI by maep
+*   copyright MMXIII by maep
 */
 
 #ifndef UTIL_H
@@ -58,15 +58,21 @@ struct stream {
 };
 
 struct info {
-    void        (*decode)(void*, struct stream*, int);
-    void        (*free)(void*);
-    char*       (*metadata)(void*, const char*);
     const char* codec;
     float       bitrate;
     long        frames;
     int         channels;
     int         samplerate;
     int         flags;
+};
+
+struct decoder {
+    void        (*free)(struct decoder*);
+    void        (*seek)(struct decoder*, long);
+    void        (*info)(struct decoder*, struct info*);
+    char*       (*metadata)(struct decoder*, const char*);
+    void        (*decode)(struct decoder*, struct stream*, int);
+    void*       handle;
 };
 
 

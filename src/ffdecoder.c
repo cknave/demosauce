@@ -45,6 +45,155 @@ struct ffdecoder {
     long                frames;
 };
 
+
+static int get_format(AVCodecContext* codec_context)
+{
+    switch (codec_context->sample_fmt) {
+    case AV_SAMPLE_FMT_S16:     return SF_I16I;
+    case AV_SAMPLE_FMT_FLT:     return SF_F32I;
+    case AV_SAMPLE_FMT_S16P:    return SF_I16P;
+    case AV_SAMPLE_FMT_FLTP:    return SF_F32P;
+    default:                    return -1;
+    };
+}
+
+static void decode_frame(struct ffdecoder* d, AVPacket* p)
+{
+    void* packet_data = p->data;
+    int   packet_size = p->size;
+    
+    while (p->size > 0) {
+        int ret = 0;
+#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(53, 25, 0)
+        int data_size = BUFFER_SIZE;
+        int16_t* buf = d->buffer.data;
+#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(52, 23, 0)
+        ret = avcodec_decode_audio2(d->codec_context, buf, &data_size, p->data, p->size);
+#else
+        ret = avcodec_decode_audio3(d->codec_context, buf, &data_size, p);
+#endif
+        if (ret < 0)
+            goto error;
+        // TODO: check format
+        int frames = data_size / (d->codec_context->channels * sizeof(int16_t));
+        void* buffs[MAX_CHANNELS] = {buf, buf + frames};
+        stream_append_convert(&d->stream, buffs, d->format, frames, d->codec_context->channels);
+#else
+        int got_frame = 0;
+        AVFrame frame = {{0}};
+        ret = avcodec_decode_audio4(d->codec_context, &frame, &got_frame, p);
+        if (ret < 0 || !got_frame)
+            goto error;
+        int frames = frame.nb_samples;
+        void** buffs = (void**)frame.extended_data;
+        stream_append_convert(&d->stream, buffs, d->format, frames, d->codec_context->channels);
+#endif
+        p->data += ret;
+        p->size -= ret;
+    }
+
+error:    
+    p->data = packet_data;
+    p->size = packet_size;
+}
+
+static void ff_decode(struct decoder* dec, struct stream* s, int frames)
+{
+    struct ffdecoder* d = dec->handle;
+    
+    while (d->stream.frames < frames) {
+        AVPacket packet = {0};
+        int err = av_read_frame(d->format_context, &packet); // demux/read packet
+        if (err < 0) { // enf of stream
+            d->stream.end_of_stream = true;
+            break; 
+        }
+        if (packet.stream_index == d->stream_index) 
+            decode_frame(d, &packet);
+        av_free_packet(&packet);
+    }
+   
+    s->frames = 0;
+    stream_append(s, &d->stream, frames);
+    stream_drop(&d->stream, frames);
+    s->end_of_stream = !d->stream.frames && d->stream.end_of_stream;
+    if (s->end_of_stream) 
+        LOG_DEBUG("[ffdecoder] eos avcodec %d frames left", s->frames);
+}
+
+static void ff_seek(struct decoder* dec, long frame)
+{
+    struct ffdecoder* d = dec->handle;
+    int sr = d->codec_context->sample_rate;
+    int64_t timestamp = frame / sr * AV_TIME_BASE;
+    if (av_seek_frame(d->format_context, -1, timestamp, 0) < 0)
+        LOG_WARN("[ffdecoder] seek failed");
+}
+
+static const char* codec_type(struct ffdecoder* d)
+{
+    enum CodecID codec_type = d->codec->id;
+    if (codec_type >= CODEC_ID_PCM_S16LE && codec_type < CODEC_ID_ADPCM_IMA_QT) 
+        return "pcm";
+    if (codec_type >= CODEC_ID_ADPCM_IMA_QT && codec_type < CODEC_ID_AMR_NB) 
+        return "adpcm";
+    switch (codec_type) {
+        case CODEC_ID_RA_144:
+        case CODEC_ID_RA_288:   return "real";
+        case CODEC_ID_MP2:      return "mp2";
+        case CODEC_ID_MP3:      return "mp3";
+        case CODEC_ID_AAC:      return "aac";
+        case CODEC_ID_AC3:      return "ac3";
+        case CODEC_ID_VORBIS:   return "vorbis";
+#if LIBAVCODEC_VERSION_INT > AV_VERSION_INT(51, 50, 0)
+        case CODEC_ID_WMAVOICE:
+        case CODEC_ID_WMAPRO:
+        case CODEC_ID_WMALOSSLESS: 
+#endif
+        case CODEC_ID_WMAV1:
+        case CODEC_ID_WMAV2:    return "wma";
+        case CODEC_ID_FLAC:     return "flac";
+        case CODEC_ID_WAVPACK:  return "wavpack";
+        case CODEC_ID_APE:      return "monkey";
+        case CODEC_ID_MUSEPACK7:
+        case CODEC_ID_MUSEPACK8:return "musepack";
+#if LIBAVCODEC_VERSION_INT > AV_VERSION_INT(54, 0, 0)
+        case CODEC_ID_OPUS:     return "opus";
+#endif
+        default:                return "unknown";
+    }
+}
+
+static void ff_info(struct decoder* dec, struct info* info)
+{
+    struct ffdecoder* d = dec->handle;
+    memset(info, 0, sizeof(struct info));
+    info->frames        = d->frames;
+    info->codec         = codec_type(d);
+    info->bitrate       = d->codec_context->bit_rate / 1000.0f;
+    info->channels      = d->codec_context->channels;
+    info->samplerate    = d->codec_context->sample_rate;
+    info->flags         = INFO_FFMPEG | INFO_SEEKABLE;
+}
+
+static char* ff_metadata(struct decoder* dec, const char* key)
+{
+    struct ffdecoder* d = dec->handle;
+    const char* value = NULL;
+#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(53, 7, 0)
+    if (!strcmp(key, "artist"))
+        value = d->format_context->author;
+    else if (!strcmp(key, "title"))
+        value = d->format_context->title;
+#else
+    AVDictionaryEntry* entry = av_dict_get(d->format_context->metadata, key, 0, 0);;
+    value = entry ? entry->value : NULL;
+#endif
+    char* v = util_strdup(value);
+    util_trim(v);
+    return v;
+}
+
 static void ff_free2(struct ffdecoder* d)
 {
 #if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(53, 8, 0)
@@ -61,31 +210,21 @@ static void ff_free2(struct ffdecoder* d)
 #endif
 }
 
-void ff_free(void* handle)
+static void ff_free(struct decoder* dec)
 {
-    ff_free2(handle);
-    util_free(handle);
+    struct ffdecoder* d = dec->handle;
+    ff_free2(d);
+    util_free(d);
 }
 
-static int get_format(AVCodecContext* codec_context)
+bool ff_load(struct decoder* dec, const char* path)
 {
-    switch (codec_context->sample_fmt) {
-    case AV_SAMPLE_FMT_S16:     return SF_I16I;
-    case AV_SAMPLE_FMT_FLT:     return SF_F32I;
-    case AV_SAMPLE_FMT_S16P:    return SF_I16P;
-    case AV_SAMPLE_FMT_FLTP:    return SF_F32P;
-    default:                    return -1;
-    };
-}
-
-void* ff_load(const char* path)
-{
+    // TODO reject input files with low score
     static bool initialized = false;
     if (!initialized) {
         initialized = true;
         av_register_all();
         // avformat_network_init();
-        // TODO reject mp3 with low score
 #ifdef NDEBUG
         av_log_set_level(AV_LOG_QUIET);
 #endif
@@ -144,137 +283,22 @@ void* ff_load(const char* path)
 #if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(53, 25, 0)
     buffer_resize(&d.buffer, BUFFER_SIZE);
 #endif
-    struct ffdecoder* dec = util_malloc(sizeof(struct ffdecoder));
-    memmove(dec, &d, sizeof(struct ffdecoder));
+    
+    dec->free       = ff_free;
+    dec->seek       = ff_seek;
+    dec->info       = ff_info;
+    dec->metadata   = ff_metadata;
+    dec->decode     = ff_decode;
+    dec->handle     = util_malloc(sizeof(struct ffdecoder));
+    memmove(dec->handle, &d, sizeof(struct ffdecoder));
+    
     LOG_INFO("[ffdecoder] loaded %s", path);
-    return dec;
+    return true;
 
 error:
     ff_free2(&d);
     LOG_DEBUG("[ffdecoder] failed to open %s", path);
-    return NULL;
-}
-
-static void decode_frame(struct ffdecoder* d, AVPacket* p)
-{
-    void* packet_data = p->data;
-    int   packet_size = p->size;
-    
-    while (p->size > 0) {
-        int ret = 0;
-#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(53, 25, 0)
-        int data_size = BUFFER_SIZE;
-        int16_t* buf = d->buffer.data;
-#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(52, 23, 0)
-        ret = avcodec_decode_audio2(d->codec_context, buf, &data_size, p->data, p->size);
-#else
-        ret = avcodec_decode_audio3(d->codec_context, buf, &data_size, p);
-#endif
-        if (ret < 0)
-            goto error;
-        // TODO: check format
-        int frames = data_size / (d->codec_context->channels * sizeof(int16_t));
-        void* buffs[MAX_CHANNELS] = {buf, buf + frames};
-        stream_append_convert(&d->stream, buffs, d->format, frames, d->codec_context->channels);
-#else
-        int got_frame = 0;
-        AVFrame frame = {{0}};
-        ret = avcodec_decode_audio4(d->codec_context, &frame, &got_frame, p);
-        if (ret < 0 || !got_frame)
-            goto error;
-        int frames = frame.nb_samples;
-        void** buffs = (void**)frame.extended_data;
-        stream_append_convert(&d->stream, buffs, d->format, frames, d->codec_context->channels);
-#endif
-        p->data += ret;
-        p->size -= ret;
-    }
-
-error:    
-    p->data = packet_data;
-    p->size = packet_size;
-}
-
-void ff_decode(void* handle, struct stream* s, int frames)
-{
-    struct ffdecoder* d = handle;
-    
-    while (d->stream.frames < frames) {
-        AVPacket packet = {0};
-        int err = av_read_frame(d->format_context, &packet); // demux/read packet
-        if (err < 0) { // enf of stream
-            d->stream.end_of_stream = true;
-            break; 
-        }
-        if (packet.stream_index == d->stream_index) 
-            decode_frame(d, &packet);
-        av_free_packet(&packet);
-    }
-   
-    s->frames = 0;
-    stream_append(s, &d->stream, frames);
-    stream_drop(&d->stream, frames);
-    s->end_of_stream = !d->stream.frames && d->stream.end_of_stream;
-    if (s->end_of_stream) 
-        LOG_DEBUG("[ffdecoder] eos avcodec %d frames left", s->frames);
-}
-
-void ff_seek(void* handle, long frame)
-{
-    struct ffdecoder* d = handle;
-    int sr = d->codec_context->sample_rate;
-    int64_t timestamp = frame / sr * AV_TIME_BASE;
-    if (av_seek_frame(d->format_context, -1, timestamp, 0) < 0)
-        LOG_WARN("[ffdecoder] seek failed");
-}
-
-static const char* codec_type(struct ffdecoder* d)
-{
-    enum CodecID codec_type = d->codec->id;
-    if (codec_type >= CODEC_ID_PCM_S16LE && codec_type < CODEC_ID_ADPCM_IMA_QT) 
-        return "pcm";
-    if (codec_type >= CODEC_ID_ADPCM_IMA_QT && codec_type < CODEC_ID_AMR_NB) 
-        return "adpcm";
-    switch (codec_type) {
-        case CODEC_ID_RA_144:
-        case CODEC_ID_RA_288:   return "real";
-        case CODEC_ID_MP2:      return "mp2";
-        case CODEC_ID_MP3:      return "mp3";
-        case CODEC_ID_AAC:      return "aac";
-        case CODEC_ID_AC3:      return "ac3";
-        case CODEC_ID_VORBIS:   return "vorbis";
-#if LIBAVCODEC_VERSION_INT > AV_VERSION_INT(51, 50, 0)
-        case CODEC_ID_WMAVOICE:
-        case CODEC_ID_WMAPRO:
-        case CODEC_ID_WMALOSSLESS: 
-#endif
-        case CODEC_ID_WMAV1:
-        case CODEC_ID_WMAV2:    return "wma";
-        case CODEC_ID_FLAC:     return "flac";
-        case CODEC_ID_WAVPACK:  return "wavpack";
-        case CODEC_ID_APE:      return "monkey";
-        case CODEC_ID_MUSEPACK7:
-        case CODEC_ID_MUSEPACK8:return "musepack";
-#if LIBAVCODEC_VERSION_INT > AV_VERSION_INT(54, 0, 0)
-        case CODEC_ID_OPUS:     return "opus";
-#endif
-        default:                return "unknown";
-    }
-}
-
-void ff_info(void* handle, struct info* info)
-{
-    struct ffdecoder* d = handle;
-    memset(info, 0, sizeof(struct info));
-    info->decode        = ff_decode;
-    info->free          = ff_free;         
-    info->metadata      = ff_metadata;
-    info->frames        = d->frames;
-    info->codec         = codec_type(d);
-    info->bitrate       = d->codec_context->bit_rate / 1000.0f;
-    info->channels      = d->codec_context->channels;
-    info->samplerate    = d->codec_context->sample_rate;
-    info->flags         = INFO_FFMPEG | INFO_SEEKABLE;
+    return false;
 }
 
 bool ff_probe_name(const char* file_name)
@@ -292,22 +316,3 @@ bool ff_probe_name(const char* file_name)
     }
     return false;
 }
-
-char* ff_metadata(void* handle, const char* key)
-{
-    struct ffdecoder* d = (struct ffdecoder*)handle;
-    const char* value = NULL;
-#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(53, 7, 0)
-    if (!strcmp(key, "artist"))
-        value = d->format_context->author;
-    else if (!strcmp(key, "title"))
-        value = d->format_context->title;
-#else
-    AVDictionaryEntry* entry = av_dict_get(d->format_context->metadata, key, 0, 0);;
-    value = entry ? entry->value : NULL;
-#endif
-    char* v = util_strdup(value);
-    util_trim(v);
-    return v;
-}
-

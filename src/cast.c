@@ -5,7 +5,7 @@
 *   http://www.gnu.org/licenses/gpl.txt
 *   also, this is beerware! you are strongly encouraged to invite the
 *   authors of this software to a beer when you happen to meet them.
-*   copyright MMXI by maep
+*   copyright MMXIII by maep
 */
 
 #include <string.h>
@@ -33,7 +33,7 @@ static struct stream    stream1;
 static struct buffer    config;
 static struct buffer    mp3buf;
 static struct info      info;
-static void*            decoder;
+static struct decoder   decoder;
 static struct fx_fade   fader;
 static struct fx_mix    mixer;
 static void*            resampler;             
@@ -64,6 +64,7 @@ static void zero_generator(void* dummy, struct stream* s, int frames)
 {
     s->channels = settings_encoder_channels;
     s->frames = frames;
+    s->end_of_stream = false;
     stream_resize(s, frames);
     stream_zero(s, 0, frames);
 }
@@ -148,13 +149,14 @@ static void* load_next(void* data)
     static char path[4096];
     float       forced_length   = 0;
     int         tries           = 0;
+    bool        loaded          = false;
 
-    if (decoder && info.free)
-        info.free(decoder);
-    decoder = NULL;
+    if (decoder.free)
+        decoder.free(decoder);
+    memset(&decoder, 0, sizeof(struct decoder));
     memset(&info, 0, sizeof(struct info));
     
-    while (tries++ < LOAD_TRIES && !decoder) {
+    while (tries++ < LOAD_TRIES && !loaded) {
         get_next_song();
         keyval_str(path, sizeof(path), config.data, "path", "");
         
@@ -164,28 +166,29 @@ static void* load_next(void* data)
         }
         forced_length = keyval_real(config.data, "length", 0);
 #ifdef ENABLE_BASS
-        if ((decoder = bass_load(path, config.data, settings_encoder_samplerate))) {
-            bass_info(decoder, &info);
-            if (forced_length > info.frames / info.samplerate) 
-                bass_set_loop_duration(decoder, forced_length);
-        }
+        loaded = bass_load(&decoder, path, config.data, settings_encoder_samplerate);
 #endif
-        if (!decoder && (decoder = ff_load(path))) {
-            ff_info(decoder, &info);
-        }
-        
-        if (!decoder) {
+        if (!loaded)
+            loaded = ff_load(&decoder, path);
+
+        if (loaded) {
+            decoder.info(&decoder, &info);
+#ifdef ENABLE_BASS
+            if (forced_length > info.frames / info.samplerate) 
+                bass_set_loop_duration(&decoder, forced_length);
+#endif
+        } else {
             LOG_ERROR("[cast] can't load '%s'", path);
             sleep(3);
         }
     }
 
-    if (decoder && info.frames == 0)
+    if (loaded && info.frames == 0)
         LOG_WARN("[cast] no length '%s'", path);
 
-    if (!decoder) {
+    if (!loaded) {
         LOG_WARN("[cast] load failed three times, sending one minute sound of silence");
-        info.decode     = zero_generator;
+        decoder.decode  = zero_generator;
         info.samplerate = settings_encoder_samplerate;
         info.channels   = settings_encoder_channels;
         forced_length   = 60;
@@ -221,7 +224,7 @@ static void cast_free(void)
 static struct stream* process(int frames)
 {
     struct stream* s = &stream0;
-    info.decode(decoder, &stream0, frames);
+    decoder.decode(decoder, &stream0, frames);
     if (resampler) {
         fx_resample(resampler, &stream0, &stream1);
         s = &stream1;

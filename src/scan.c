@@ -42,8 +42,9 @@ int main(int argc, char** argv)
 {
     const char*     path        = NULL;
     bool            analyze     = true;
+    bool            loaded      = false;
     struct info     info        = {0};
-    void*           decoder     = NULL;
+    struct decoder  decoder     = {0};
     void*           resampler   = NULL;
     struct stream   stream0     = {{0}};
     struct stream   stream1     = {{0}};
@@ -73,14 +74,15 @@ int main(int argc, char** argv)
     path = argv[optind];
 
 #ifdef ENABLE_BASS
-    if ((decoder = bass_load(path, "bass_prescan=true", SAMPLERATE)))
-        bass_info(decoder, &info);
+    loaded = bass_load(path, "bass_prescan=true", SAMPLERATE)))
 #endif
-    if (!decoder && (decoder = ff_load(path)))
-        ff_info(decoder, &info);
+    if (!loaded)
+        loaded = ff_load(path)))
 
-    if (!decoder) 
+    if (!loaded) 
         die("unknown format");
+        
+    decoder.info(&decoder, &info);
 
     if (info.samplerate <= 0) 
         die("improper samplerate");
@@ -102,7 +104,7 @@ int main(int argc, char** argv)
     long frames = 0;
     if (analyze || (info.flags & INFO_FFMPEG)) {
         while (!stream->end_of_stream) {
-            info.decode(decoder, &stream0, SAMPLERATE);
+            decoder.decode(&decoder, &stream0, SAMPLERATE);
             // TODO disable resampler if rg is disabled
             if (resampler)
                 fx_resample(resampler, &stream0, &stream1);
@@ -119,11 +121,11 @@ int main(int argc, char** argv)
     }
 
     char* str = NULL;
-    str = info.metadata(decoder, "artist");
+    str = decoder.metadata(&decoder, "artist");
     if (str)
         printf("artist:%s\n", str);
     util_free(str);
-    str = info.metadata(decoder, "title");
+    str = decoder.metadata(&decoder, "title");
     if (str)
         printf("title:%s\n", str); 
     util_free(str);
@@ -149,7 +151,7 @@ int main(int argc, char** argv)
     if (!(info.flags & INFO_MOD) && info.samplerate)
         printf("samplerate:%d\n", info.samplerate);
 
-    info.free(decoder);
+    decoder.free(&decoder);
     stream_free(&stream0);
     stream_free(&stream1);
     fx_resample_free(resampler);

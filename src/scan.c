@@ -74,10 +74,10 @@ int main(int argc, char** argv)
     path = argv[optind];
 
 #ifdef ENABLE_BASS
-    loaded = bass_load(path, "bass_prescan=true", SAMPLERATE)))
+    loaded = bass_load(&decoder, path, "bass_prescan=true", SAMPLERATE);
 #endif
     if (!loaded)
-        loaded = ff_load(path)))
+        loaded = ff_load(&decoder, path);
 
     if (!loaded) 
         die("unknown format");

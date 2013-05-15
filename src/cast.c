@@ -60,7 +60,7 @@ static void get_next_song(void)
     }
 }
 
-static void zero_generator(void* dummy, struct stream* s, int frames)
+static void zero_generator(struct decoder* dec, struct stream* s, int frames)
 {
     s->channels = settings_encoder_channels;
     s->frames = frames;
@@ -152,7 +152,7 @@ static void* load_next(void* data)
     bool        loaded          = false;
 
     if (decoder.free)
-        decoder.free(decoder);
+        decoder.free(&decoder);
     memset(&decoder, 0, sizeof(struct decoder));
     memset(&info, 0, sizeof(struct info));
     
@@ -224,7 +224,7 @@ static void cast_free(void)
 static struct stream* process(int frames)
 {
     struct stream* s = &stream0;
-    decoder.decode(decoder, &stream0, frames);
+    decoder.decode(&decoder, &stream0, frames);
     if (resampler) {
         fx_resample(resampler, &stream0, &stream1);
         s = &stream1;

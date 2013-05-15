@@ -208,7 +208,7 @@ static void bass_free(struct decoder* dec)
         if (BASS_ErrorGetCode() != BASS_OK)
              LOG_WARN("[bassdecoder] failed to free channel (%d)", BASS_ErrorGetCode());
     }
-    util_free(handle);
+    util_free(d);
 }
 
 void bass_set_loop_duration(struct decoder* dec, double duration)

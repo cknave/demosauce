@@ -93,7 +93,6 @@ static void write_wav(FILE* f, struct stream* s)
 {
     int16_t tmp[128];
     int frames = 0;
-
     while (frames < s->frames) {
         int process_frames = CLAMP(0, s->frames - frames, COUNT(tmp) / 2);
         const float* left  = s->buffer[0] + frames;
@@ -186,10 +185,10 @@ int main(int argc, char** argv)
             // TODO disable resampler if rg is disabled
             if (resampler)
                 fx_resample(resampler, &stream0, &stream1);
-            float* buff[2] = {stream->buffer[0], stream->buffer[1]};
             // there is a strange bug in the replaygain code that can cause it to report the wrong
-            // value if the input buffer has an odd lengh, until the root of the cause is found,
+            // value if the input buffer has an odd lenght, until the root of the cause is found,
             // this will have to do :(
+            float* buff[2] = {stream->buffer[0], stream->buffer[1]};
             if (analyze) 
                 rg_analyze(ctx, buff, stream->frames & -2);
             if (output)

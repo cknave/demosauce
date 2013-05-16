@@ -16,6 +16,13 @@
 #include "util.h"
 #include "settings.h"
 
+#define HELP_MESSAGE    "syntax: demosauce [options]\n"                 \
+                        "   -V                      print version\n"    \
+                        "   -h                      print help\n"       \
+                        "   -c file.conf            config file\n"      \
+                        "   -d options              debug options"
+
+
 #define X(type, key, value) SETTINGS_##type settings_##key = value;
 SETTINGS_LIST
 #undef X
@@ -74,8 +81,6 @@ static void check_sanity(void)
     if (settings_cast_port < 1 || settings_cast_port > 65535) 
         die("setting cast_port out of range (1-65535)");
 }
-
-#define HELP_MESSAGE "syntax: demosauce [options]\n\t-h print help\n\t-c <path> config file\n\t-d <options> debug options\n\t-V print version\n"
 
 void settings_init(int argc, char** argv)
 {

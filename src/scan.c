@@ -20,12 +20,13 @@
 
 #define MAX_LENGTH      3600     // abort scan if track is too long, in seconds
 #define SAMPLERATE      44100
-#define HELP_MESSAGE    "demosauce scan tool 0.4.0"ID_STR"\n"
-                        "syntax: scan [options] file\n\t"
-                            "-h: print help\n\t"
-                            "-r: disable replaygain analysis\n\t"
-                            "-o file.wav or stdout: write to wav or stdout\n\t\t"
-                                "format is 32 bit float, 44.1 khz, stereo"
+#define HELP_MESSAGE    "demosauce scan tool 0.4.0"ID_STR"\n"                                   \
+                        "syntax: scan [options] file\n"                                         \
+                        "   -h                      print help\n"                               \
+                        "   -r                      disable replaygain analysis\n"              \
+                        "   -o file.wav, stdout     write to wav or stdout\n"                   \
+                        "                           format is 32 bit float, 44.1 khz, stereo\n" \
+                        "                           stdout is raw data, and has no wav header"
 
 // for some formats avcodec fails to provide a bitrate so I just
 // make an educated guess. if the file contains large amounts of 

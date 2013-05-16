@@ -1,7 +1,9 @@
 #!/bin/sh
-source_tar='ffmpeg-1.1.3.tar.bz2'
+#left old releases for testing
+#release='ffmpeg-1.1.5'
+release='ffmpeg-1.2.1'
+source_tar="$release.tar.bz2"
 source_url="http://www.ffmpeg.org/releases/$source_tar"
-dir_ffmpeg='ffmpeg-1.1.3'
 dir_install=`pwd`
 flags_configure="--disable-debug --enable-static --disable-shared --enable-gpl --enable-nonfree --disable-doc --disable-ffmpeg --disable-ffplay --disable-ffprobe --disable-ffserver --disable-avdevice --disable-swscale --disable-network --disable-encoders --disable-muxers --disable-devices --disable-filters --disable-vaapi"
 
@@ -13,9 +15,9 @@ if test ! -f "$source_tar"; then
     if test $? -ne 0; then exit 1; fi
 fi
 
-tar -jxf "$source_tar"
+tar -jxf $source_tar
 
-cd "$dir_ffmpeg"
+cd $release
 
 ./configure --libdir=${dir_install} --shlibdir=${dir_install} --incdir=${dir_install} ${flags_configure}
 if test $? -ne 0; then exit 1; fi
@@ -28,4 +30,4 @@ if test $? -ne 0; then exit 1; fi
 
 cd ..
 
-rm -rf $dir_ffmpeg
+rm -rf $release

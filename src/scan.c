@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <limits.h>
 #include <getopt.h>
 #include <replay_gain.h>
 #include "bassdecoder.h"
@@ -25,7 +26,7 @@
                         "   -h                      print help\n"                               \
                         "   -r                      disable replaygain analysis\n"              \
                         "   -o file.wav, stdout     write to wav or stdout\n"                   \
-                        "                           format is 32 bit float, 44.1 khz, stereo\n" \
+                        "                           format is 16 bit, 44.1 khz, stereo\n"       \
                         "                           stdout is raw data, and has no wav header"
 
 // for some formats avcodec fails to provide a bitrate so I just
@@ -79,7 +80,8 @@ static void mwav_close_writer(FILE* f)
     if (!f)
         return;
     int size = (int)ftell(f);
-    if (size < 0) size = 0x7fffffff;
+    if (size < 0)
+        size = INT_MAX;
     fseek(f, 4, SEEK_SET);
     mwav_write_int(f, size - 8, 4);
     fseek(f, 40, SEEK_SET);
@@ -89,7 +91,7 @@ static void mwav_close_writer(FILE* f)
 
 static void write_wav(FILE* f, struct stream* s)
 {
-    float tmp[128];
+    int16_t tmp[128];
     int frames = 0;
 
     while (frames < s->frames) {
@@ -97,10 +99,10 @@ static void write_wav(FILE* f, struct stream* s)
         const float* left  = s->buffer[0] + frames;
         const float* right = s->buffer[s->channels == 1 ? 0 : 1] + frames;
         for (int i = 0; i < process_frames; i++) {
-            tmp[i * 2]     = left[i];
-            tmp[i * 2 + 1] = right[i];
+            tmp[i * 2]     = CLAMP(INT16_MIN, left[i]  * INT16_MAX, INT16_MAX);
+            tmp[i * 2 + 1] = CLAMP(INT16_MIN, right[i] * INT16_MAX, INT16_MAX);
         }
-        fwrite(tmp, sizeof(float), process_frames, f);
+        fwrite(tmp, sizeof(int16_t), process_frames * 2, f);
         frames += process_frames;
     }
 }
@@ -142,7 +144,7 @@ int main(int argc, char** argv)
                 output = stdout;
                 analyze = false;
             } else {
-                output = mwav_open_writer(optarg, 2, SAMPLERATE, 4);
+                output = mwav_open_writer(optarg, 2, SAMPLERATE, 2);
             }
             break;
         };

@@ -34,9 +34,8 @@
 // other data besides music, this will be completely wrong.
 static float fake_bitrate(const char* path, float duration)
 {
-    long bytes = util_filesize(path);
-    long kbit = (bytes * 8) / 1000;
-    return (float)kbit / duration;
+    long size = util_filesize(path);
+    return (size * 8) / (duration * 1000);
 }
 
 void die(const char* msg)
@@ -226,7 +225,7 @@ int main(int argc, char** argv)
     if (info.bitrate)
         printf("bitrate:%f\n", info.bitrate);
     else if (info.flags & INFO_FFMPEG)
-        printf("bitrate:%f\n", fake_bitrate(path, frames * SAMPLERATE));
+        printf("bitrate:%f\n", fake_bitrate(path, frames / SAMPLERATE));
     if (!(info.flags & INFO_MOD) && info.samplerate)
         printf("samplerate:%d\n", info.samplerate);
     

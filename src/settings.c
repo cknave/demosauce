@@ -22,7 +22,6 @@
                         "   -c file.conf            config file\n"      \
                         "   -d options              debug options"
 
-
 #define X(type, key, value) SETTINGS_##type settings_##key = value;
 SETTINGS_LIST
 #undef X

@@ -8,6 +8,14 @@
 *   copyright MMXIII by maep
 */
 
+// on a general not, ffmpeg is a pain in the ass to work with because they change
+// their api a couple of times a year, sometimes for no good reason. they just
+// change a define or function name so it looks more pretty. and then i have
+// to go try and figure out in which version that happend. this is why this file
+// is full of #ifdefs. sorry.
+// a good place to look, but it doesn't have all the information:
+// http://git.videolan.org/?p=ffmpeg.git;a=blob_plain;f=doc/APIchanges;hb=HEAD
+
 // fixes missing UINT64_C macro on some distros
 #define __STDC_CONSTANT_MACROS
 
@@ -31,15 +39,15 @@
 #define BUFFER_SIZE (AVCODEC_MAX_AUDIO_FRAME_SIZE)
 
 struct ffdecoder {
-#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(53, 25, 0)
-    struct buffer       buffer;
-#endif
-    struct stream       stream;
     AVFormatContext*    format_context;
     AVCodecContext*     codec_context;
     AVCodec*            codec;
     AVPacket            packet;
     AVPacket            tmp_packet;
+#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(53, 25, 0)
+    struct buffer       buffer;
+#endif
+    struct stream       stream;
     int                 stream_index;
     int                 format;
     long                frames;
@@ -48,13 +56,23 @@ struct ffdecoder {
 
 static int get_format(AVCodecContext* codec_context)
 {
+#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(52, 95, 0)
+    switch (codec_context->sample_fmt) {
+    case SAMPLE_FMT_S16:        return SF_I16I;
+    case SAMPLE_FMT_FLT:        return SF_F32I;
+    default:                    return -1;
+    };
+#else
     switch (codec_context->sample_fmt) {
     case AV_SAMPLE_FMT_S16:     return SF_I16I;
     case AV_SAMPLE_FMT_FLT:     return SF_F32I;
+#if LIBAVUTL_VERSION_INT >=LIBAVUTIL_VERSION_INT(51, 26 0)
     case AV_SAMPLE_FMT_S16P:    return SF_I16P;
     case AV_SAMPLE_FMT_FLTP:    return SF_F32P;
+#endif
     default:                    return -1;
     };
+#endif
 }
 
 static void decode_frame(struct ffdecoder* d, AVPacket* p)
@@ -233,7 +251,7 @@ bool ff_load(struct decoder* dec, const char* path)
     LOG_DEBUG("[ffdecoder] loading %s", path);
     
     int err = 0;
-    struct ffdecoder d = {{{0}}};
+    struct ffdecoder d = {0};
 #if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(53, 4, 0)
     err = av_open_input_file(&d.format_context, path, 0, 0, 0);
 #else

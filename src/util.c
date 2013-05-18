@@ -216,19 +216,27 @@ error:
     return -1;
 }
 
+bool socket_write(int socket, struct buffer* buffer)
+{
+    ssize_t bytes = send(socket, buffer->data, buffer->size, 0);
+    if (bytes < 0)
+        LOG_DEBUG("[socket] write failed");
+    else
+        LOG_DEBUG("[socket] write %d bytes", bytes);
+    return bytes >= 0;
+}
+
 bool socket_read(int socket, struct buffer* buffer)
 {
     ssize_t bytes = 0;
     char buff[4096];
-    if (send(socket, "NEXTSONG", 8, 0) == -1)
-        goto error;
     bytes = recv(socket, buff, sizeof(buff) - 1, 0);
     if (bytes < 0)
        goto error;
     buffer_resize(buffer, bytes + 1);
     memmove(buffer->data, buff, bytes);
     ((char*)buffer->data)[bytes] = 0;
-    LOG_DEBUG("[socket] read %d byets", bytes);
+    LOG_DEBUG("[socket] read %d bytes", bytes);
     return true;
 
 error:
@@ -243,17 +251,18 @@ void socket_close(int socket)
 
 //-----------------------------------------------------------------------------
 
-void buffer_resize(struct buffer* buf, size_t size) 
-{
-    if (buf->size < size) {
-        buf->data = util_realloc(buf->data, size);
-        buf->size = size;
-    }
-}
-
 void buffer_zero(struct buffer* buf)
 {
     memset(buf->data, 0, buf->size);
+}
+
+void buffer_resize(struct buffer* buf, long size) 
+{
+    buf->size = MAX(0, size);
+    if (buf->max_size < buf->size) {
+        buf->data = util_realloc(buf->data, buf->size);
+        buf->max_size = buf->size;
+    }
 }
 
 void buffer_free(struct buffer* buf)
@@ -264,12 +273,6 @@ void buffer_free(struct buffer* buf)
 
 //-----------------------------------------------------------------------------
 
-void stream_free(struct stream* s)
-{
-    for (int i = 0; i < MAX_CHANNELS; i++)
-        util_free(s->buffer[i]);
-}
-
 void stream_resize(struct stream* s, int frames)
 {
     assert(s->channels >= 1 && s->channels <= MAX_CHANNELS);
@@ -278,6 +281,13 @@ void stream_resize(struct stream* s, int frames)
     for (int ch = 0; ch < s->channels; ch++) 
         s->buffer[ch] = util_realloc(s->buffer[ch], frames * sizeof(float));
     s->max_frames = frames;
+}
+
+void stream_free(struct stream* s)
+{
+    for (int i = 0; i < MAX_CHANNELS; i++)
+        util_free(s->buffer[i]);
+    memset(s, 0, sizeof(struct stream));
 }
 
 void stream_append(struct stream* s, struct stream* source, int frames)
@@ -319,4 +329,3 @@ void stream_zero(struct stream* s, int offset, int frames)
         memset(s->buffer[i] + offset, 0, s->frames * sizeof(float));
     s->frames = offset + frames;
 }
-

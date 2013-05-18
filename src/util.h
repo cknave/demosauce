@@ -37,16 +37,17 @@
 #define MAX(a, b)       ((a) > (b) ? (a) : (b))
 #define CLAMP(a, b, c)  ((b) < (a) ? (a) : (b) > (c) ? (c) : (b))
 
-enum sampleformat {     // planar formats must have odd number
-    SF_I16I     = 0,    // interleaved 16 bit int    
-    SF_I16P     = 1,    // planar 16 bit int
-    SF_F32I     = 2,    // interleaved 32 bit float
-    SF_F32P     = 3     // planar 32 bit float
+enum sampleformat {         // planar formats must have odd number
+    SF_INT16I       = 0,    // interleaved 16 bit int    
+    SF_INT16P       = 1,    // planar 16 bit int
+    SF_FLOAT32I     = 2,    // interleaved 32 bit float
+    SF_FLOAT32P     = 3     // planar 32 bit float
 };
 
 struct buffer {
     void*       data;
-    size_t      size;
+    long        size;
+    long        max_size;
 };
 
 struct stream {
@@ -88,6 +89,7 @@ long    util_filesize(const char* path);
 
 
 int     socket_open(const char* host, int port);
+bool    socket_write(int socket, struct buffer* buffer);
 bool    socket_read(int socket, struct buffer* buffer);
 void    socket_close(int socket);
 
@@ -98,7 +100,7 @@ double  keyval_real(const char* str, const char* key, double fallback);
 bool    keyval_bool(const char* str, const char* key, bool fallback);
     
 
-void    buffer_resize(struct buffer* b, size_t size);
+void    buffer_resize(struct buffer* b, long size);
 void    buffer_free(struct buffer* b);
 void    buffer_zero(struct buffer* b);
 

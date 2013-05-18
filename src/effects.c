@@ -237,7 +237,7 @@ void fx_convert_to_float(void** in, float** out, int type, int size, int channel
 {
     // some converter functions only support 2, not MAX_CHANNELS
     assert(channels >= 1 && channels <= 2); 
-    assert(type >= SF_I16I && type <= SF_F32P);
+    assert(type >= SF_INT16I && type <= SF_FLOAT32P);
     convert[type]((const void**)in, out, size, channels);
 }
 

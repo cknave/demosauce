@@ -194,7 +194,7 @@ static char* ff_metadata(struct decoder* dec, const char* key)
 {
     struct ffdecoder* d = dec->handle;
     const char* value = NULL;
-#if LIBAVFORMAT_VERSION_INT < AV_VERSION_INT(52, 7, 0)
+#if LIBAVFORMAT_VERSION_INT < AV_VERSION_INT(52, 8, 0)
     if (!strcmp(key, "artist"))
         value = d->format_context->author;
     else if (!strcmp(key, "title"))

@@ -1,9 +1,10 @@
 #!/bin/sh
 #left old releases for testing
 #release='ffmpeg-0.5.12'
-release='ffmpeg-0.7.15'
+#release='ffmpeg-0.7.15'
+#release='ffmpeg-0.8.14'
 #release='ffmpeg-1.1.5'
-#release='ffmpeg-1.2.1'
+release='ffmpeg-1.2.1'
 source_tar="$release.tar.bz2"
 source_url="http://www.ffmpeg.org/releases/$source_tar"
 dir_install=`pwd`

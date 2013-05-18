@@ -149,8 +149,8 @@ else
     assert_lib 'libavutil'
     CPPFLAGS="$CPPFLAGS `pkg-config --cflags libavformat libavcodec libavutil`"
     LINK_FFMPEG='$(shell pkg-config --libs libavformat libavcodec libavutil)'
-    if have_header 'avcodec.h'; then
-        CPPFLAGS="$CPPFLAGS -DAVCODEC_FIX0"
+    if have_header 'ffmpeg/avcodec.h'; then
+        CPPFLAGS="$CPPFLAGS -DFFMPEG_OLD_HEADER"
     fi
 fi
 

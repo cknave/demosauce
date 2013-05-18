@@ -21,7 +21,7 @@
 
 #include <string.h>
 #include <strings.h>
-#ifdef AVCODEC_FIX0
+#ifdef FFMPEG_OLD_HEADER
     #include <avcodec.h>
     #include <avformat.h>
 #else
@@ -194,7 +194,7 @@ static char* ff_metadata(struct decoder* dec, const char* key)
 {
     struct ffdecoder* d = dec->handle;
     const char* value = NULL;
-#if LIBAVFORMAT_VERSION_INT < AV_VERSION_INT(52, 7, 0)
+#if LIBAVFORMAT_VERSION_INT < AV_VERSION_INT(52, 83, 0)
     if (!strcmp(key, "artist"))
         value = d->format_context->author;
     else if (!strcmp(key, "title"))
@@ -248,7 +248,7 @@ bool ff_load(struct decoder* dec, const char* path)
     
     int err = 0;
     struct ffdecoder d = {0};
-#if LIBAVFORMAT_VERSION_INT < AV_VERSION_INT(52, 4, 0)
+#if LIBAVFORMAT_VERSION_INT < AV_VERSION_INT(52, 111, 0)
     err = av_open_input_file(&d.format_context, path, 0, 0, 0);
 #else
     err = avformat_open_input(&d.format_context, path, 0, 0);

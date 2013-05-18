@@ -22,6 +22,11 @@ cast_url                = http://your.url/
 cast_genre              = music
 cast_description        = this is a nice online radio, also maep is a ruler
 
+# remote contol settings
+# note: you can only connect from localhost
+remote_enable           = 1
+remote_port             = 1911
+
 # error title to appear
 error_title             = GURU MEDITATION
 

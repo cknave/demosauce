@@ -89,7 +89,7 @@ long    util_filesize(const char* path);
 
 
 int     socket_open(const char* host, int port);
-bool    socket_write(int socket, struct buffer* buffer);
+bool    socket_write(int socket, const void* buffer, long size);
 bool    socket_read(int socket, struct buffer* buffer);
 void    socket_close(int socket);
 

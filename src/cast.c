@@ -23,13 +23,28 @@
 #endif
 #include "cast.h"
 
-#define BUFFER_SIZE 200 // miliseconds
-#define LOAD_TRIES  3
+#define BUFFER_SIZE     200 // miliseconds
+#define LOAD_TRIES      3
+#define REMOTE_HELP     "help               show help\n"                                            \
+                        "skip               skip currenty playing song\n"                           \
+                        "play url           play next from url or path, won't skip current song\n"  \
+                        "meta artist|title  set metadata, artist is optional\n"
+
+static const char* remote_cmd[] = {"", "help", "skip", "play", "meta"};
+
+enum remote_commands {
+    COMMAND_NOP  = 0,
+    COMMAND_HELP,
+    COMMAND_SKIP,
+    COMMAND_PLAY,
+    COMMAND_META
+};                        
 
 static lame_t           lame;
 static shout_t*         shout;
 static struct stream    stream0;
 static struct stream    stream1;
+static struct buffer    remotebuf;
 static struct buffer    config;
 static struct buffer    mp3buf;
 static struct info      info;
@@ -42,6 +57,7 @@ static long             remaining_frames;
 static bool             mixer_enabled;
 static bool             fader_enabled;
 static sig_atomic_t     decoder_ready;
+static sig_atomic_t     remote_command;
 
 static void get_next_song(void)
 {
@@ -55,6 +71,7 @@ static void get_next_song(void)
             LOG_ERROR("[cast] can't connect to demosauce");
             return;
         }
+        socket_write(socket, "NEXTSONG", 8);
         socket_read(socket, &config);
         socket_close(socket);
     }
@@ -144,12 +161,57 @@ static void update_metadata(void)
     shout_metadata_free(metadata);
 }
 
+static void remote_handler(void)
+{
+    switch(remote_command) {
+    case default:
+        remote_command = COMMAND_NOP;
+    case COMMAND_NOP:
+        break;
+    case COMMAND_SKIP:
+        break;
+    case COMMAND_SONG:
+        break;
+    case COMMAND_META:
+        break;
+    }
+}
+
+static void* remote_control(void* data)
+{
+    int socket = socket_open("127.0.0.1", settings_remote_port);
+    
+    while (true) {
+        while (remote_command)
+            sleep(1);
+        socket_write(socket, "ready\n", 6);
+        socket_read(socket, &remotebuf);
+        LOG_DEBUG("[remote] got command '%s'", (char*)remotebuf.data);
+        
+        for (int i = 1; i < COUNT(remote_cmd); i++) {
+            const char* cmd = remote_cmd[i];
+            if (!strncmp(cmd, remotebuf.data, strlen(cmd))) {
+                remote_command = i;
+                break;
+            }
+        }
+
+        if (remote_command) 
+            socket_write(socket, "ok\n", 3);
+        else
+            socket_write(socket, "error\n", 6);
+        if (remote_command == COMMAND_HELP)
+            socket_write(socket, REMOTE_HELP, strlen(REMOTE_HELP));
+    }
+    return NULL;
+}
+
 static void* load_next(void* data)
 {
-    static char path[4096];
-    float       forced_length   = 0;
-    int         tries           = 0;
-    bool        loaded          = false;
+    char    path[4096];
+    float   forced_length   = 0;
+    int     tries           = 0;
+    bool    loaded          = false;
 
     if (decoder.free)
         decoder.free(&decoder);
@@ -174,7 +236,7 @@ static void* load_next(void* data)
         if (loaded) {
             decoder.info(&decoder, &info);
 #ifdef ENABLE_BASS
-            if (forced_length > info.frames / info.samplerate) 
+            if ((info.flags & INFO_BASS) && forced_length > info.frames / info.samplerate) 
                 bass_set_loop_duration(&decoder, forced_length);
 #endif
         } else {
@@ -272,12 +334,13 @@ static bool cast_connect(void)
     return err == SHOUTERR_SUCCESS;
 }
 
-static void run_encoder(void)
+static void main_loop(void)
 {
     int decode_frames = (settings_encoder_samplerate * BUFFER_SIZE) / 1000;
+    struct stream* s = &stream1;
 
     while (true) {
-        struct stream* s = &stream1;
+        remote_handler();
         if (!decoder_ready) {
             if (s->max_frames < decode_frames)
                 stream_resize(s, decode_frames);
@@ -309,6 +372,12 @@ static void run_encoder(void)
 void cast_run(void)
 {
     bool load_1st = true;
+
+    if (settings_remote_enable) {
+        pthread_t thread = {0};
+        pthread_create(&thread, NULL, remote_control, NULL);
+    }
+    
     while (true) {
         cast_init();
         if (cast_connect()) {
@@ -316,10 +385,9 @@ void cast_run(void)
                 load_next(NULL);
                 load_1st = false;
             }
-            run_encoder();
+            main_loop();
         }
         cast_free();
         sleep(15); 
     }
 }
-

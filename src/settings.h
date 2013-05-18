@@ -31,6 +31,8 @@ void settings_init(int argc, char** argv);
     X(str, cast_url,            NULL)           \
     X(str, cast_genre,          NULL)           \
     X(str, cast_description,    NULL)           \
+    X(int, remote_enable,       1)              \
+    X(int, remote_port,         1911)           \
     X(str, error_title,         "server error") \
     X(str, log_file,            "demosauce.log")\
     X(log, log_file_level,      log_info)       \

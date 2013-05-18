@@ -216,9 +216,9 @@ error:
     return -1;
 }
 
-bool socket_write(int socket, struct buffer* buffer)
+bool socket_write(int socket, const void* buffer, long size)
 {
-    ssize_t bytes = send(socket, buffer->data, buffer->size, 0);
+    ssize_t bytes = send(socket, buffer, size, 0);
     if (bytes < 0)
         LOG_DEBUG("[socket] write failed");
     else
@@ -228,20 +228,23 @@ bool socket_write(int socket, struct buffer* buffer)
 
 bool socket_read(int socket, struct buffer* buffer)
 {
+    char buf[1024];
     ssize_t bytes = 0;
-    char buff[4096];
-    bytes = recv(socket, buff, sizeof(buff) - 1, 0);
-    if (bytes < 0)
-       goto error;
-    buffer_resize(buffer, bytes + 1);
-    memmove(buffer->data, buff, bytes);
-    ((char*)buffer->data)[bytes] = 0;
-    LOG_DEBUG("[socket] read %d bytes", bytes);
+    
+    do {
+        bytes = recv(socket, buf, sizeof(buf) - 1, 0);
+        if (bytes < 0) {
+            buffer->size = 0;
+            LOG_DEBUG("[socket] read failed");
+            return false;
+        }
+        buffer_resize(buffer, buffer->size + bytes + 1);
+        memmove((char*)buffer->data + buffer->size, buf, bytes);
+    } while (bytes == sizeof(buf));
+    
+    ((char*)buffer->data)[buffer->size] = 0;
+    LOG_DEBUG("[socket] read %d bytes", buffer->size);
     return true;
-
-error:
-    LOG_DEBUG("[socket] read failed");
-    return false;
 }
 
 void socket_close(int socket)
@@ -323,9 +326,8 @@ void stream_drop(struct stream* s, int frames)
 
 void stream_zero(struct stream* s, int offset, int frames)
 {
-    // TODO replace assert with MIN
-    assert(offset + frames <= s->max_frames);
-    for (int i = 0; i < s->channels; i++)
-        memset(s->buffer[i] + offset, 0, s->frames * sizeof(float));
+    frames = CLAMP(0, s->max_frames - (offset + frames), frames);
+    for (int ch = 0; ch < s->channels; ch++)
+        memset(s->buffer[ch] + offset, 0, frames * sizeof(float));
     s->frames = offset + frames;
 }

@@ -79,6 +79,9 @@ static void check_sanity(void)
 
     if (settings_cast_port < 1 || settings_cast_port > 65535) 
         die("setting cast_port out of range (1-65535)");
+
+    if (settings_remote_port < 1 || settings_remote_port > 65535)
+        die("setting rempte_port out of range (1-65535)");
 }
 
 void settings_init(int argc, char** argv)

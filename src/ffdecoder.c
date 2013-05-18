@@ -57,15 +57,15 @@ static int get_format(AVCodecContext* codec_context)
 {
     switch (codec_context->sample_fmt) {
 #if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(52, 95, 0)
-    case SAMPLE_FMT_S16:        return SF_I16I;
-    case SAMPLE_FMT_FLT:        return SF_F32I;
+    case SAMPLE_FMT_S16:        return SF_INT16I;
+    case SAMPLE_FMT_FLT:        return SF_FLOAT32I;
 #else
-    case AV_SAMPLE_FMT_S16:     return SF_I16I;
-    case AV_SAMPLE_FMT_FLT:     return SF_F32I;
+    case AV_SAMPLE_FMT_S16:     return SF_INT16I;
+    case AV_SAMPLE_FMT_FLT:     return SF_FLOAT32I;
 #endif
 #if LIBAVUTIL_VERSION_INT > AV_VERSION_INT(51, 26, 0)
-    case AV_SAMPLE_FMT_S16P:    return SF_I16P;
-    case AV_SAMPLE_FMT_FLTP:    return SF_F32P;
+    case AV_SAMPLE_FMT_S16P:    return SF_INT16P;
+    case AV_SAMPLE_FMT_FLTP:    return SF_FLOAT32P;
 #endif
     default:                    return -1;
     };
@@ -171,7 +171,7 @@ static const char* codec_type(struct ffdecoder* d)
         case CODEC_ID_APE:      return "monkey";
         case CODEC_ID_MUSEPACK7:
         case CODEC_ID_MUSEPACK8:return "musepack";
-#if LIBAVCODEC_VERSION_INT > AV_VERSION_INT(54, 0, 0)
+#if LIBAVCODEC_VERSION_INT > AV_VERSION_INT(54, 24, 0)
         case CODEC_ID_OPUS:     return "opus";
 #endif
         default:                return "unknown";
@@ -217,7 +217,7 @@ static void ff_free2(struct ffdecoder* d)
     if (d->codec_context)
         avcodec_close(d->codec_context);
     if (d->format_context)
-#if LIBAVFORMAT_VERSION_INT < AV_VERSION_INT(53, 25, 0)
+#if LIBAVFORMAT_VERSION_INT < AV_VERSION_INT(53, 17, 0)
         av_close_input_file(d->format_context);
 #else
         avformat_close_input(&d->format_context);
@@ -319,7 +319,7 @@ bool ff_probe_name(const char* file_name)
 {
     const char* ext[] = {".mp3", ".ogg", ".mp4", ".m4a" ".aac", ".wma", ".acc", ".flac", 
         ".ac3", ".wav", ".ape", ".wv", ".mpc", ".mp+", ".mpp", ".ra", ".mp2"
-#if LIBAVCODEC_VERSION_INT > AV_VERSION_INT(54, 0, 0)
+#if LIBAVCODEC_VERSION_INT > AV_VERSION_INT(54, 24, 0)
         , ".opus"
 #endif
     }; 

@@ -54,7 +54,7 @@ static void bass_decode(struct decoder* dec, struct stream* s, int frames)
     d->current_frame += frames_read;
 
     s->frames = 0;
-    stream_append_convert(s, &d->read_buffer.data, SF_F32I, frames_read, ch);
+    stream_append_convert(s, &d->read_buffer.data, SF_FLOAT32I, frames_read, ch);
     s->end_of_stream = (frames_read != frames) || (d->current_frame >= d->last_frame);
     if(s->end_of_stream) 
         LOG_DEBUG("[bassdecoder] eos %d frames left", s->frames);

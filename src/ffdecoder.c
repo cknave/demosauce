@@ -53,26 +53,22 @@ struct ffdecoder {
     long                frames;
 };
 
-
 static int get_format(AVCodecContext* codec_context)
 {
-#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(52, 95, 0)
     switch (codec_context->sample_fmt) {
+#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(52, 95, 0)
     case SAMPLE_FMT_S16:        return SF_I16I;
     case SAMPLE_FMT_FLT:        return SF_F32I;
-    default:                    return -1;
-    };
 #else
-    switch (codec_context->sample_fmt) {
     case AV_SAMPLE_FMT_S16:     return SF_I16I;
     case AV_SAMPLE_FMT_FLT:     return SF_F32I;
-#if LIBAVUTL_VERSION_INT >=LIBAVUTIL_VERSION_INT(51, 26 0)
+#endif
+#if LIBAVUTIL_VERSION_INT > AV_VERSION_INT(51, 26, 0)
     case AV_SAMPLE_FMT_S16P:    return SF_I16P;
     case AV_SAMPLE_FMT_FLTP:    return SF_F32P;
 #endif
     default:                    return -1;
     };
-#endif
 }
 
 static void decode_frame(struct ffdecoder* d, AVPacket* p)
@@ -92,7 +88,7 @@ static void decode_frame(struct ffdecoder* d, AVPacket* p)
 #endif
         if (ret < 0)
             goto error;
-        // TODO: check format
+        // TODO check format
         int frames = data_size / (d->codec_context->channels * sizeof(int16_t));
         void* buffs[MAX_CHANNELS] = {buf, buf + frames};
         stream_append_convert(&d->stream, buffs, d->format, frames, d->codec_context->channels);
@@ -198,7 +194,7 @@ static char* ff_metadata(struct decoder* dec, const char* key)
 {
     struct ffdecoder* d = dec->handle;
     const char* value = NULL;
-#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(53, 7, 0)
+#if LIBAVFORMAT_VERSION_INT < AV_VERSION_INT(52, 7, 0)
     if (!strcmp(key, "artist"))
         value = d->format_context->author;
     else if (!strcmp(key, "title"))
@@ -252,7 +248,7 @@ bool ff_load(struct decoder* dec, const char* path)
     
     int err = 0;
     struct ffdecoder d = {0};
-#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(53, 4, 0)
+#if LIBAVFORMAT_VERSION_INT < AV_VERSION_INT(52, 4, 0)
     err = av_open_input_file(&d.format_context, path, 0, 0, 0);
 #else
     err = avformat_open_input(&d.format_context, path, 0, 0);

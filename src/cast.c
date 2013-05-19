@@ -23,18 +23,15 @@
 #endif
 #include "cast.h"
 
-#define BUFFER_SIZE     200 // miliseconds
+#define BUFFER_SIZE     200     // miliseconds
+#define FADE_TIME       5       // seconds
+#define MIX_RATIO       0.4     // default mix ratio for amiga modules
 #define LOAD_TRIES      3
-#define REMOTE_HELP     "help               show help\n"                                            \
-                        "skip               skip currenty playing song\n"                           \
-                        "play url           play next from url or path, won't skip current song\n"  \
-                        "meta artist|title  set metadata, artist is optional\n"
 
-static const char* remote_cmd[] = {"", "help", "skip", "play", "meta"};
+static const char* remote_cmd[] = {"", "SKIP", "PLAY", "META"};
 
 enum remote_commands {
     COMMAND_NOP  = 0,
-    COMMAND_HELP,
     COMMAND_SKIP,
     COMMAND_PLAY,
     COMMAND_META
@@ -44,9 +41,9 @@ static lame_t           lame;
 static shout_t*         shout;
 static struct stream    stream0;
 static struct stream    stream1;
-static struct buffer    remotebuf;
-static struct buffer    config;
-static struct buffer    mp3buf;
+static struct buffer    remote_buf;
+static struct buffer    config_buf;
+static struct buffer    lame_buf;
 static struct info      info;
 static struct decoder   decoder;
 static struct fx_fade   fader;
@@ -56,23 +53,27 @@ static float            gain;
 static long             remaining_frames;
 static bool             mixer_enabled;
 static bool             fader_enabled;
+static bool             have_remote;
 static sig_atomic_t     decoder_ready;
 static sig_atomic_t     remote_command;
 
 static void get_next_song(void)
 {
-    if (settings_debug_song) {
-        buffer_resize(&config, strlen(settings_debug_song) + 1);
-        strcpy(config.data, settings_debug_song);
+    if (have_remote) {
+        // config_buf already contains info
+        have_remote = false; 
+    } else if (settings_debug_song) {
+        buffer_resize(&config_buf, strlen(settings_debug_song) + 1);
+        strcpy(config_buf.data, settings_debug_song);
     } else {
-        buffer_zero(&config);
+        buffer_zero(&config_buf);
         int socket = socket_open(settings_demovibes_host, settings_demovibes_port);
         if (socket < 0) {
             LOG_ERROR("[cast] can't connect to demosauce");
             return;
         }
         socket_write(socket, "NEXTSONG", 8);
-        socket_read(socket, &config);
+        socket_read(socket, &config_buf);
         socket_close(socket);
     }
 }
@@ -86,7 +87,7 @@ static void zero_generator(struct decoder* dec, struct stream* s, int frames)
     stream_zero(s, 0, frames);
 }
 
-static void configure_effects(float forced_length)
+static void configure_effects(const char* config, float forced_length)
 {
     // play length
     remaining_frames = LONG_MAX;
@@ -105,40 +106,38 @@ static void configure_effects(float forced_length)
 
     // channel mixing
     char mix_str[8] = {0};
-    keyval_str(mix_str, 8, config.data, "mix", "auto");
-    mixer_enabled = (settings_encoder_channels == 2) && 
-        (strcmp(mix_str, "auto") || (info.flags & INFO_AMIGAMOD));
+    keyval_str(mix_str, 8, config, "mix", "auto");
+    mixer_enabled = (settings_encoder_channels == 2) && (strcmp(mix_str, "auto") || (info.flags & INFO_AMIGAMOD));
     if (mixer_enabled) {
-        float ratio = keyval_real(config.data, "mix", 0.4);
-        ratio = MAX(MIN(ratio, 1.0), 0.0);
+        float ratio = CLAMP(0, keyval_real(config, "mix", MIX_RATIO), 1.0);
         fx_mix_init(&mixer, 1.0 - ratio, ratio, 1.0 - ratio, ratio);
         LOG_DEBUG("[cast] mixing channels with %f ratio", ratio);
     }
 
     // gain
-    gain = keyval_real(config.data, "gain", 0.0);
+    gain = keyval_real(config, "gain", 0.0);
     LOG_DEBUG("[cast] setting gain to %f dB", gain);
     gain = db_to_amp(gain);
 
     // fade out
-    fader_enabled = keyval_bool(config.data, "fade_out", false); 
+    fader_enabled = keyval_bool(config, "fade_out", false); 
     if (fader_enabled) {
         float length = forced_length > 0 ? forced_length : (info.frames / info.samplerate);
-        long start = (length - 5) * settings_encoder_samplerate;
+        long start = MAX(0, (length - FADE_TIME)) * settings_encoder_samplerate;
         long end = length * settings_encoder_samplerate;
         fx_fade_init(&fader, start, end, 1, 0);
         LOG_DEBUG("[cast] fading out at %f seconds", length);
     }
 }
 
-static void update_metadata(void)
+static void update_metadata(const char* config)
 {
     char cast_title[1024]   = {0};
     char artist[512]        = {0};
     char title[512]         = {0};
 
-    keyval_str(title, sizeof(title), config.data, "title", settings_error_title);
-    keyval_str(artist, sizeof(artist), config.data, "artist", "");
+    keyval_str(title, sizeof(title), config, "title", settings_error_title);
+    keyval_str(artist, sizeof(artist), config, "artist", "");
 
     // remove '-' in artist name, players use it for artist-title separation
     for (size_t i = 0; i < strlen(artist); i++)
@@ -164,15 +163,21 @@ static void update_metadata(void)
 static void remote_handler(void)
 {
     switch(remote_command) {
-    case default:
+    default:
         remote_command = COMMAND_NOP;
     case COMMAND_NOP:
         break;
     case COMMAND_SKIP:
+        configure_effects(NULL, FADE_TIME * settings_encoder_samplerate);
         break;
-    case COMMAND_SONG:
+    case COMMAND_PLAY:
+        buffer_resize(&config_buf, remote_buf.size);
+        memmove(config_buf.data, remote_buf.data, remote_buf.size);
+        config_buf.size = remote_buf.size;
+        have_remote = true;
         break;
     case COMMAND_META:
+        update_metadata(remote_buf.data);
         break;
     }
 }
@@ -180,35 +185,31 @@ static void remote_handler(void)
 static void* remote_control(void* data)
 {
     int socket = socket_open("127.0.0.1", settings_remote_port);
-    
     while (true) {
         while (remote_command)
             sleep(1);
-        socket_write(socket, "ready\n", 6);
-        socket_read(socket, &remotebuf);
-        LOG_DEBUG("[remote] got command '%s'", (char*)remotebuf.data);
+        socket_read(socket, &remote_buf);
+        LOG_DEBUG("[remote] got command '%s'", (char*)remote_buf.data);
         
         for (int i = 1; i < COUNT(remote_cmd); i++) {
             const char* cmd = remote_cmd[i];
-            if (!strncmp(cmd, remotebuf.data, strlen(cmd))) {
+            if (!strncmp(cmd, remote_buf.data, strlen(cmd))) {
                 remote_command = i;
                 break;
             }
         }
 
         if (remote_command) 
-            socket_write(socket, "ok\n", 3);
+            socket_write(socket, "AGREED\n", 3);
         else
-            socket_write(socket, "error\n", 6);
-        if (remote_command == COMMAND_HELP)
-            socket_write(socket, REMOTE_HELP, strlen(REMOTE_HELP));
+            socket_write(socket, "ERROR\n", 6);
     }
     return NULL;
 }
 
 static void* load_next(void* data)
 {
-    char    path[4096];
+    char    path[4096]      = {0};
     float   forced_length   = 0;
     int     tries           = 0;
     bool    loaded          = false;
@@ -220,15 +221,15 @@ static void* load_next(void* data)
     
     while (tries++ < LOAD_TRIES && !loaded) {
         get_next_song();
-        keyval_str(path, sizeof(path), config.data, "path", "");
+        keyval_str(path, sizeof(path), config_buf.data, "path", "");
         
         if (!util_isfile(path)) {
             LOG_ERROR("[cast] file doesn't exist: '%s'", path);
             continue;
         }
-        forced_length = keyval_real(config.data, "length", 0);
+        forced_length = keyval_real(config_buf.data, "length", 0);
 #ifdef ENABLE_BASS
-        loaded = bass_load(&decoder, path, config.data, settings_encoder_samplerate);
+        loaded = bass_load(&decoder, path, config_buf.data, settings_encoder_samplerate);
 #endif
         if (!loaded)
             loaded = ff_load(&decoder, path);
@@ -254,11 +255,11 @@ static void* load_next(void* data)
         info.samplerate = settings_encoder_samplerate;
         info.channels   = settings_encoder_channels;
         forced_length   = 60;
-        buffer_zero(&config);
+        buffer_zero(&config_buf);
     }
 
-    configure_effects(forced_length);
-    update_metadata();
+    configure_effects(config_buf.data, forced_length);
+    update_metadata(config_buf.data);
     decoder_ready = true;
     return NULL;
 }
@@ -273,7 +274,7 @@ static void cast_init(void)
     lame_set_num_channels(lame, settings_encoder_channels);
     lame_set_in_samplerate(lame, settings_encoder_samplerate);
     lame_init_params(lame);
-    buffer_resize(&mp3buf, BUFFER_SIZE * settings_encoder_bitrate / CHAR_BIT * 4);
+    buffer_resize(&lame_buf, BUFFER_SIZE * settings_encoder_bitrate / CHAR_BIT * 4);
     stream1.channels = settings_encoder_channels;
 }
 
@@ -355,13 +356,13 @@ static void main_loop(void)
                 pthread_create(&thread, NULL, load_next, NULL);
             }
         }
-        int siz = lame_encode_buffer_ieee_float(lame, s->buffer[0], s->buffer[1], s->frames, mp3buf.data, mp3buf.size);
+        int siz = lame_encode_buffer_ieee_float(lame, s->buffer[0], s->buffer[1], s->frames, lame_buf.data, lame_buf.size);
         if (siz < 0) { 
            LOG_ERROR("[cast] lame error (%d)", siz);
            return;
         }
         shout_sync(shout);
-        int err = shout_send(shout, mp3buf.data, siz);
+        int err = shout_send(shout, lame_buf.data, siz);
         if (err != SHOUTERR_SUCCESS) {
             LOG_ERROR("[cast] disconnect (%s)", shout_get_error(shout));
             return;
@@ -372,12 +373,10 @@ static void main_loop(void)
 void cast_run(void)
 {
     bool load_1st = true;
-
     if (settings_remote_enable) {
         pthread_t thread = {0};
         pthread_create(&thread, NULL, remote_control, NULL);
     }
-    
     while (true) {
         cast_init();
         if (cast_connect()) {

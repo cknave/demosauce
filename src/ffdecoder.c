@@ -12,7 +12,7 @@
 // their api a couple of times a year, sometimes for no good reason. they just
 // change a define or function name so it looks more pretty. and then i have
 // to go try and figure out in which version that happend. this is why this file
-// is full of #ifdefs. sorry.
+// is full of #ifdefs which might be off by a few revisions. sorry.
 // a good place to look, but it doesn't have all the information:
 // http://git.videolan.org/?p=ffmpeg.git;a=blob_plain;f=doc/APIchanges;hb=HEAD
 

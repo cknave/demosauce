@@ -110,7 +110,8 @@ static void configure_effects(const char* config, float forced_length)
     keyval_str(mix_str, 8, config, "mix", "auto");
     mixer_enabled = (settings_encoder_channels == 2) && (strcmp(mix_str, "auto") || (info.flags & INFO_AMIGAMOD));
     if (mixer_enabled) {
-        float ratio = CLAMP(0, keyval_real(config, "mix", MIX_RATIO), 1.0);
+        float ratio = keyval_real(config, "mix", MIX_RATIO);
+        ratio = CLAMP(0, ratio, 1);
         fx_mix_init(&mixer, 1.0 - ratio, ratio, 1.0 - ratio, ratio);
         LOG_DEBUG("[cast] mixing channels with %f ratio", ratio);
     }

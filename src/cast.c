@@ -204,10 +204,8 @@ static void* remote_control(void* data)
             if (remote_command) {
                 memset(remote_buf.data, ' ', strlen(cmd));
                 LOG_DEBUG("[remote] got command '%s'", cmd);
-                socket_write(socket, "ACK\n", 4);
             } else {
                 LOG_WARN("[remote] unknown command");
-                socket_write(socket, "ERR\n", 4);
             }
         }
         socket_close(socket);

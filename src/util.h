@@ -88,7 +88,8 @@ bool    util_isfile(const char* path);
 long    util_filesize(const char* path);
 
 
-int     socket_open(const char* host, int port);
+int     socket_connect(const char* host, int port);
+int     socket_listen(int port, bool local);
 bool    socket_write(int socket, const void* buffer, long size);
 bool    socket_read(int socket, struct buffer* buffer);
 void    socket_close(int socket);
@@ -113,4 +114,3 @@ void    stream_drop(struct stream* s, int frames);
 void    stream_zero(struct stream* s, int offset, int frames);
 
 #endif // UTIL_H
-

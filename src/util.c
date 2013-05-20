@@ -25,7 +25,8 @@
 #include "log.h"
 #include "effects.h"
 
-#define MEM_ALIGN (sizeof(void*) * 4)
+#define MEM_ALIGN       32
+#define SOCKET_BLOCK    1024
 
 void* util_malloc(size_t size)
 {
@@ -127,7 +128,7 @@ char* keyval_str(char* out, int size, const char* heap, const char* key, const c
         }
         have_key = true;
         tmp += strspn(tmp + 1, " \t") + 1;          // skip space before value
-        span = strcspn(tmp, "\n");                  // add # for line comments
+        span = strcspn(tmp, "\r\n");                // TODO add # for line comments
         while (span && isspace(tmp[span - 1]))      // remove tailing whitespace
             span--;
         break;
@@ -181,20 +182,20 @@ bool keyval_bool(const char* heap, const char* key, bool fallback)
 
 //-----------------------------------------------------------------------------
 
-int socket_open(const char* host, int port)
+int socket_connect(const char* host, int port)
 {
-    int fd = -1;
-    char portstr[8] = {0};
-    struct addrinfo* info = NULL;
-    struct addrinfo hints = {0};
+    int                 fd          = -1;
+    char                portstr[8]  = {0};
+    struct addrinfo*    info        = NULL;
+    struct addrinfo     hints       = {0};
     
-    LOG_DEBUG("[socket] opening %s:%d", host, port);
+    LOG_DEBUG("[socket] connecting to %s:%d", host, port);
     if (snprintf(portstr, sizeof(portstr), "%d", port) < 0)
         goto error;
 
-    hints.ai_family = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
-    if (getaddrinfo(host, portstr, &hints, &info))
+    hints.ai_family     = AF_UNSPEC;
+    hints.ai_socktype   = SOCK_STREAM;
+    if (getaddrinfo(host, portstr, &hints, &info) != 0)
         goto error;
 
     for (struct addrinfo* ai = info; ai; ai = ai->ai_next) {
@@ -212,7 +213,52 @@ int socket_open(const char* host, int port)
         return fd;
 
 error:
-    LOG_DEBUG("[socket] failed to open %s:%d", host, port);
+    LOG_DEBUG("[socket] failed to connect to %s:%d", host, port);
+    return -1;
+}
+
+int socket_listen(int port, bool local)
+{
+    int                 fd0         = -1;
+    int                 fd1         = -1;
+    char                portstr[8]  = {0};
+    struct addrinfo*    info        = NULL;
+    struct addrinfo     hints       = {0};
+    
+    LOG_DEBUG("[socket] listening on %d", port);
+    if (snprintf(portstr, sizeof(portstr), "%d", port) < 0)
+        goto error;
+
+    hints.ai_family     = AF_UNSPEC;
+    hints.ai_socktype   = SOCK_STREAM;
+    hints.ai_flags      = AI_PASSIVE; 
+    if (getaddrinfo(local ? "localhost" : NULL, portstr, &hints, &info) != 0)
+        goto error;
+
+    for (struct addrinfo* ai = info; ai; ai = ai->ai_next) {
+        fd0 = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+        if (fd0 < 0)
+            goto error; 
+        if (bind(fd0, ai->ai_addr, ai->ai_addrlen) == 0)
+            break;
+        close(fd0);
+    }
+
+    if (listen(fd0, 1) < 0)
+        goto error;
+    fd1 = accept(fd0, NULL, NULL);
+    if (fd1 < 0)
+        goto error;
+    
+    freeaddrinfo(info);
+    close(fd0);
+    return fd1;
+
+error:
+    freeaddrinfo(info);
+    close(fd0);
+    close(fd1);
+    LOG_DEBUG("[socket] failed to listen on %d", port);
     return -1;
 }
 
@@ -228,21 +274,23 @@ bool socket_write(int socket, const void* buffer, long size)
 
 bool socket_read(int socket, struct buffer* buffer)
 {
-    char buf[1024];
     ssize_t bytes = 0;
-    
+    long    total = 0;
+    buffer->size = 0;
+
     do {
-        bytes = recv(socket, buf, sizeof(buf) - 1, 0);
+        buffer_resize(buffer, total + SOCKET_BLOCK);
+        bytes = recv(socket, (char*)buffer->data + total, SOCKET_BLOCK, 0);
         if (bytes < 0) {
             buffer->size = 0;
             LOG_DEBUG("[socket] read failed");
             return false;
         }
-        buffer_resize(buffer, buffer->size + bytes + 1);
-        memmove((char*)buffer->data + buffer->size, buf, bytes);
-    } while (bytes == sizeof(buf));
-    
-    ((char*)buffer->data)[buffer->size] = 0;
+        total += bytes;
+    } while (bytes == SOCKET_BLOCK);
+
+    buffer->size = total;
+    ((char*)buffer->data)[total] = 0;
     LOG_DEBUG("[socket] read %d bytes", buffer->size);
     return true;
 }

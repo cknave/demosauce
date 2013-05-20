@@ -23,12 +23,14 @@
 #endif
 #include "cast.h"
 
+#define RETRY_TIME      15      // seconds to wait before retry
+#define SILENCE_TIME    60      // seconds to play silence after LOAD_TRIES failed
 #define BUFFER_SIZE     200     // miliseconds
 #define FADE_TIME       5       // seconds
 #define MIX_RATIO       0.4     // default mix ratio for amiga modules
 #define LOAD_TRIES      3
 
-static const char* remote_cmd[] = {"", "SKIP", "PLAY", "META"};
+static const char* remote_cmd[] = {NULL, "SKIP", "PLAY", "META"};
 
 enum remote_commands {
     COMMAND_NOP  = 0,
@@ -67,7 +69,7 @@ static void get_next_song(void)
         strcpy(config_buf.data, settings_debug_song);
     } else {
         buffer_zero(&config_buf);
-        int socket = socket_open(settings_demovibes_host, settings_demovibes_port);
+        int socket = socket_connect(settings_demovibes_host, settings_demovibes_port);
         if (socket < 0) {
             LOG_ERROR("[cast] can't connect to demosauce");
             return;
@@ -164,45 +166,52 @@ static void remote_handler(void)
 {
     switch(remote_command) {
     default:
-        remote_command = COMMAND_NOP;
     case COMMAND_NOP:
         break;
     case COMMAND_SKIP:
-        configure_effects(NULL, FADE_TIME * settings_encoder_samplerate);
+        remaining_frames = FADE_TIME * settings_encoder_samplerate;
+        fader_enabled = true;
+        fx_fade_init(&fader, 0, remaining_frames, 1, 0);
         break;
     case COMMAND_PLAY:
         buffer_resize(&config_buf, remote_buf.size);
         memmove(config_buf.data, remote_buf.data, remote_buf.size);
-        config_buf.size = remote_buf.size;
+        config_buf.size = strlen(config_buf.data);
         have_remote = true;
         break;
     case COMMAND_META:
         update_metadata(remote_buf.data);
         break;
     }
+    remote_command = COMMAND_NOP;
 }
 
 static void* remote_control(void* data)
 {
-    int socket = socket_open("127.0.0.1", settings_remote_port);
     while (true) {
-        while (remote_command)
-            sleep(1);
-        socket_read(socket, &remote_buf);
-        LOG_DEBUG("[remote] got command '%s'", (char*)remote_buf.data);
-        
-        for (int i = 1; i < COUNT(remote_cmd); i++) {
-            const char* cmd = remote_cmd[i];
-            if (!strncmp(cmd, remote_buf.data, strlen(cmd))) {
-                remote_command = i;
+        int socket = socket_listen(settings_remote_port, true);
+        while (socket >= 0) {
+            const char* cmd = NULL;
+            while (remote_command)
+                sleep(1);
+            if (!socket_read(socket, &remote_buf))
                 break;
+            for (int i = 1; !remote_command && i < COUNT(remote_cmd); i++) {
+                cmd = remote_cmd[i];
+                if (!strncmp(cmd, remote_buf.data, strlen(cmd)))
+                    remote_command = i;
+            }
+            if (remote_command) {
+                memset(remote_buf.data, ' ', strlen(cmd));
+                LOG_DEBUG("[remote] got command '%s'", cmd);
+                socket_write(socket, "ACK\n", 4);
+            } else {
+                LOG_WARN("[remote] unknown command");
+                socket_write(socket, "ERR\n", 4);
             }
         }
-
-        if (remote_command) 
-            socket_write(socket, "AGREED\n", 3);
-        else
-            socket_write(socket, "ERROR\n", 6);
+        socket_close(socket);
+        sleep(RETRY_TIME);
     }
     return NULL;
 }
@@ -254,7 +263,7 @@ static void* load_next(void* data)
         decoder.decode  = zero_generator;
         info.samplerate = settings_encoder_samplerate;
         info.channels   = settings_encoder_channels;
-        forced_length   = 60;
+        forced_length   = SILENCE_TIME;
         buffer_zero(&config_buf);
     }
 
@@ -387,6 +396,6 @@ void cast_run(void)
             main_loop();
         }
         cast_free();
-        sleep(15); 
+        sleep(RETRY_TIME); 
     }
 }

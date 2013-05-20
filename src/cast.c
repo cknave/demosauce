@@ -62,8 +62,7 @@ static sig_atomic_t     remote_command;
 static void get_next_song(void)
 {
     if (have_remote) {
-        // config_buf already contains info
-        have_remote = false; 
+        have_remote = false; // config_buf already contains info
     } else if (settings_debug_song) {
         buffer_resize(&config_buf, strlen(settings_debug_song) + 1);
         strcpy(config_buf.data, settings_debug_song);
@@ -198,15 +197,15 @@ static void* remote_control(void* data)
                 break;
             for (int i = 1; !remote_command && i < COUNT(remote_cmd); i++) {
                 cmd = remote_cmd[i];
-                if (!strncmp(cmd, remote_buf.data, strlen(cmd)))
+                if (!strncmp(cmd, remote_buf.data, strlen(cmd))) {
+                    memset(remote_buf.data, ' ', strlen(cmd));
                     remote_command = i;
+                }
             }
-            if (remote_command) {
-                memset(remote_buf.data, ' ', strlen(cmd));
+            if (remote_command)
                 LOG_DEBUG("[remote] got command '%s'", cmd);
-            } else {
+            else
                 LOG_WARN("[remote] unknown command");
-            }
         }
         socket_close(socket);
         sleep(RETRY_TIME);
@@ -229,34 +228,27 @@ static void* load_next(void* data)
     while (tries++ < LOAD_TRIES && !loaded) {
         get_next_song();
         keyval_str(path, sizeof(path), config_buf.data, "path", "");
-        
-        if (!util_isfile(path)) {
-            LOG_ERROR("[cast] file doesn't exist: '%s'", path);
-            continue;
-        }
-        forced_length = keyval_real(config_buf.data, "length", 0);
 #ifdef ENABLE_BASS
         loaded = bass_load(&decoder, path, config_buf.data, settings_encoder_samplerate);
 #endif
         if (!loaded)
             loaded = ff_load(&decoder, path);
-
-        if (loaded) {
-            decoder.info(&decoder, &info);
-#ifdef ENABLE_BASS
-            if ((info.flags & INFO_BASS) && forced_length > info.frames / info.samplerate) 
-                bass_set_loop_duration(&decoder, forced_length);
-#endif
-        } else {
-            LOG_ERROR("[cast] can't load '%s'", path);
+        if (!loaded) {
+            LOG_ERROR("[cast] failed to load '%s'", path);
             sleep(3);
         }
     }
 
-    if (loaded && info.frames == 0)
-        LOG_WARN("[cast] no length '%s'", path);
-
-    if (!loaded) {
+    if (loaded) {
+        decoder.info(&decoder, &info);
+        if (info.frames <= 0)
+            LOG_WARN("[cast] no length '%s'", path);
+        forced_length = keyval_real(config_buf.data, "length", 0);
+#ifdef ENABLE_BASS
+        if ((info.flags & INFO_BASS) && forced_length > info.frames / info.samplerate) 
+            bass_set_loop_duration(&decoder, forced_length);
+#endif
+    } else {
         LOG_WARN("[cast] load failed three times, sending one minute sound of silence");
         decoder.decode  = zero_generator;
         info.samplerate = settings_encoder_samplerate;

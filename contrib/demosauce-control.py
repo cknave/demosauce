@@ -66,5 +66,13 @@ if __name__ == '__main__':
     parser.add_option('-p', '--port', dest='port', default='1911')
     (options, args) = parser.parse_args()
 
-    fd = socket.create_connection(('localhost', options.port))
-    mainloop(fd)    
+    try:
+        fd = socket.create_connection(('localhost', options.port))
+    except:
+        print 'failed to connect to demosauce'
+        exit(1)
+    try:
+        mainloop(fd)
+    except:
+        print 'lost connection to demosacue'
+        exit(1)

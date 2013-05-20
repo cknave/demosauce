@@ -105,7 +105,6 @@ void settings_init(int argc, char** argv)
             settings_debug_song = optarg;
             break;
         case 'V':
-            puts(DEMOSAUCE_VERSION);
             exit(EXIT_SUCCESS);
         }
     }

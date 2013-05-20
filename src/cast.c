@@ -174,8 +174,8 @@ static void remote_handler(void)
         break;
     case COMMAND_PLAY:
         buffer_resize(&config_buf, remote_buf.size);
-        memmove(config_buf.data, remote_buf.data, remote_buf.size);
-        config_buf.size = strlen(config_buf.data);
+        memmove(config_buf.data, remote_buf.data, remote_buf.size + 1);
+        config_buf.size = strlen(config_buf.data) + 1;
         have_remote = true;
         break;
     case COMMAND_META:
@@ -189,12 +189,15 @@ static void* remote_control(void* data)
 {
     while (true) {
         int socket = socket_listen(settings_remote_port, true);
+        LOG_INFO("[remote] connected");
         while (socket >= 0) {
             const char* cmd = NULL;
             while (remote_command)
                 sleep(1);
+
             if (!socket_read(socket, &remote_buf))
                 break;
+
             for (int i = 1; !remote_command && i < COUNT(remote_cmd); i++) {
                 cmd = remote_cmd[i];
                 if (!strncmp(cmd, remote_buf.data, strlen(cmd))) {
@@ -207,6 +210,7 @@ static void* remote_control(void* data)
             else
                 LOG_WARN("[remote] unknown command");
         }
+        LOG_DEBUG("[remote] disconnected");
         socket_close(socket);
         sleep(RETRY_TIME);
     }

@@ -292,7 +292,7 @@ bool socket_read(int socket, struct buffer* buffer)
     buffer->size = total;
     ((char*)buffer->data)[total] = 0;
     LOG_DEBUG("[socket] read %d bytes", buffer->size);
-    return true;
+    return bytes > 0;
 }
 
 void socket_close(int socket)

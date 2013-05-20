@@ -8,7 +8,7 @@
 # this stuff is worth it, you can buy me a beer in return 
 # ----------------------------------------------------------------------------
 
-import os, socket, sys, subprocess, optparse
+import socket, optparse
 
 help_short= 'enter h for help'
 help_msg = '''commands 

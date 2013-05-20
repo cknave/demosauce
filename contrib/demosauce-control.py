@@ -21,7 +21,16 @@ help_msg = '''commands
 def prompt(msg = None):
     if msg:
         print msg
-    return raw_input('>>> ' if msg else '] ')
+    return raw_input('>>> ' if msg else '] ').strip()
+
+def sendorbust(fd, data):
+    try:
+        fd.sendall(data)
+        print 'ok'
+    except:
+        print 'lost connection to demosacue'
+        exit(1)
+        
 
 def mainloop(fd):
     print help_short
@@ -34,8 +43,7 @@ def mainloop(fd):
             print help_msg
             
         elif cmd == 's':
-            fd.sendall('SKIP')
-            print 'ok'
+            sendorbust(fd, 'SKIP')
             
         elif cmd == 'm':
             artist = prompt('enter artist (optional)')
@@ -46,16 +54,14 @@ def mainloop(fd):
             foo = 'META\ntitle=%s' % title
             if (artist):
                 foo += '\nartist=%s' % artist
-            fd.sendall(foo)
-            print 'ok'
+            sendorbust(fd, foo)
             
         elif cmd == 'p':
             url = prompt('enter url or path of next song to be played')
             if not url:
                 print 'empty url, aborting'
                 continue
-            fd.sendall('PLAY\npath=%s' % url)
-            print 'ok'
+            sendorbust(fd, 'PLAY\npath=%s' % url)
             
         else:
             print 'unknown command,', help_short
@@ -71,8 +77,6 @@ if __name__ == '__main__':
     except:
         print 'failed to connect to demosauce'
         exit(1)
-    try:
-        mainloop(fd)
-    except:
-        print 'lost connection to demosacue'
-        exit(1)
+
+    mainloop(fd)
+

@@ -238,7 +238,7 @@ bool ff_load(struct decoder* dec, const char* path)
     if (!initialized) {
         initialized = true;
         av_register_all();
-        // avformat_network_init();
+        avformat_network_init();
 #ifdef NDEBUG
         av_log_set_level(AV_LOG_QUIET);
 #endif

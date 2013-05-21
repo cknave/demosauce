@@ -15,8 +15,9 @@ help_msg = '''commands
     s   skip currenly playing song
     m   update stream metadata
     p   set stream source
+    e   exit demosauce gacefully
     h   print help
-    q   quit this program'''
+    q   quit'''
 
 def prompt(msg = None):
     if msg:
@@ -44,6 +45,11 @@ def mainloop(fd):
             
         elif cmd == 's':
             sendorbust(fd, 'SKIP')
+
+        elif cmd == 'e':
+            confirm = prompt('you are about to make the music stop, confirm by typing "yes"')
+            if confirm == 'yes':
+                sendorbust(fd, 'QUIT')
             
         elif cmd == 'm':
             artist = prompt('enter artist (optional)')

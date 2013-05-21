@@ -9,6 +9,7 @@
 */
 
 #include <string.h>
+#include <stdlib.h>
 #include <limits.h>
 #include <signal.h>
 #include <unistd.h>
@@ -30,13 +31,14 @@
 #define MIX_RATIO       0.4     // default mix ratio for amiga modules
 #define LOAD_TRIES      3
 
-static const char* remote_cmd[] = {NULL, "SKIP", "PLAY", "META"};
+static const char* remote_cmd[] = {NULL, "SKIP", "PLAY", "META", "QUIT"};
 
 enum remote_commands {
     COMMAND_NOP  = 0,
     COMMAND_SKIP,
     COMMAND_PLAY,
-    COMMAND_META
+    COMMAND_META,
+    COMMAND_QUIT
 };                        
 
 static lame_t           lame;
@@ -182,6 +184,8 @@ static void remote_handler(void)
     case COMMAND_META:
         update_metadata(remote_buf.data);
         break;
+    case COMMAND_QUIT:
+        exit(EXIT_SUCCESS);
     }
     remote_command = COMMAND_NOP;
 }
@@ -229,6 +233,7 @@ static void* load_next(void* data)
         decoder.free(&decoder);
     memset(&decoder, 0, sizeof(struct decoder));
     memset(&info, 0, sizeof(struct info));
+    LOG_DEBUG("[cast] heap size is %d bytes", util_heapsize());
     
     while (tries++ < LOAD_TRIES && !loaded) {
         get_next_song();
@@ -268,6 +273,20 @@ static void* load_next(void* data)
     return NULL;
 }
 
+static void cast_free(void)
+{
+    shout_free(shout);
+    lame_close(lame);
+    if (decoder.free)
+        decoder.free(&decoder);
+    stream_free(&stream0);
+    stream_free(&stream1);
+    buffer_free(&remote_buf);
+    buffer_free(&config_buf);
+    buffer_free(&lame_buf);
+    fx_resample_free(resampler);
+}
+
 static void cast_init(void)
 {
     shout_init();
@@ -279,13 +298,8 @@ static void cast_init(void)
     lame_set_in_samplerate(lame, settings_encoder_samplerate);
     lame_init_params(lame);
     buffer_resize(&lame_buf, BUFFER_SIZE * settings_encoder_bitrate / CHAR_BIT * 4);
+    // TODO check if really needed
     stream1.channels = settings_encoder_channels;
-}
-
-static void cast_free(void)
-{
-    shout_free(shout);
-    lame_close(lame);
 }
 
 static struct stream* process(int frames)
@@ -381,6 +395,7 @@ void cast_run(void)
         pthread_t thread = {0};
         pthread_create(&thread, NULL, remote_control, NULL);
     }
+    atexit(cast_free);
     while (true) {
         cast_init();
         if (cast_connect()) {

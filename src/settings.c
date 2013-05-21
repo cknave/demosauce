@@ -22,7 +22,7 @@
                         "   -c file.conf            config file\n"      \
                         "   -d options              debug options"
 
-#define X(type, key, value) SETTINGS_##type settings_##key = value;
+#define X(type, key, value) SETTINGS_##type settings_##key;
 SETTINGS_LIST
 #undef X
 
@@ -49,11 +49,12 @@ static void read_config(void)
     fclose(f);
     
     char tmpstr[8] = {0};
-    #define GET_int(key) settings_##key = keyval_int(buffer, #key, settings_##key);
-    #define GET_str(key) settings_##key = keyval_str(NULL, 0, buffer, #key, settings_##key);
-    #define GET_log(key) keyval_str(tmpstr, sizeof(tmpstr), buffer, #key, NULL); \
-                         log_string_to_level(tmpstr, &settings_##key);
-    #define X(type, key, value) GET_##type(key)
+    #define GET_int(key, value) settings_##key = keyval_int(buffer, #key, value);
+    #define GET_str(key, value) settings_##key = keyval_str(NULL, 0, buffer, #key, value);
+    #define GET_log(key, value) settings_##key = value;                                 \
+                                keyval_str(tmpstr, sizeof(tmpstr), buffer, #key, NULL); \
+                                log_string_to_level(tmpstr, &settings_##key);
+    #define X(type, key, value) GET_##type(key, value)
     SETTINGS_LIST
     #undef X
 
@@ -84,6 +85,16 @@ static void check_sanity(void)
         die("setting rempte_port out of range (1-65535)");
 }
 
+static void settings_free(void)
+{
+    #define FREE_int(key) 
+    #define FREE_str(key) util_free(settings_##key);
+    #define FREE_log(key) 
+    #define X(type, key, value) FREE_##type(key)
+    SETTINGS_LIST
+    #undef X
+}
+
 void settings_init(int argc, char** argv)
 {
     char c = 0;
@@ -108,8 +119,8 @@ void settings_init(int argc, char** argv)
             exit(EXIT_SUCCESS);
         }
     }
-
     read_config();
     check_sanity();
+    atexit(settings_free);
 }
 

@@ -40,7 +40,7 @@ void settings_init(int argc, char** argv);
     X(str, debug_song,          NULL)
 
 #define SETTINGS_int    int
-#define SETTINGS_str    const char*
+#define SETTINGS_str    char*
 #define SETTINGS_log    enum log_level
 
 #define X(type, key, value) extern SETTINGS_##type settings_##key;

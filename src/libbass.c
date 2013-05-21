@@ -14,6 +14,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include <dlfcn.h>
 #include <bass.h>
 #include "util.h"
@@ -76,11 +77,17 @@ static void* bind(const char* symbol)
     return sym;
 }
 
+static void unload(void)
+{
+    dlclose(handle);
+}
+
 static bool load(const char* file)
 {
     handle = dlopen(file, RTLD_LAZY);
     if (!handle)
         return false;
+    atexit(unload);
     
     #define X(ret,name,agrs,...) name=(ret(*)(__VA_ARGS__))bind("BASS_"#name);
     FUNCTION_DEFS

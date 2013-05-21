@@ -16,6 +16,7 @@
 #include <stdio.h>
 #include <ctype.h>
 #include <assert.h>
+#include <malloc.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -54,6 +55,12 @@ void* util_realloc(void* ptr, size_t size)
 void util_free(void* ptr)
 {
     free(ptr);
+}
+
+int util_heapsize(void)
+{
+    struct mallinfo minfo = mallinfo();
+    return minfo.uordblks;
 }
 
 //-----------------------------------------------------------------------------
@@ -313,6 +320,7 @@ void buffer_resize(struct buffer* buf, long size)
     if (buf->max_size < buf->size) {
         buf->data = util_realloc(buf->data, buf->size);
         buf->max_size = buf->size;
+        LOG_DEBUG("[buffer] %p resize to %ld bytes", buf, size);
     }
 }
 
@@ -320,6 +328,7 @@ void buffer_free(struct buffer* buf)
 {
     util_free(buf->data);
     memset(buf, 0, sizeof(struct buffer));
+    LOG_DEBUG("[buffer] %p free", buf);
 }
 
 //-----------------------------------------------------------------------------
@@ -327,11 +336,12 @@ void buffer_free(struct buffer* buf)
 void stream_resize(struct stream* s, int frames)
 {
     assert(s->channels >= 1 && s->channels <= MAX_CHANNELS);
-    if (s->max_frames >= frames)
-        return;
-    for (int ch = 0; ch < s->channels; ch++) 
-        s->buffer[ch] = util_realloc(s->buffer[ch], frames * sizeof(float));
-    s->max_frames = frames;
+    for (int ch = 0; ch < s->channels; ch++)
+        if (!s->buffer[ch] || frames > s->max_frames) {
+            s->buffer[ch] = util_realloc(s->buffer[ch], frames * sizeof(float));
+            LOG_DEBUG("[stream] %p resize channel %d to %d frames", s, ch, frames);
+        }
+    s->max_frames = MAX(frames, s->max_frames);
 }
 
 void stream_free(struct stream* s)
@@ -339,6 +349,7 @@ void stream_free(struct stream* s)
     for (int i = 0; i < MAX_CHANNELS; i++)
         util_free(s->buffer[i]);
     memset(s, 0, sizeof(struct stream));
+    LOG_DEBUG("[stream] %p free", s);
 }
 
 void stream_append(struct stream* s, struct stream* source, int frames)

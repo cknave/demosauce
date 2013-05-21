@@ -13,8 +13,7 @@ release='ffmpeg-1.2.1'
 source_tar="$release.tar.bz2"
 source_url="http://www.ffmpeg.org/releases/$source_tar"
 dir_install=`pwd`
-flags_configure="--disable-debug --enable-static --disable-shared --enable-gpl --enable-nonfree --disable-ffmpeg --disable-ffplay --disable-ffserver --disable-swscale --disable-network --disable-encoders --disable-muxers --disable-devices --disable-filters"
-#flags_configure="--disable-debug --enable-static --disable-shared --enable-gpl --enable-nonfree --disable-doc --disable-ffmpeg --disable-ffplay --disable-ffprobe --disable-ffserver --disable-avdevice --disable-swscale --disable-network --disable-encoders --disable-muxers --disable-devices --disable-filters --disable-vaapi"
+flags_configure="--disable-debug --enable-static --disable-shared --enable-gpl --enable-nonfree --disable-doc --disable-ffmpeg --disable-ffplay --disable-ffprobe --disable-ffserver --disable-avdevice --disable-swscale --disable-network --disable-encoders --disable-muxers --disable-devices --disable-filters --disable-vaapi"
 
 if test -f "$source_tar" -a -f "libavcodec.a"; then exit 0; fi
 

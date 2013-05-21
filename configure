@@ -170,10 +170,10 @@ fi
 # generate makefile
 cat <<EOF >config.mk
 CC          = $CC
-CFLAGS      = -std=c99 -O2 -ffast-math
+CFLAGS      = -std=c99 -O2 -ffast-math -pthread
 CPPFLAGS    = $CPPFLAGS -Ireplaygain 
 BASSOURCE   = $BASSSOURCE
-LINK_BASS   = $LINK_BASS
+LINK_BASS   = $LINK_BASS -pthread
 LINK_FFMPEG = $LINK_FFMPEG
 LDFLAGS     = $LDFLAGS
 EOF

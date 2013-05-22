@@ -372,6 +372,7 @@ static void main_loop(void)
                 decoder_ready = false;
                 pthread_t thread = {0};
                 pthread_create(&thread, NULL, load_next, NULL);
+                pthread_detach(thread);
             }
         }
         int siz = lame_encode_buffer_ieee_float(lame, s->buffer[0], s->buffer[1], s->frames, lame_buf.data, lame_buf.size);
@@ -394,6 +395,7 @@ void cast_run(void)
     if (settings_remote_enable) {
         pthread_t thread = {0};
         pthread_create(&thread, NULL, remote_control, NULL);
+        pthread_detach(thread);
     }
     atexit(cast_free);
     while (true) {

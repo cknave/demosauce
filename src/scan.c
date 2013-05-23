@@ -127,7 +127,7 @@ int main(int argc, char** argv)
         die(HELP_MESSAGE);
     
     char c = 0;
-    while ((c = getopt(argc, argv, "hro:")) != -1) {
+    while ((c = getopt(argc, argv, "hro:-:")) != -1) {
         switch (c) {
         default:
         case '?':
@@ -145,6 +145,12 @@ int main(int argc, char** argv)
             } else {
                 output = mwav_open_writer(optarg, 2, SAMPLERATE, 2);
             }
+            break;
+        case '-':   // backwards compatible flag with 3.x, deprecated
+            if (!strcmp(optarg, "no-replaygain"))
+                analyze = false;
+            else
+                die(HELP_MESSAGE);
             break;
         };
     }

@@ -1,10 +1,9 @@
 *.o
 *.log
 *.swp
+*.wav
 scan
-ladspainfo
 demosauce
 demosauce.conf
 config.mk
-dump.wav
 test

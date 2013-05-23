@@ -13,14 +13,23 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <getopt.h>
+#ifdef __GLIBC__
+    #include <mcheck.h>
+#endif
 #include "util.h"
 #include "settings.h"
 
-#define HELP_MESSAGE    "syntax: demosauce [options]\n"                 \
-                        "   -V                      print version\n"    \
-                        "   -h                      print help\n"       \
-                        "   -c file.conf            config file\n"      \
-                        "   -d options              debug options"
+static const char* HELP_MESSAGE =
+    "syntax: demosauce [options]\n"
+    "   -V                      print version\n"
+    "   -h                      print help\n"
+    "   -c file.conf            config file\n"
+    "\n"
+    "debug options\n"       
+#ifdef __GLIBC__                
+    "   -t                      trace malloc, see 'man 3 mtrace'\n"
+#endif
+    "   -d kv-set               debug song, set of key-value pairs";
 
 #define X(type, key, value) SETTINGS_##type settings_##key;
 SETTINGS_LIST
@@ -115,6 +124,12 @@ void settings_init(int argc, char** argv)
         case 'd':
             settings_debug_song = optarg;
             break;
+#ifdef __GLIBC__
+        case 't':
+            mtrace();
+            break;
+#endif
+            
         case 'V':
             exit(EXIT_SUCCESS);
         }

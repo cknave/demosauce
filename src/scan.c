@@ -20,14 +20,15 @@
 #include "util.h"
 
 #define MAX_LENGTH      3600     // abort scan if track is too long, in seconds
-#define SAMPLERATE      44100
-#define HELP_MESSAGE    "demosauce scan tool 0.4.0"ID_STR"\n"                                   \
-                        "syntax: scan [options] file\n"                                         \
-                        "   -h                      print help\n"                               \
-                        "   -r                      disable replaygain analysis\n"              \
-                        "   -o file.wav, stdout     write to wav or stdout\n"                   \
-                        "                           format is 16 bit, 44.1 khz, stereo\n"       \
-                        "                           stdout is raw data, and has no wav header"
+#define SAMPLERATE      44100 
+static const char* HELP_MESSAGE =
+    "demosauce scan tool 0.4.0"ID_STR"\n"                                   
+    "syntax: scan [options] file\n"                                         
+    "   -h                      print help\n"                               
+    "   -r                      disable replaygain analysis\n"              
+    "   -o file.wav, stdout     write to wav or stdout\n"                   
+    "                           format is 16 bit, 44.1 khz, stereo\n"       
+    "                           stdout is raw data, and has no wav header";
 
 // for some formats avcodec fails to provide a bitrate so I just
 // make an educated guess. if the file contains large amounts of 

@@ -241,7 +241,7 @@ bool ff_load(struct decoder* dec, const char* path)
 #if LIBAVFORMAT_VERSION_INT > AV_VERSION_INT(53, 18, 0)
         avformat_network_init();
 #endif
-#ifdef NDEBUG
+#ifdef DEBUG
         av_log_set_level(AV_LOG_QUIET);
 #endif
     }
@@ -327,7 +327,7 @@ bool ff_probe_name(const char* file_name)
     }; 
     for (int i = 0; i < COUNT(ext); i++) {
         const char* tmp = strrchr(file_name, '.');
-        if (!strcasecmp(tmp, ext[i])) 
+        if (tmp && !strcasecmp(tmp, ext[i])) 
             return true;
     }
     return false;

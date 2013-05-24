@@ -201,7 +201,7 @@ static void bass_free(struct decoder* dec)
     struct bassdecoder* d = dec->handle;
     buffer_free(&d->read_buffer);
     if (d->channel) {
-        if (d->channel_info.ctype & BASS_CTYPE_MUSIC_MOD) 
+        if (IS_MOD(d)) 
             BASS_MusicFree(d->channel);
         else 
             BASS_StreamFree(d->channel);
@@ -338,7 +338,7 @@ bool bass_probe(const char* path)
     const char* ext[] = {".mp3", ".mp2", ".wav", ".aiff", ".xm", ".mod", ".s3m", ".it", ".mtm", ".umx", ".mo3", ".fst"};
     for (int i = 0; i < COUNT(ext); i++) {
         const char* tmp = strrchr(path, '.');
-        if (!strcasecmp(tmp, ext[i])) 
+        if (tmp && !strcasecmp(tmp, ext[i])) 
             return true;
     }
 

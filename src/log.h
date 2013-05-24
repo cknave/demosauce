@@ -5,16 +5,16 @@
 *   http://www.gnu.org/licenses/gpl.txt
 *   also, this is beerware! you are strongly encouraged to invite the
 *   authors of this software to a beer when you happen to meet them.
-*   copyright MMXI by maep
+*   copyright MMXIII by maep
 *
 *   logging and "error handling" stuff. to log use macros:
 *   LOG_DEBUG, LOG_INFO, LOG_WARNING, LOG_ERROR, LOG_FATAL
-*   LOG_DEBUG will only be compiled without NDEBUG macro
+*   LOG_DEBUG will only be compiled with DEBUG macro
 *
 *   you can use it like printf:
 *   LOG_INFO("foo"); // logs "INFO  <time> foo"
-*   int foo = 10; string bar = mongo-moose
-*   LOG_DEBUG("i see %1% %2%!", foo, bar.s_str());
+*   int foo = 10; const char* bar = "mongo-moose";
+*   LOG_DEBUG("i see %1% %2%!", foo, bar);
 *   // logs "DEBUG <time> i see 10 mongo-moose!"
 *   LOG_FATAL will exit immediateloy after logging
 *
@@ -26,8 +26,8 @@
 *   bool log_string_to_level(string level_string, Level* level);
 */
 
-#ifndef LOGROR_H
-#define LOGROR_H
+#ifndef LOG_H
+#define LOG_H
 
 #include <stdbool.h>
 
@@ -40,7 +40,7 @@ enum log_level {
     log_off
 };
 
-#ifndef NDEBUG
+#ifdef DEBUG
     #define LOG_DEBUG(...) log_log(log_debug, __VA_ARGS__)
 #else
     #define LOG_DEBUG(...)
@@ -57,5 +57,4 @@ void log_set_file_level(enum log_level level);
 void log_set_file(const char* file, enum log_level level);
 bool log_string_to_level(const char* name, enum log_level* level);
 
-#endif
-
+#endif // LOG_H

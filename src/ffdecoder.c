@@ -115,10 +115,13 @@ static void ff_decode(struct decoder* dec, struct stream* s, int frames)
 {
     struct ffdecoder* d = dec->handle;
     
+    // preallocate stream to prevent a bunch of incremental resizes
+    stream_resize(&d->stream, frames);
+    
     while (d->stream.frames < frames) {
         AVPacket packet = {0};
-        int err = av_read_frame(d->format_context, &packet); // demux/read packet
-        if (err < 0) { // enf of stream
+        int err = av_read_frame(d->format_context, &packet);
+        if (err < 0) {
             d->stream.end_of_stream = true;
             break; 
         }

@@ -154,7 +154,7 @@ static char* get_id3v2_tag(const id3_byte_t* tags, const char* key)
         goto id3_quit_frame;
 
     utf_str = id3_ucs4_utf8duplicate(ucs_str);
-    // TODO: free ucs string?
+    // TODO free ucs string?
 
 id3_quit_frame:
     id3_frame_delete(frame);

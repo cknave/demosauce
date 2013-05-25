@@ -72,7 +72,8 @@ void fx_resample(void* handle, struct stream* s1, struct stream* s2)
 {
     struct fx_resampler* r = handle;
     s2->channels = s1->channels;
-    s2->end_of_stream = s1->end_of_stream; // not true, might have some internal samples left
+    // TODO deal with leftover internal samples
+    s2->end_of_stream = s1->end_of_stream; 
     stream_resize(s2, s1->frames * r->ratio + 1);
     for (int ch = 0; ch < r->channels; ch++) {
         SRC_DATA src = {

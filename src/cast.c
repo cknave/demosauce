@@ -298,8 +298,6 @@ static void cast_init(void)
     lame_set_in_samplerate(lame, settings_encoder_samplerate);
     lame_init_params(lame);
     buffer_resize(&lame_buf, BUFFER_SIZE * settings_encoder_bitrate / CHAR_BIT * 4);
-    // TODO check if really needed
-    stream1.channels = settings_encoder_channels;
 }
 
 static struct stream* process(int frames)

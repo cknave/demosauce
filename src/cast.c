@@ -233,7 +233,6 @@ static void* load_next(void* data)
         decoder.free(&decoder);
     memset(&decoder, 0, sizeof(struct decoder));
     memset(&info, 0, sizeof(struct info));
-    LOG_DEBUG("[cast] heap size is %d bytes", util_heapsize());
     
     while (tries++ < LOAD_TRIES && !loaded) {
         get_next_song();

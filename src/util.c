@@ -16,7 +16,6 @@
 #include <stdio.h>
 #include <ctype.h>
 #include <assert.h>
-#include <malloc.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -55,12 +54,6 @@ void* util_realloc(void* ptr, size_t size)
 void util_free(void* ptr)
 {
     free(ptr);
-}
-
-int util_heapsize(void)
-{
-    struct mallinfo minfo = mallinfo();
-    return minfo.uordblks;
 }
 
 //-----------------------------------------------------------------------------

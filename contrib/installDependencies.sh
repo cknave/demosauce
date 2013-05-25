@@ -36,11 +36,12 @@ fi
 # Gentoo
 # G++ is assumed already installed
 if [ -f /etc/gentoo-release ] ; then
-	emerge -avuDN yasm lame ladspa-sdk libshout libsamplerate libid3tag icu boost
+	emerge -avuDN yasm lame libshout libsamplerate libid3tag 
 	exit
 fi
 
 # FreeBSD
 if [ `uname -s` = 'FreeBSD' ] ; then
-	pkg_add -r gcc46 yasm lame ladspa libshout2 libsamplerate icu boost-libs
+	pkg_add -r gcc yasm libshout2 libsamplerate ffmpeg
+        make -C /usr/ports/audio/lame install clean
 fi

@@ -94,7 +94,6 @@ struct decoder {
 void*   util_malloc(size_t size);
 void*   util_realloc(void* ptr, size_t size);
 void    util_free(void* ptr);
-int     util_heapsize(void);            // return size of allocated heap
 
 
 /*  misc functions

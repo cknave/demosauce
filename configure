@@ -16,7 +16,7 @@ have_lib() {
 
 have_header() {
     echo -n "checking for $1 ... "
-    echo "#include <$1>" | $CC $CFLAGS -E -xc -o /dev/null - 2>/dev/null
+    echo "#include <$1>" | $CC $CPPFLAGS -E -xc -o /dev/null - 2>/dev/null
     if test $? -ne 0; then 
         echo 'no'
         return 1

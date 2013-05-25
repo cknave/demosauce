@@ -173,7 +173,7 @@ int main(int argc, char** argv)
     if (info.channels < 1 || info.channels > 2) 
         die("bad channel number");
     
-    if (info.samplerate != SAMPLERATE) {
+    if ((analyze || output) && info.samplerate != SAMPLERATE) {
         resampler = fx_resample_init(info.channels, info.samplerate, SAMPLERATE);
         if (!resampler)
             die("failed to init resampler");      
@@ -192,7 +192,7 @@ int main(int argc, char** argv)
             if (frames > MAX_LENGTH * info.samplerate) 
                 die("exceeded maxium length");
 
-            if (resampler && (analyze || output))
+            if (resampler)
                 fx_resample(resampler, &stream0, &stream1);
                 
             // there is a strange bug in the replaygain code that can cause it to report the wrong

@@ -5,7 +5,7 @@
 *   http://www.gnu.org/licenses/gpl.txt
 *   also, this is beerware! you are strongly encouraged to invite the
 *   authors of this software to a beer when you happen to meet them.
-*   copyright MMXI by maep
+*   copyright MMXIII by maep
 */
 
 #define _POSIX_C_SOURCE 200112L
@@ -115,7 +115,7 @@ static const char* skip_line(const char* str)
     return str ? str + 1 : NULL;
 }
 
-char* keyval_str(char* out, int size, const char* heap, const char* key, const char* fallback)
+static char* keyval_impl(char* out, int size, const char* heap, const char* key, const char* fallback)
 {
     const char* tmp         = heap;
     size_t      span        = 0;
@@ -135,7 +135,7 @@ char* keyval_str(char* out, int size, const char* heap, const char* key, const c
         }
         have_key = true;
         tmp += strspn(tmp + 1, " \t") + 1;          // skip space before value
-        span = strcspn(tmp, "\r\n");                // TODO add # for line comments
+        span = strcspn(tmp, "\r\n");                // find end of line
         while (span && isspace(tmp[span - 1]))      // remove tailing whitespace
             span--;
         break;
@@ -166,24 +166,34 @@ char* keyval_str(char* out, int size, const char* heap, const char* key, const c
     }
 }
 
+void keyval_str(char* out, int outsize, const char* heap, const char* key, const char* fallback)
+{
+    keyval_impl(out, outsize, heap, key, fallback);
+}
+
+char* keyval_str_dup(const char* heap, const char* key, const char* fallback)
+{
+    return keyval_impl(NULL, 0, heap, key, fallback);
+}
+
 int keyval_int(const char* heap, const char* key, int fallback)
 {
     char tmp[16] = {0};
-    keyval_str(tmp, sizeof(tmp), heap, key, NULL);
+    keyval_impl(tmp, sizeof(tmp), heap, key, NULL);
     return strlen(tmp) ? atoi(tmp) : fallback;
 }
 
 double keyval_real(const char* heap, const char* key, double fallback)
 {
     char tmp[16] = {0};
-    keyval_str(tmp, sizeof(tmp), heap, key, NULL);
+    keyval_impl(tmp, sizeof(tmp), heap, key, NULL);
     return strlen(tmp) ? atof(tmp) : fallback;
 }
   
 bool keyval_bool(const char* heap, const char* key, bool fallback)
 {
     char tmp[8] = {0};
-    keyval_str(tmp, sizeof(tmp), heap, key, NULL);
+    keyval_impl(tmp, sizeof(tmp), heap, key, NULL);
     return strlen(tmp) ? !strcasecmp(tmp, "true") : fallback;
 }
 

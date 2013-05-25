@@ -5,7 +5,7 @@
 *   http://www.gnu.org/licenses/gpl.txt
 *   also, this is beerware! you are strongly encouraged to invite the
 *   authors of this software to a beer when you happen to meet them.
-*   copyright MMXI by maep
+*   copyright MMXIII by maep
 */
 
 
@@ -166,7 +166,7 @@ id3_quit:
 
 static char* get_ogg_tag(const char* tags, const char* key)
 {
-    return keyval_str(NULL, 0, tags, key, NULL);
+    return keyval_str_dup(tags, key, NULL);
 }
 
 static char* get_tag(DWORD channel, const char* key)

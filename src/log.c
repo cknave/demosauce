@@ -5,7 +5,7 @@
 *   http://www.gnu.org/licenses/gpl.txt
 *   also, this is beerware! you are strongly encouraged to invite the
 *   authors of this software to a beer when you happen to meet them.
-*   copyright MMXI by maep
+*   copyright MMXIII by maep
 */
 
 #include <stdlib.h>
@@ -17,7 +17,7 @@
 
 static enum log_level   console_level   = log_off;
 static enum log_level   file_level      = log_off;
-static FILE*            logfile         = 0;
+static FILE*            logfile         = NULL;
 
 void log_set_console_level(enum log_level level)
 {
@@ -62,20 +62,16 @@ static void fvlog(FILE* f, enum log_level lvl, const char* fmt, va_list args)
 
 void log_log(enum log_level lvl, const char* fmt, ...)
 {
-    if (lvl != log_off) {
+    if (lvl >= console_level || (lvl >= file_level && logfile)) {
         va_list args;
-
-        if (lvl >= console_level) {
-            va_start(args, fmt);
+        va_start(args, fmt);
+        
+        if (lvl >= console_level) 
             fvlog(stdout, lvl, fmt, args);
-            va_end(args);
-        }
-
-        if (lvl >= file_level && logfile) {
-            va_start(args, fmt);
+        if (lvl >= file_level && logfile)
             fvlog(logfile, lvl, fmt, args);
-            va_end(args);
-        }
+            
+        va_end(args);
     }
 
     if (lvl == log_fatal) {

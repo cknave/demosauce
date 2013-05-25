@@ -5,7 +5,7 @@
 *   http://www.gnu.org/licenses/gpl.txt
 *   also, this is beerware! you are strongly encouraged to invite the
 *   authors of this software to a beer when you happen to meet them.
-*   copyright MMXI by maep
+*   copyright MMXIII by maep
 */
 
 #include <math.h>
@@ -240,4 +240,3 @@ void fx_convert_to_float(void** in, float** out, int type, int size, int channel
     assert(type >= SF_INT16I && type <= SF_FLOAT32P);
     convert[type]((const void**)in, out, size, channels);
 }
-

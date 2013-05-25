@@ -57,17 +57,21 @@ def mainloop(fd):
             if not title:
                 print 'empty title, aborting'
                 continue
-            foo = 'META\ntitle=%s' % title
+            command = 'META\ntitle=%s' % title
             if (artist):
-                foo += '\nartist=%s' % artist
-            sendorbust(fd, foo)
+                command += '\nartist=%s' % artist
+            sendorbust(fd, command)
             
         elif cmd == 'p':
             url = prompt('enter url or path of next song to be played')
+            gain = prompt('enter track gain in dB (optional)')
             if not url:
                 print 'empty url, aborting'
                 continue
-            sendorbust(fd, 'PLAY\npath=%s' % url)
+            command = 'PLAY\npath=%s' % url
+            if gain:
+                command += '\ngain=%s' % gain
+            sendorbust(fd, command)
             
         else:
             print 'unknown command,', help_short

@@ -5,7 +5,7 @@
 *   http://www.gnu.org/licenses/gpl.txt
 *   also, this is beerware! you are strongly encouraged to invite the
 *   authors of this software to a beer when you happen to meet them.
-*   copyright MMXI by maep
+*   copyright MMXIII by maep
 */
 
 #include <stdlib.h>
@@ -43,6 +43,16 @@ static void die(const char* msg)
     exit(EXIT_FAILURE);
 }
 
+static void strip_comments(char* str)
+{
+    while (str && *str) {
+        while (*str && *str != '#')
+            str++;
+        while (*str && *str != '\n')
+            *str++ = ' ';
+    }
+}
+
 static void read_config(void)
 {
     FILE* f = fopen(config_file_name, "r"); 
@@ -56,10 +66,11 @@ static void read_config(void)
     fread(buffer, 1, bsize, f);
     buffer[bsize] = 0;
     fclose(f);
+    strip_comments(buffer);
     
     char tmpstr[8] = {0};
     #define GET_int(key, value) settings_##key = keyval_int(buffer, #key, value);
-    #define GET_str(key, value) settings_##key = keyval_str(NULL, 0, buffer, #key, value);
+    #define GET_str(key, value) settings_##key = keyval_str_dup(buffer, #key, value);
     #define GET_log(key, value) settings_##key = value;                                 \
                                 keyval_str(tmpstr, sizeof(tmpstr), buffer, #key, NULL); \
                                 log_string_to_level(tmpstr, &settings_##key);

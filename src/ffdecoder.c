@@ -241,7 +241,7 @@ bool ff_load(struct decoder* dec, const char* path)
 #if LIBAVFORMAT_VERSION_INT > AV_VERSION_INT(53, 18, 0)
         avformat_network_init();
 #endif
-#ifdef DEBUG
+#ifndef DEBUG
         av_log_set_level(AV_LOG_QUIET);
 #endif
     }

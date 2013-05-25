@@ -168,10 +168,10 @@ int main(int argc, char** argv)
     decoder.info(&decoder, &info);
 
     if (info.samplerate <= 0) 
-        die("improper samplerate");
+        die("bad samplerate");
 
     if (info.channels < 1 || info.channels > 2) 
-        die("improper channel number");
+        die("bad channel number");
     
     if (info.samplerate != SAMPLERATE) {
         resampler = fx_resample_init(info.channels, info.samplerate, SAMPLERATE);
@@ -188,20 +188,22 @@ int main(int argc, char** argv)
     if (analyze || output || (info.flags & INFO_FFMPEG)) {
         while (!stream->end_of_stream) {
             decoder.decode(&decoder, &stream0, SAMPLERATE);
-            // TODO disable resampler if rg is disabled
-            if (resampler)
+            frames += stream0.frames;
+            if (frames > MAX_LENGTH * info.samplerate) 
+                die("exceeded maxium length");
+
+            if (resampler && (analyze || output))
                 fx_resample(resampler, &stream0, &stream1);
+                
             // there is a strange bug in the replaygain code that can cause it to report the wrong
             // value if the input buffer has an odd lenght, until the root of the cause is found,
             // this will have to do :(
             float* buff[2] = {stream->buffer[0], stream->buffer[1]};
             if (analyze) 
                 rg_analyze(ctx, buff, stream->frames & -2);
+
             if (output)
                 write_wav(output, stream);
-            frames += stream->frames;
-            if (frames > MAX_LENGTH * SAMPLERATE) 
-                die("exceeded maxium length");
         }
     }
 
@@ -214,26 +216,31 @@ int main(int argc, char** argv)
     str = decoder.metadata(&decoder, "artist");
     if (str)
         printf("artist:%s\n", str);
+        
     str = decoder.metadata(&decoder, "title");
     if (str)
         printf("title:%s\n", str);
+        
     printf("type:%s\n", info.codec);
+    
     // ffmpeg's length is not reliable
-    float duration = (info.flags & INFO_FFMPEG) ?
-        (float)frames / SAMPLERATE :
-        (float)info.frames / info.samplerate;
-    printf("length:%f\n", duration);    
+    float duration = (float)((info.flags & INFO_FFMPEG) ? frames : info.frames) / info.samplerate;
+    printf("length:%f\n", duration);
+    
     if (analyze)
         printf("replaygain:%f\n", rg_title_gain(ctx));
+
 #ifdef ENABLE_BASS
     if ((info.flags & INFO_BASS) && (info.flags & INFO_MOD))
         printf("loopiness:%f\n", bass_loopiness(path));
 #endif
+
     if (info.bitrate)
         printf("bitrate:%f\n", info.bitrate);
     else if (info.flags & INFO_FFMPEG)
-        printf("bitrate:%f\n", fake_bitrate(path, frames / SAMPLERATE));
-    if (!(info.flags & INFO_MOD) && info.samplerate)
+        printf("bitrate:%f\n", fake_bitrate(path, frames / info.samplerate));
+
+    if (!(info.flags & INFO_MOD))
         printf("samplerate:%d\n", info.samplerate);
     
     return EXIT_SUCCESS;

@@ -141,7 +141,7 @@ void    socket_close(int socket);
  */
 void    keyval_str(char* outbuf, int outsize, const char* str, const char* key, const char* fallback);
 char*   keyval_str_dup(const char* str, const char* key, const char* fallback);
-int     keyval_int(const char* str, const char* key, int fallback);
+long    keyval_int(const char* str, const char* key, long fallback);
 double  keyval_real(const char* str, const char* key, double fallback);
 bool    keyval_bool(const char* str, const char* key, bool fallback);
     

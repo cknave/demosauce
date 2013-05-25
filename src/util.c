@@ -5,7 +5,7 @@
 *   http://www.gnu.org/licenses/gpl.txt
 *   also, this is beerware! you are strongly encouraged to invite the
 *   authors of this software to a beer when you happen to meet them.
-*   copyright MMXIII by maep
+*   copyright MMXIIII by maep
 */
 
 #define _POSIX_C_SOURCE 200112L
@@ -176,18 +176,22 @@ char* keyval_str_dup(const char* heap, const char* key, const char* fallback)
     return keyval_impl(NULL, 0, heap, key, fallback);
 }
 
-int keyval_int(const char* heap, const char* key, int fallback)
+long keyval_int(const char* heap, const char* key, long fallback)
 {
     char tmp[16] = {0};
     keyval_impl(tmp, sizeof(tmp), heap, key, NULL);
-    return strlen(tmp) ? atoi(tmp) : fallback;
+    char* str_end = NULL;
+    long val = strtol(tmp, &str_end, 0);
+    return str_end != tmp ? val : fallback;
 }
 
 double keyval_real(const char* heap, const char* key, double fallback)
 {
     char tmp[16] = {0};
     keyval_impl(tmp, sizeof(tmp), heap, key, NULL);
-    return strlen(tmp) ? atof(tmp) : fallback;
+    char* str_end = NULL;
+    double val = strtod(tmp, &str_end);
+    return str_end != tmp ? val : fallback;
 }
   
 bool keyval_bool(const char* heap, const char* key, bool fallback)

@@ -31,7 +31,7 @@ static const char* HELP_MESSAGE =
 #endif
     "   -d kv-set               debug song, set of key-value pairs";
 
-#define X(type, key, value) SETTINGS_##type settings_##key;
+#define X(type, key, value) SETTINGS_##type settings_##key = value;
 SETTINGS_LIST
 #undef X
 
@@ -62,23 +62,23 @@ static void read_config(void)
     fseek(f, 0, SEEK_END);
     size_t bsize = ftell(f);
     rewind(f);
-    char* buffer = util_malloc(bsize + 1);
-    fread(buffer, 1, bsize, f);
-    buffer[bsize] = 0;
+    char* buf = util_malloc(bsize + 1);
+    fread(buf, 1, bsize, f);
+    buf[bsize] = 0;
     fclose(f);
-    strip_comments(buffer);
+    strip_comments(buf);
     
     char tmpstr[8] = {0};
-    #define GET_int(key, value) settings_##key = keyval_int(buffer, #key, value);
-    #define GET_str(key, value) settings_##key = keyval_str_dup(buffer, #key, value);
+    #define GET_int(key, value) settings_##key = keyval_int(buf, #key, settings_##key);
+    #define GET_str(key, value) settings_##key = keyval_str_dup(buf, #key, settings_##key);
     #define GET_log(key, value) settings_##key = value;                                 \
-                                keyval_str(tmpstr, sizeof(tmpstr), buffer, #key, NULL); \
+                                keyval_str(tmpstr, sizeof(tmpstr), buf, #key, NULL);    \
                                 log_string_to_level(tmpstr, &settings_##key);
     #define X(type, key, value) GET_##type(key, value)
     SETTINGS_LIST
     #undef X
 
-    util_free(buffer);
+    util_free(buf);
 }
 
 static void check_sanity(void)
@@ -118,7 +118,7 @@ static void settings_free(void)
 void settings_init(int argc, char** argv)
 {
     char c = 0;
-    while ((c = getopt(argc, argv, "hc:d:V")) != -1) {
+    while ((c = getopt(argc, argv, "hc:td:V")) != -1) {
         switch (c) {
         default:
         case '?':
@@ -130,7 +130,7 @@ void settings_init(int argc, char** argv)
             puts(HELP_MESSAGE);
             exit(EXIT_SUCCESS);
         case 'c':
-            config_file_name = optarg;            
+            config_file_name = optarg;
             break;
         case 'd':
             settings_debug_song = optarg;
@@ -140,7 +140,6 @@ void settings_init(int argc, char** argv)
             mtrace();
             break;
 #endif
-            
         case 'V':
             exit(EXIT_SUCCESS);
         }
@@ -149,4 +148,3 @@ void settings_init(int argc, char** argv)
     check_sanity();
     atexit(settings_free);
 }
-

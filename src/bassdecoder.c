@@ -8,7 +8,6 @@
 *   copyright MMXIII by maep
 */
 
-
 #include <string.h>
 #include <math.h>
 #include <strings.h>

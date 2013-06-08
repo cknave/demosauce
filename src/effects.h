@@ -35,6 +35,8 @@ float   amp_to_db(float amp);
 
 void    fx_gain(struct stream* s, float gain);
 
+void    fx_clip(struct stream* s);
+
 void    fx_map(struct stream* s, int channels);
 
 void*   fx_resample_init(int channels, int sr_from, int sr_to);

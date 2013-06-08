@@ -175,7 +175,7 @@ CPPFLAGS    = $CPPFLAGS -Ireplaygain
 BASSOURCE   = $BASSSOURCE
 LINK_BASS   = $LINK_BASS -pthread
 LINK_FFMPEG = $LINK_FFMPEG
-LDFLAGS     = $LDFLAGS
+LDFLAGS     = $LDFLAGS -lm
 EOF
 
 echo "smooth operator"

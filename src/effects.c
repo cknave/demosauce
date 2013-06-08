@@ -185,6 +185,17 @@ void fx_mix(struct fx_mix* fx, struct stream* s)
 
 //-----------------------------------------------------------------------------
 
+void fx_clip(struct stream* s)
+{
+    for (int ch = 0; ch < s->channels; ch++) {
+        float* buf = s->buffer[ch];
+        for (int i = 0; i < s->frames; i++)
+            buf[i] = CLAMP(-1.0f, buf[i], 1.0f);
+    }
+}
+
+//-----------------------------------------------------------------------------
+
 static void ci16i(const void** vin, float** out, int len, int channels)
 {
     const int16_t* in = vin[0]; 

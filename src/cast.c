@@ -313,6 +313,7 @@ static struct stream* process(int frames)
     fx_gain(s, gain);
     if (fader_enabled)
         fx_fade(&fader, s);
+    fx_clip(s);
     return s;
 }
 

@@ -30,7 +30,7 @@
 #else
     #define ID_STR
 #endif
-#define DEMOSAUCE_VERSION "demosauce 0.4.0"ID_STR" - C++ sucks edition"
+#define DEMOSAUCE_VERSION "demosauce 0.4.1"ID_STR" - C++ sucks edition"
 
 #define COUNT(array)    (sizeof(array) / sizeof(array[0]))
 #define MIN(a, b)       ((a) < (b) ? (a) : (b))

@@ -150,7 +150,11 @@ static void ff_seek(struct decoder* dec, long frame)
 
 static const char* codec_type(struct ffdecoder* d)
 {
+#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(54, 25, 0)
     enum CodecID codec_type = d->codec->id;
+#else
+    enum AVCodecID codec_type = d->codec->id;
+#endif
     if (codec_type >= CODEC_ID_PCM_S16LE && codec_type < CODEC_ID_ADPCM_IMA_QT) 
         return "pcm";
     if (codec_type >= CODEC_ID_ADPCM_IMA_QT && codec_type < CODEC_ID_AMR_NB) 

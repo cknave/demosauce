@@ -5,7 +5,7 @@
 */
 
 #ifndef REPLAY_GAIN_H
-#define REPLAY_GAIN_h
+#define REPLAY_GAIN_H
 
 #ifdef __cplusplus
     extern "C" {

@@ -340,15 +340,17 @@ void buffer_free(struct buffer* buf)
 
 //-----------------------------------------------------------------------------
 
-void stream_resize(struct stream* s, int frames)
+void stream_resize(struct stream* s, int frames, int channels)
 {
-    assert(s->channels >= 1 && s->channels <= MAX_CHANNELS);
-    for (int ch = 0; ch < s->channels; ch++)
-        if (!s->buffer[ch] || frames > s->max_frames) {
-            s->buffer[ch] = util_realloc(s->buffer[ch], frames * sizeof(float));
-            LOG_DEBUG("[stream] %p resize channel %d to %d frames", s, ch, frames);
-        }
+    assert(channels >= 1 && channels <= MAX_CHANNELS);
+    if (frames <= s->max_frames && channels == s->channels)
+        return;
+    if (frames > s->max_frames)
+        LOG_DEBUG("[stream] %p resize to %d frames", s, frames);
+    s->channels = channels;
     s->max_frames = MAX(frames, s->max_frames);
+    for (int ch = 0; ch < channels; ch++)
+        s->buffer[ch] = util_realloc(s->buffer[ch], s->max_frames * sizeof (float));
 }
 
 void stream_free(struct stream* s)
@@ -356,25 +358,23 @@ void stream_free(struct stream* s)
     for (int i = 0; i < MAX_CHANNELS; i++)
         util_free(s->buffer[i]);
     memset(s, 0, sizeof(struct stream));
-    LOG_DEBUG("[stream] %p free", s);
 }
 
 void stream_append(struct stream* s, struct stream* source, int frames)
 {
+    assert(s->channels >= 1 && s->channels <= MAX_CHANNELS);
     frames = CLAMP(0, frames, source->frames);
-    s->channels = source->channels;
     s->frames += frames;
-    stream_resize(s, s->frames);
+    stream_resize(s, s->frames, source->channels);
     for (int ch = 0; ch < s->channels; ch++)
-        memmove(s->buffer[ch], source->buffer[ch], frames * sizeof(float));
+        memmove(s->buffer[ch], source->buffer[ch], frames * sizeof (float));
 }
 
 void stream_append_convert(struct stream* s, void** source, int type, int frames, int channels)
 {
     assert(channels >= 1 && channels <= MAX_CHANNELS);
     float* buffs[MAX_CHANNELS] = {0};
-    s->channels = channels;
-    stream_resize(s, s->frames + frames);
+    stream_resize(s, s->frames + frames, channels);
     for (int ch = 0; ch < MAX_CHANNELS; ch++)
         buffs[ch] = s->buffer[ch] + s->frames;
     fx_convert_to_float(source, buffs, type, frames, channels);
@@ -387,13 +387,13 @@ void stream_drop(struct stream* s, int frames)
     s->frames -= frames;
     if (s->frames > 0)
         for (int ch = 0; ch < s->channels; ch++)
-            memmove(s->buffer[ch], s->buffer[ch] + frames, s->frames * sizeof(float));
+            memmove(s->buffer[ch], s->buffer[ch] + frames, s->frames * sizeof (float));
 }
 
 void stream_zero(struct stream* s, int offset, int frames)
 {
     frames = CLAMP(0, s->max_frames - (offset + frames), frames);
     for (int ch = 0; ch < s->channels; ch++)
-        memset(s->buffer[ch] + offset, 0, frames * sizeof(float));
+        memset(s->buffer[ch] + offset, 0, frames * sizeof (float));
     s->frames = offset + frames;
 }

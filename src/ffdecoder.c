@@ -115,9 +115,8 @@ static void ff_decode(struct decoder* dec, struct stream* s, int frames)
 {
     struct ffdecoder* d = dec->handle;
     
-    // preallocate stream to prevent a bunch of incremental resizes
-    d->stream.channels = d->codec_context->channels;
-    stream_resize(&d->stream, frames * 2);
+    // preallocate stream to avoid a bunch of incremental resizes
+    stream_resize(&d->stream, frames * 2, d->codec_context->channels);
     
     while (d->stream.frames < frames) {
         AVPacket packet = {0};

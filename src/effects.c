@@ -71,10 +71,9 @@ void fx_resample_free(void* handle)
 void fx_resample(void* handle, struct stream* s1, struct stream* s2)
 {
     struct fx_resampler* r = handle;
-    s2->channels = s1->channels;
     // TODO deal with leftover internal samples
     s2->end_of_stream = s1->end_of_stream; 
-    stream_resize(s2, s1->frames * r->ratio + 1);
+    stream_resize(s2, s1->frames * r->ratio + 1, s1->channels);
     for (int ch = 0; ch < r->channels; ch++) {
         SRC_DATA src = {
             s1->buffer[ch],     // data_in
@@ -101,9 +100,8 @@ void fx_map(struct stream* s, int channels)
     // only handles 1 and 2, not MAX_CHANNELS
     assert(channels >= 1 && channels <= 2);
     if (s->channels == 1 && channels == 2) {
-        s->channels = 2;
-        stream_resize(s, s->frames);
-        memmove(s->buffer[1], s->buffer[0], s->frames * sizeof(float));
+        stream_resize(s, s->frames, 2);
+        memmove(s->buffer[1], s->buffer[0], s->frames * sizeof (float));
     } else if (s->channels == 2 && channels == 1) {
         s->channels = 1;
         float* left = s->buffer[0];

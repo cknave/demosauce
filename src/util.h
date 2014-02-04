@@ -146,21 +146,21 @@ bool    keyval_bool(const char* str, const char* key, bool fallback);
     
 
 /*  buffer_resize
- *      resize <buffer> to hold at least <size> bytes. if buffer is already large enough
- *      only <buffer>.size will be set.
+ *      resize <b> to hold at least <size> bytes. if buffer is already large enough
+ *      only <b>.size will be set.
  *  buffer_free
- *      free <buffer> and set all members of <buffer> to zero.
+ *      free <b> and set all members of <buffer> to zero.
  *  buffer_zero
- *      zeros <buffer>.size bytes.
+ *      zeros <b>.size bytes.
  */
 void    buffer_resize(struct buffer* b, long size);
 void    buffer_free(struct buffer* b);
 void    buffer_zero(struct buffer* b);
 
 /*  stream_resize
- *      resize <stream> to hold at least <frames> frames. if <frames> is
- *      smaller than <stream>.max_frames this function has no effect. you have to ensure
- *      that <stream>.channels has a valid number before calling this function.
+ *      resize <stream> to hold at least <frames> frames in <channels> channels. if <frames> is
+ *      smaller than s->max_frames this function has no effect, unless <channels> changes number
+ *      of channels.
  *  stream_free
  *      frees the buffers and set all members of <stram> to zero.
  *      stream_append
@@ -175,7 +175,7 @@ void    buffer_zero(struct buffer* b);
  *  stream_zero
  *      set <frames> frames to zero, starting with <offset> frames.
  */
-void    stream_resize(struct stream* s, int frames);
+void    stream_resize(struct stream* s, int frames, int channels);
 void    stream_free(struct stream* s);
 void    stream_append(struct stream* s, struct stream* source, int frames);
 void    stream_append_convert(struct stream* s, void** source, int type, int frames, int channels);

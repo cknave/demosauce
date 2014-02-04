@@ -83,10 +83,9 @@ static void get_next_song(void)
 
 static void zero_generator(struct decoder* dec, struct stream* s, int frames)
 {
-    s->channels = settings_encoder_channels;
     s->frames = frames;
     s->end_of_stream = false;
-    stream_resize(s, frames);
+    stream_resize(s, frames, settings_encoder_channels);
     stream_zero(s, 0, frames);
 }
 
@@ -359,8 +358,7 @@ static void main_loop(void)
     while (true) {
         remote_handler();
         if (!decoder_ready) {
-            if (s->max_frames < decode_frames)
-                stream_resize(s, decode_frames);
+            stream_resize(s, decode_frames, s->channels);
             stream_zero(s, 0, decode_frames);
         } else {
             s = process(decode_frames);

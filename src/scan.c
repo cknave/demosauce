@@ -133,17 +133,9 @@ static void fp_feed(ChromaprintContext* cp, struct stream* s)
 
 int main(int argc, char** argv)
 {
-    const char*     path        = NULL;
-    bool            enable_rg   = false;
-    bool            enable_fp   = false;
-    bool            loaded      = false;
-    struct info     info        = {0};
-    struct decoder  decoder     = {0};
-    void*           resampler   = NULL;
-    struct stream   stream0     = {{0}};
-    struct stream   stream1     = {{0}};
-    struct stream*  stream      = &stream0;
-    FILE*           output      = NULL;
+    bool    enable_rg   = false;
+    bool    enable_fp   = false;
+    FILE*   output      = NULL;
 
 #ifdef ENABLE_BASS
     if (!bass_loadso(argv))
@@ -181,11 +173,12 @@ int main(int argc, char** argv)
             break;
         };
     }
-    
+    const char* path = argv[optind];
     if (output == stdout) // no point in analyzing if output is active
-        enable_fp = enable_rg = false;
-    path = argv[optind];
-
+        enable_fp = enable_rg = false; 
+           
+    struct decoder decoder = {0};
+    bool loaded = false;
 #ifdef ENABLE_BASS
     loaded = bass_load(&decoder, path, "bass_prescan=true", SAMPLERATE);
 #endif
@@ -194,7 +187,8 @@ int main(int argc, char** argv)
 
     if (!loaded) 
         die("unknown format");
-        
+    
+    struct info info = {0};
     decoder.info(&decoder, &info);
 
     if (info.samplerate <= 0) 
@@ -203,7 +197,13 @@ int main(int argc, char** argv)
     if (info.channels < 1 || info.channels > 2) 
         die("bad channel number");
     
-    if ((enable_rg || output) && info.samplerate != SAMPLERATE) {
+    bool decode_audio = enable_rg || enable_fp || output;
+    struct stream   stream0 = {{0}};
+    struct stream   stream1 = {{0}};
+    struct stream*  stream = &stream0;
+    
+    void* resampler = NULL;
+    if (info.samplerate != SAMPLERATE && decode_audio) {
         resampler = fx_resample_init(info.channels, info.samplerate, SAMPLERATE);
         if (!resampler)
             die("failed to init resampler");      
@@ -218,11 +218,10 @@ int main(int argc, char** argv)
     // avcodec is unreliable when it comes to length, the only way to get accurate length 
     // is to decode the whole stream
     long frames = 0;
-    if (enable_rg || enable_fp || output || (info.flags & INFO_FFMPEG)) {
+    if (decode_audio || (info.flags & INFO_FFMPEG)) {
         while (!stream->end_of_stream) {
             decoder.decode(&decoder, &stream0, SAMPLERATE);
             frames += stream0.frames;
-//            printf("%ld\n", frames);
             if (frames > MAX_LENGTH * info.samplerate) 
                 die("exceeded maxium length");
 
@@ -237,9 +236,8 @@ int main(int argc, char** argv)
                 rg_analyze(rg_ctx, buff, stream->frames & ~1);
                 
             if (enable_fp && frames <= FP_LENGTH * info.samplerate)
-                { //printf("%ld s\n", frames / info.samplerate)   ; 
                 fp_feed(cp_ctx, stream);
-                }
+
             if (output)
                 write_wav(output, stream);
         }
@@ -284,11 +282,8 @@ int main(int argc, char** argv)
     if (enable_fp) {
         char* fingerprint = NULL;
         chromaprint_finish(cp_ctx);
-        // chromaprint_get_fingerprint(cp_ctx, &fingerprint);
-        // printf("acoustid:%s\n", fingerprint);
-        int sz;
-        chromaprint_get_raw_fingerprint(cp_ctx, &fingerprint, &sz);
-        printf("%d\n", sz);  
+        chromaprint_get_fingerprint(cp_ctx, &fingerprint);
+        printf("acoustid:%s\n", fingerprint);  
     }
     
     return EXIT_SUCCESS;

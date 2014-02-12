@@ -23,7 +23,7 @@
 enum {
     BUF_LENGTH  = 512,      // buffer size for sample format converter
     MAX_LENGTH  = 3600,     // abort scan if track is too long, in seconds
-    FP_LENGTH   = 60,       // length of fingerprint 
+    FP_LENGTH   = 120,       // length of fingerprint 
     SAMPLERATE  = 44100 
 };
 
@@ -222,6 +222,7 @@ int main(int argc, char** argv)
         while (!stream->end_of_stream) {
             decoder.decode(&decoder, &stream0, SAMPLERATE);
             frames += stream0.frames;
+//            printf("%ld\n", frames);
             if (frames > MAX_LENGTH * info.samplerate) 
                 die("exceeded maxium length");
 
@@ -235,9 +236,10 @@ int main(int argc, char** argv)
             if (enable_rg) 
                 rg_analyze(rg_ctx, buff, stream->frames & ~1);
                 
-            if (enable_fp && frames < FP_LENGTH * info.samplerate)
+            if (enable_fp && frames <= FP_LENGTH * info.samplerate)
+                { //printf("%ld s\n", frames / info.samplerate)   ; 
                 fp_feed(cp_ctx, stream);
-                
+                }
             if (output)
                 write_wav(output, stream);
         }
@@ -282,8 +284,11 @@ int main(int argc, char** argv)
     if (enable_fp) {
         char* fingerprint = NULL;
         chromaprint_finish(cp_ctx);
-        chromaprint_get_fingerprint(cp_ctx, &fingerprint);
-        printf("acoustid:%s\n", fingerprint);
+        // chromaprint_get_fingerprint(cp_ctx, &fingerprint);
+        // printf("acoustid:%s\n", fingerprint);
+        int sz;
+        chromaprint_get_raw_fingerprint(cp_ctx, &fingerprint, &sz);
+        printf("%d\n", sz);  
     }
     
     return EXIT_SUCCESS;

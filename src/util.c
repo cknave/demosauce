@@ -362,7 +362,7 @@ void stream_free(struct stream* s)
 
 void stream_append(struct stream* s, struct stream* source, int frames)
 {
-    assert(s->channels >= 1 && s->channels <= MAX_CHANNELS);
+    assert(source->channels >= 1 && source->channels <= MAX_CHANNELS);
     frames = CLAMP(0, frames, source->frames);
     s->frames += frames;
     stream_resize(s, s->frames, source->channels);

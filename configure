@@ -106,6 +106,7 @@ assert_lib 'shout'
 assert_version 'shout' '2.2.2'
 assert_header 'lame/lame.h'
 assert_lib 'samplerate'
+assert_lib 'libchromaprint'
 
 # bass
 check_bass() {

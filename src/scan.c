@@ -5,7 +5,7 @@
 *   http://www.gnu.org/licenses/gpl.txt
 *   also, this is beerware! you are strongly encouraged to invite the
 *   authors of this software to a beer when you happen to meet them.
-*   copyright MMXIII by maep
+*   copyright MMXIV by maep
 */
 
 #include <stdlib.h>
@@ -13,19 +13,26 @@
 #include <stdio.h>
 #include <limits.h>
 #include <getopt.h>
+#include <chromaprint.h>
 #include <replay_gain.h>
 #include "bassdecoder.h"
 #include "ffdecoder.h"
 #include "effects.h"
 #include "util.h"
 
-#define MAX_LENGTH      3600     // abort scan if track is too long, in seconds
-#define SAMPLERATE      44100 
+enum {
+    BUF_LENGTH  = 512,      // buffer size for sample format converter
+    MAX_LENGTH  = 3600,     // abort scan if track is too long, in seconds
+    FP_LENGTH   = 60,       // length of fingerprint 
+    SAMPLERATE  = 44100 
+};
+
 static const char* HELP_MESSAGE =
-    "demosauce scan tool 0.4.0"ID_STR"\n"                                   
+    "demosauce scan tool 0.5.0"ID_STR"\n"                                   
     "syntax: scan [options] file\n"                                         
     "   -h                      print help\n"                               
-    "   -r                      disable replaygain analysis\n"              
+    "   -r                      replaygain analysis\n" 
+    "   -c                      acoustic fingerprint\n"      
     "   -o file.wav, stdout     write to wav or stdout\n"                   
     "                           format is 16 bit, 44.1 khz, stereo\n"       
     "                           stdout is raw data, and has no wav header";
@@ -61,7 +68,7 @@ static FILE* mwav_open_writer(const char* path, int channels, int samplerate, in
     fwrite("WAVE", 1, 4, f);
     fwrite("fmt ", 1, 4, f);
     mwav_write_int(f, 16, 4);
-    mwav_write_int(f, samplesize == 4 ? 3: 1, 2); 
+    mwav_write_int(f, samplesize == 4 ? 3 : 1, 2); 
     mwav_write_int(f, channels, 2);
     mwav_write_int(f, samplerate, 4); 
     mwav_write_int(f, channels * samplerate * samplesize, 4);
@@ -89,27 +96,46 @@ static void mwav_close_writer(FILE* f)
     fclose(f);
 }
 
+// small helper function to interleave flaot to int16 samples
+static int interleave(struct stream* s, int16_t* buf, int* frames)
+{
+    int process_frames = CLAMP(0, s->frames - *frames, BUF_LENGTH);
+    const float* left  = s->buffer[0] + *frames;
+    const float* right = s->buffer[s->channels == 1 ? 0 : 1] + *frames;
+    for (int i = 0; i < process_frames; i++) {
+        // TODO: swap bytes on big endian machines
+        buf[i * 2]     = CLAMP(INT16_MIN, left[i]  * INT16_MAX, INT16_MAX);
+        buf[i * 2 + 1] = CLAMP(INT16_MIN, right[i] * INT16_MAX, INT16_MAX);
+    }
+    *frames += process_frames;
+    return process_frames;
+}
+
 static void write_wav(FILE* f, struct stream* s)
 {
-    int16_t tmp[128];
+    int16_t tmp[BUF_LENGTH * 2];
     int frames = 0;
     while (frames < s->frames) {
-        int process_frames = CLAMP(0, s->frames - frames, COUNT(tmp) / 2);
-        const float* left  = s->buffer[0] + frames;
-        const float* right = s->buffer[s->channels == 1 ? 0 : 1] + frames;
-        for (int i = 0; i < process_frames; i++) {
-            tmp[i * 2]     = CLAMP(INT16_MIN, left[i]  * INT16_MAX, INT16_MAX);
-            tmp[i * 2 + 1] = CLAMP(INT16_MIN, right[i] * INT16_MAX, INT16_MAX);
-        }
-        fwrite(tmp, sizeof(int16_t), process_frames * 2, f);
-        frames += process_frames;
+        int bframes = interleave(s, tmp, &frames);
+        fwrite(tmp, sizeof (int16_t), bframes * 2, f);
+    }
+}
+
+static void fp_feed(ChromaprintContext* cp, struct stream* s)
+{
+    int16_t tmp[BUF_LENGTH * 2];
+    int frames = 0;
+    while (frames < s->frames) {
+        int bframes = interleave(s, tmp, &frames);
+        chromaprint_feed(cp, tmp, bframes * 2);
     }
 }
 
 int main(int argc, char** argv)
 {
     const char*     path        = NULL;
-    bool            analyze     = true;
+    bool            enable_rg   = false;
+    bool            enable_fp   = false;
     bool            loaded      = false;
     struct info     info        = {0};
     struct decoder  decoder     = {0};
@@ -127,7 +153,7 @@ int main(int argc, char** argv)
         die(HELP_MESSAGE);
     
     char c = 0;
-    while ((c = getopt(argc, argv, "hro:-:")) != -1) {
+    while ((c = getopt(argc, argv, "hrco:-:")) != -1) {
         switch (c) {
         default:
         case '?':
@@ -136,24 +162,28 @@ int main(int argc, char** argv)
             puts(HELP_MESSAGE);
             return EXIT_SUCCESS;
         case 'r':
-            analyze = false;
+            enable_rg = true;
+            break;
+        case 'c':
+            enable_fp = true;
             break;
         case 'o':
-            if (!strcmp(optarg, "stdout")) {
+            if (!strcmp(optarg, "stdout"))
                 output = stdout;
-                analyze = false;
-            } else {
+            else 
                 output = mwav_open_writer(optarg, 2, SAMPLERATE, 2);
-            }
             break;
         case '-':   // backwards compatible flag with 3.x, deprecated
             if (!strcmp(optarg, "no-replaygain"))
-                analyze = false;
+                enable_rg = false;
             else
                 die(HELP_MESSAGE);
             break;
         };
     }
+    
+    if (output == stdout) // no point in analyzing if output is active
+        enable_fp = enable_rg = false;
     path = argv[optind];
 
 #ifdef ENABLE_BASS
@@ -173,19 +203,22 @@ int main(int argc, char** argv)
     if (info.channels < 1 || info.channels > 2) 
         die("bad channel number");
     
-    if ((analyze || output) && info.samplerate != SAMPLERATE) {
+    if ((enable_rg || output) && info.samplerate != SAMPLERATE) {
         resampler = fx_resample_init(info.channels, info.samplerate, SAMPLERATE);
         if (!resampler)
             die("failed to init resampler");      
         stream = &stream1; 
     }
 
-    struct rg_context* ctx = rg_new(SAMPLERATE, RG_FLOAT32, info.channels, false);
+    struct rg_context* rg_ctx = rg_new(SAMPLERATE, RG_FLOAT32, info.channels, false);
+    
+    ChromaprintContext* cp_ctx = chromaprint_new(CHROMAPRINT_ALGORITHM_DEFAULT);
+    chromaprint_start(cp_ctx, SAMPLERATE, 2);
 
-    // avcodec is unreliable when it comes to length, so the only way to be 
-    // absolutely accurate is to decode the whole stream
+    // avcodec is unreliable when it comes to length, the only way to get accurate length 
+    // is to decode the whole stream
     long frames = 0;
-    if (analyze || output || (info.flags & INFO_FFMPEG)) {
+    if (enable_rg || enable_fp || output || (info.flags & INFO_FFMPEG)) {
         while (!stream->end_of_stream) {
             decoder.decode(&decoder, &stream0, SAMPLERATE);
             frames += stream0.frames;
@@ -196,12 +229,15 @@ int main(int argc, char** argv)
                 fx_resample(resampler, &stream0, &stream1);
                 
             // there is a strange bug in the replaygain code that can cause it to report the wrong
-            // value if the input buffer has an odd lenght, until the root of the cause is found,
-            // this will have to do :(
+            // value if the input buffer has an odd length, until the root of the cause is found,
+            // & ~1 will have to do
             float* buff[2] = {stream->buffer[0], stream->buffer[1]};
-            if (analyze) 
-                rg_analyze(ctx, buff, stream->frames & -2);
-
+            if (enable_rg) 
+                rg_analyze(rg_ctx, buff, stream->frames & ~1);
+                
+            if (enable_fp && frames < FP_LENGTH * info.samplerate)
+                fp_feed(cp_ctx, stream);
+                
             if (output)
                 write_wav(output, stream);
         }
@@ -227,8 +263,8 @@ int main(int argc, char** argv)
     float duration = (float)((info.flags & INFO_FFMPEG) ? frames : info.frames) / info.samplerate;
     printf("length:%f\n", duration);
     
-    if (analyze)
-        printf("replaygain:%f\n", rg_title_gain(ctx));
+    if (enable_rg)
+        printf("replaygain:%f\n", rg_title_gain(rg_ctx));
 
 #ifdef ENABLE_BASS
     if ((info.flags & INFO_BASS) && (info.flags & INFO_MOD))
@@ -242,6 +278,13 @@ int main(int argc, char** argv)
 
     if (!(info.flags & INFO_MOD))
         printf("samplerate:%d\n", info.samplerate);
+        
+    if (enable_fp) {
+        char* fingerprint = NULL;
+        chromaprint_finish(cp_ctx);
+        chromaprint_get_fingerprint(cp_ctx, &fingerprint);
+        printf("acoustid:%s\n", fingerprint);
+    }
     
     return EXIT_SUCCESS;
 }

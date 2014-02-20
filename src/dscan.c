@@ -21,14 +21,14 @@
 #include "util.h"
 
 enum {
-    BUF_LENGTH  = 512,      // buffer size for sample format converter
-    MAX_LENGTH  = 3600,     // abort scan if track is too long, in seconds
-    FP_LENGTH   = 120,       // length of fingerprint 
-    SAMPLERATE  = 44100 
+    SAMPLERATE  = 44100,
+    MAX_LENGTH  = 3600,             // abort scan if track is too long, in seconds
+    FP_LENGTH   = 120,              // length of fingerprint 
+    BUF_LENGTH  = SAMPLERATE / 20   // buffer size for sample format converter 
 };
 
 static const char* HELP_MESSAGE =
-    "demosauce scan tool 0.5.0"ID_STR"\n"                                   
+    "demosauce dscan tool 0.5.1"ID_STR"\n"                                   
     "syntax: scan [options] file\n"                                         
     "   -h                      print help\n"                               
     "   -r                      replaygain analysis\n" 

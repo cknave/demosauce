@@ -2,7 +2,7 @@
 *.log
 *.swp
 *.wav
-scan
+dscan
 demosauce
 demosauce.conf
 config.mk

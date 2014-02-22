@@ -7,15 +7,17 @@
 *   authors of this software to a beer when you happen to meet them.
 *   copyright MMXIII by maep
 *
-*   this file handles dynamic linking to libbass.so
+*   this file handles dynamic linking to libbass.so_POSIX_C_SOURCE >= 200112L
 *   it was nessessary because the system's dynamic 
 *   linking isn't flexible enough
 */
 
+#define _POSIX_C_SOURCE 200112L // enable readlink() in glibc
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <dlfcn.h>
+#include <unistd.h>
 #include <bass.h>
 #include "util.h"
 
@@ -96,22 +98,23 @@ static bool load(const char* file)
     return !error;
 }
 
-bool bass_loadso(char** argv)
+bool bass_loadso(void)
 {
-    char path[4096];
-    if (strlen(argv[0]) < sizeof(path) - 32) {
-        strcpy(path, argv[0]);
-        char* path_end = strrchr(path, '/') + 1;
-        strcpy(path_end, "libbass.so");
-        if (load(path))
-            return true;
-        strcpy(path_end, "bass/libbass.so");
-        if (load(path))
-            return true;
-    }
-    if (load("/usr/local/lib/libbass.so"))
+    // try linker search first, incl. LD_LIBRARY_PATH
+    if (load("libbass.so"))
         return true;
-    if (load("/usr/lib/libbass.so"))
+    // find location of process image
+    char path[4096];
+    if (readlink("/proc/self/exe", path, sizeof path - 32) == -1)
+        return false;
+    char* path_end = strrchr(path, '/');
+    if (!path_end)
+        return false;
+    strcpy(path_end + 1, "libbass.so");
+    if (load(path))
+        return true;
+    strcpy(path_end + 1, "bass/libbass.so");
+    if (load(path))
         return true;
     return false;
 }

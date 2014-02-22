@@ -138,7 +138,7 @@ int main(int argc, char** argv)
     FILE*   output      = NULL;
 
 #ifdef ENABLE_BASS
-    if (!bass_loadso(argv))
+    if (!bass_loadso())
         die("failed to load libbass.so");
 #endif
     if (argc <= 1) 

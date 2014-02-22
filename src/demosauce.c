@@ -48,7 +48,7 @@
 int main(int argc, char** argv)
 {
 #ifdef ENABLE_BASS
-    if (!bass_loadso(argv)) {
+    if (!bass_loadso()) {
         puts("failed to load libbass.so");
         return EXIT_FAILURE;
     }

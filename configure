@@ -132,26 +132,13 @@ if test `uname -s` = 'Linux' && ! check_bass; then
 fi
 
 # ffmpeg
-echo "==> you can build a custom ffmpeg library if you have problems with the one provided by your distro"
-if ask "==> build custom ffmpeg?"; then
-    assert_exe 'yasm'
-    assert_exe 'make'
-    run_script build.sh ffmpeg
-    if test $? -ne 0; then 
-        echo 'error while building libavcodec'; 
-        exit 1; 
-    fi
-    LINK_FFMPEG="-Lffmpeg -pthread -lavformat -lavcodec -lavutil"
-    CPPFLAGS="$CPPFLAGS -Iffmpeg"
-else
-    assert_lib 'libavcodec'
-    assert_lib 'libavformat'
-    assert_lib 'libavutil'
-    CPPFLAGS="$CPPFLAGS `pkg-config --cflags libavformat libavcodec libavutil`"
-    LINK_FFMPEG='$(shell pkg-config --libs libavformat libavcodec libavutil)'
-    if ! have_header 'libavcodec/avcodec.h'; then
-        CPPFLAGS="$CPPFLAGS -DFFMPEG_OLD_HEADER"
-    fi
+assert_lib 'libavcodec'
+assert_lib 'libavformat'
+assert_lib 'libavutil'
+CPPFLAGS="$CPPFLAGS `pkg-config --cflags libavformat libavcodec libavutil`"
+LINK_FFMPEG='$(shell pkg-config --libs libavformat libavcodec libavutil)'
+if ! have_header 'libavcodec/avcodec.h'; then
+    CPPFLAGS="$CPPFLAGS -DFFMPEG_OLD_HEADER"
 fi
 
 # replaygain

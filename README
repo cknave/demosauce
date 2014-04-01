@@ -7,7 +7,7 @@ officially we support only linux, but the code is written with portability in mi
 Libraries
 ------------------
 required libs:
-libsamplerate, libshout, libavcodec, libavformat, libgetopt
+libsamplerate, libmp3lame, libshout, libavcodec, libavformat
 
 optional libs:
 bass, libid3tag
@@ -16,7 +16,7 @@ you can use BASS for module playback (mod, s3m, xm, it). the configure script wi
 
 Linux
 ------------------
-we provide a script (contrib/installDependencies.sh) to install the required libraries which you will need to run as root.
+run installDependencies.sh to install the required libraries. it may actually work on a few distros.
 
 OSX
 ------------------
@@ -24,7 +24,7 @@ you will need to install the required libraries manually.
 
 BSD
 ------------------
-no bass support for bsd. installDependencies.sh could be patched to work with bsd flavours, maybe YOU can help :D
+on freebsd installDependencies.sh should work 
 
 Windows
 ------------------

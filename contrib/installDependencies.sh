@@ -9,21 +9,20 @@ fi
 
 # Debian (and Ubuntu obviously)
 if [ -f /etc/debian_version ] ; then
-	aptitude -y install g++ yasm lame ladspa-sdk libsamplerate-dev libshout-dev libid3tag0-dev libicu-dev libboost-dev libboost-system-dev libboost-thread-dev libboost-filesystem-dev libboost-program-options-dev
-        echo 'note: older debian distros have ancient boost packages. usually there is a newer package available, like libboost1.40-dev'
+	aptitude -y install build-essential libmp3lame-dev libavformat-dev libsamplerate-dev libshout-dev libid3tag0-dev zip
 	exit
 fi
 
 # RedHat (and Fedora)
 if [ -f /etc/redhat-release ] ; then
-	yum -y install gcc-c++ yasm lame ladspa-sdk libsamplerate-devel libshout3-devel libid3tag-devel libicu-devel boost-devel
+	yum -y install gcc libsamplerate-devel libshout3-devel libid3tag-devel 
 	exit
 fi
 
 # openSUSE
 if [ -d /etc/YaST2 ] ; then
 	echo "you need to enable the Pacman repository"
-	zypper install gcc-c++ make yasm lame ladspa ladspa-devel libsamplerate-devel libshout-devel libid3tag-devel libicu-devel boost-devel
+	zypper install gcc make libsamplerate-devel libshout-devel libid3tag-devel
 	exit
 fi
 

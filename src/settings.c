@@ -63,9 +63,9 @@ static void read_config(void)
     size_t bsize = ftell(f);
     rewind(f);
     char* buf = util_malloc(bsize + 1);
-    fread(buf, 1, bsize, f);
+    if (fread(buf, 1, bsize, f) != bsize)
+        goto exit;
     buf[bsize] = 0;
-    fclose(f);
     strip_comments(buf);
     
     char tmpstr[8] = {0};
@@ -77,7 +77,8 @@ static void read_config(void)
     #define X(type, key, value) GET_##type(key, value)
     SETTINGS_LIST
     #undef X
-
+exit:
+    fclose(f);
     util_free(buf);
 }
 

@@ -163,7 +163,7 @@ if have_exe "ccache"; then
     CC="ccache $CC"
 fi
 
-if have_exe "git"; then
+if have_exe "git" && have_file ".git" ; then
     CPPFLAGS="$CPPFLAGS -DBUILD_ID=\$(shell git describe --always)"
 fi
 

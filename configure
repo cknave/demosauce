@@ -146,10 +146,6 @@ if ! have_file 'replaygain/libreplaygain.a'; then
     run_script build.sh replaygain
 fi
 
-if have_exe "ccache"; then
-    CC="ccache $CC"
-fi
-
 if have_exe "git" && have_file ".git" ; then
     CPPFLAGS="$CPPFLAGS -DBUILD_ID=\$(shell git describe --always)"
 fi

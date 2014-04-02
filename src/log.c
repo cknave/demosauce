@@ -64,14 +64,16 @@ void log_log(enum log_level lvl, const char* fmt, ...)
 {
     if (lvl >= console_level || (lvl >= file_level && logfile)) {
         va_list args;
-        va_start(args, fmt);
-        
-        if (lvl >= console_level) 
+        if (lvl >= console_level) {
+            va_start(args, fmt);
             fvlog(stdout, lvl, fmt, args);
-        if (lvl >= file_level && logfile)
+            va_end(args);
+        }
+        if (lvl >= file_level && logfile) {
+            va_start(args, fmt);
             fvlog(logfile, lvl, fmt, args);
-            
-        va_end(args);
+            va_end(args);        
+        }        
     }
 
     if (lvl == log_fatal) {

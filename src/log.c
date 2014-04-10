@@ -62,19 +62,18 @@ static void fvlog(FILE* f, enum log_level lvl, const char* fmt, va_list args)
 
 void log_log(enum log_level lvl, const char* fmt, ...)
 {
-    if (lvl >= console_level || (lvl >= file_level && logfile)) {
-        va_list args;
-        if (lvl >= console_level) {
-            va_start(args, fmt);
-            fvlog(stdout, lvl, fmt, args);
-            va_end(args);
-        }
-        if (lvl >= file_level && logfile) {
-            va_start(args, fmt);
-            fvlog(logfile, lvl, fmt, args);
-            va_end(args);        
-        }        
+    va_list args;
+    if (lvl >= console_level) {
+        va_start(args, fmt);
+        fvlog(stdout, lvl, fmt, args);
+        va_end(args);
     }
+
+    if (lvl >= file_level && logfile) {
+        va_start(args, fmt);
+        fvlog(logfile, lvl, fmt, args);
+        va_end(args);        
+    }        
 
     if (lvl == log_fatal) {
         puts("terminated");

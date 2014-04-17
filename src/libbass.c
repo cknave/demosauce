@@ -118,4 +118,3 @@ bool bass_loadso(void)
         return true;
     return false;
 }
-

@@ -15,19 +15,20 @@
 # not everything in that list might be a true memory leak. observe
 # over time. you are looking for a growing number in the first column
 
+from __future__ import print_function
 import sys
 
 memmap  = {}
 callmap = {}
 
 if len(sys.argv) != 2:
-    print 'syntax: mtrace.py log-file'
+    print('syntax: mtrace.py log-file')
     exit()
 
 for line in open(sys.argv[1]):
     tok = line.split()
     if not tok or tok[0] != '@' or len(tok) < 4:
-        print 'skipping "%s"' % line[:-1]
+        print('skipping "%s"' % line[:-1])
         continue
         
     call = intern(tok[1])
@@ -40,7 +41,7 @@ for line in open(sys.argv[1]):
     elif mode in ['-', '<'] and addr in memmap:
         del memmap[addr]
     else:
-        print 'skipping "%s"' % line[:-1]
+        print('skipping "%s"' % line[:-1])
 
 for addr, val in memmap.iteritems():
     call, size = val
@@ -58,5 +59,5 @@ for call, val in callmap.iteritems():
     leaklist.append((hits, size, call))
 
 for leak in sorted(leaklist):
-    print '%5d %7d %s' % leak
-print 'total %d bytes' % total_leak
+    print('%5d %7d %s' % leak)
+print('total %d bytes' % total_leak)

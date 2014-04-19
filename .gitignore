@@ -2,6 +2,7 @@
 *.log
 *.swp
 *.wav
+sockulf.db
 dscan
 demosauce
 demosauce.conf

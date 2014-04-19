@@ -278,7 +278,7 @@ error:
 
 bool socket_write(int socket, const void* buffer, long size)
 {
-    ssize_t bytes = send(socket, buffer, size, 0);
+    ssize_t bytes = send(socket, buffer, size, MSG_NOSIGNAL);
     if (bytes < 0)
         LOG_DEBUG("[socket] write failed");
     else

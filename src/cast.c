@@ -298,7 +298,7 @@ static void cast_init(void)
     lame_set_num_channels(lame, settings_encoder_channels);
     lame_set_in_samplerate(lame, settings_encoder_samplerate);
     lame_init_params(lame);
-    buffer_resize(&lame_buf, BUFFER_SIZE * settings_encoder_bitrate / CHAR_BIT * 4);
+    buffer_resize(&lame_buf, BUFFER_SIZE * settings_encoder_bitrate);
 }
 
 static struct stream* process(int frames)
@@ -374,6 +374,7 @@ static void main_loop(void)
                 pthread_detach(thread);
             }
         }
+        
         int siz = lame_encode_buffer_ieee_float(lame, s->buffer[0], s->buffer[1], s->frames, lame_buf.data, lame_buf.size);
         if (siz < 0) { 
            LOG_ERROR("[cast] lame error (%d)", siz);

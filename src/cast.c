@@ -274,7 +274,9 @@ static void* load_next(void* data)
 static void cast_free(void)
 {
     shout_free(shout);
+    shout = NULL;
     lame_close(lame);
+    lame = 0;
     if (decoder.free)
         decoder.free(&decoder);
     stream_free(&stream0);
@@ -283,6 +285,7 @@ static void cast_free(void)
     buffer_free(&config_buf);
     buffer_free(&lame_buf);
     fx_resample_free(resampler);
+    resampler = NULL;
 }
 
 static void cast_init(void)
@@ -387,7 +390,6 @@ static void main_loop(void)
 
 void cast_run(void)
 {
-    bool load_1st = true;
     if (settings_remote_enable) {
         pthread_t thread = {0};
         pthread_create(&thread, NULL, remote_control, NULL);
@@ -397,10 +399,8 @@ void cast_run(void)
     while (true) {
         cast_init();
         if (cast_connect()) {
-            if (load_1st) {
+            if (!decoder.handle)
                 load_next(NULL);
-                load_1st = false;
-            }
             main_loop();
         }
         cast_free();

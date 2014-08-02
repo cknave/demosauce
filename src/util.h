@@ -79,6 +79,9 @@ struct info {
  *
  *  seek(decoder, frames)
  *      Seek to position. <frames> is absolute, counting from the beginning of the file.
+ *
+ *  free(decoder)
+ *      Frees the decoder, all it's resources and sets all struct members to zero.
  */
 struct decoder {
     void        (*free)(struct decoder*);

@@ -334,7 +334,7 @@ void buffer_resize(struct buffer* buf, long size)
 void buffer_free(struct buffer* buf)
 {
     util_free(buf->data);
-    memset(buf, 0, sizeof(struct buffer));
+    memset(buf, 0, sizeof *buf);
     LOG_DEBUG("[buffer] %p free", buf);
 }
 
@@ -357,7 +357,8 @@ void stream_free(struct stream* s)
 {
     for (int i = 0; i < MAX_CHANNELS; i++)
         util_free(s->buffer[i]);
-    memset(s, 0, sizeof(struct stream));
+    memset(s, 0, sizeof *s);
+    LOG_DEBUG("[stream] %p free", s);
 }
 
 void stream_append(struct stream* s, struct stream* source, int frames)

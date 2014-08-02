@@ -62,7 +62,7 @@ static void read_config(void)
     fseek(f, 0, SEEK_END);
     size_t bsize = ftell(f);
     rewind(f);
-    char* buf = util_malloc(bsize + 1);
+    char* buf = malloc(bsize + 1);
     if (fread(buf, 1, bsize, f) != bsize)
         goto exit;
     buf[bsize] = 0;
@@ -79,7 +79,7 @@ static void read_config(void)
     #undef X
 exit:
     fclose(f);
-    util_free(buf);
+    free(buf);
 }
 
 static void check_sanity(void)
@@ -109,7 +109,7 @@ static void check_sanity(void)
 static void settings_free(void)
 {
     #define FREE_int(key) 
-    #define FREE_str(key) util_free(settings_##key);
+    #define FREE_str(key) free(settings_##key);
     #define FREE_log(key) 
     #define X(type, key, value) FREE_##type(key)
     SETTINGS_LIST

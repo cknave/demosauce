@@ -8,6 +8,7 @@
 *   copyright MMXIII by maep
 */
 
+#include <stdlib.h>
 #include <string.h>
 #include <math.h>
 #include <strings.h>
@@ -110,13 +111,11 @@ static char* get_id3_tag(const TAG_ID3* tags, const char* key)
 {
     char* value = NULL;
     if (!strcmp(key, "artist")) {
-        value = util_malloc(31);
+        value = calloc(1, 31);
         memmove(value, tags->artist, 30);
-        value[30] = 0;
     } else if (!strcmp(key, "title")) {
-        value = util_malloc(31);
+        value = calloc(1, 31);
         memmove(value, tags->title, 30);
-        value[30] = 0;
     }
     return value;
 }
@@ -207,7 +206,7 @@ static void bass_free(struct decoder* dec)
         if (BASS_ErrorGetCode() != BASS_OK)
              LOG_WARN("[bassdecoder] failed to free channel (%d)", BASS_ErrorGetCode());
     }
-    util_free(d);
+    free(d);
     memset(dec, 0, sizeof *dec);
 }
 
@@ -246,8 +245,7 @@ bool bass_load(struct decoder* dec, const char* path, const char* options, int s
         return false;
     }
 
-    struct bassdecoder* d = util_malloc(sizeof(struct bassdecoder));
-    memset(d, 0, sizeof(struct bassdecoder));
+    struct bassdecoder* d = calloc(1, sizeof *d);
     d->channel = channel;
 
     BASS_ChannelGetInfo(channel, &d->channel_info);
@@ -315,8 +313,7 @@ float bass_loopiness(const char* path)
     if (!BASS_ChannelSetPosition(channel, length - check_bytes, BASS_POS_BYTE)) 
         goto error;
 
-    buf = util_malloc(check_bytes);
-    memset(buf, 0, check_bytes);
+    buf = calloc(1, check_bytes);
     for (int i = 0; i < check_bytes && BASS_ErrorGetCode() == BASS_OK;) {
         DWORD r = BASS_ChannelGetData(channel, (char*)buf + i, check_bytes - i);
         i += r;
@@ -329,7 +326,7 @@ float bass_loopiness(const char* path)
 
 error:
     BASS_MusicFree(channel);
-    util_free(buf);
+    free(buf);
     return loopiness;
 }
 

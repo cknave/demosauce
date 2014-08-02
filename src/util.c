@@ -51,11 +51,6 @@ void* util_realloc(void* ptr, size_t size)
     return ptr;
 }
 
-void util_free(void* ptr)
-{
-    free(ptr);
-}
-
 //-----------------------------------------------------------------------------
 
 bool util_isfile(const char* path)
@@ -82,7 +77,7 @@ char* util_strdup(const char* str)
 {
     if (!str)
         return NULL;
-    char* s = util_malloc(strlen(str) + 1);
+    char* s = malloc(strlen(str) + 1);
     strcpy(s, str);
     return s;
 }
@@ -136,7 +131,7 @@ static char* keyval_impl(char* out, int size, const char* heap, const char* key,
 
     if (have_key) {
         if (!out || span < size) {
-            char* value = out ? out : util_malloc(span + 1);
+            char* value = out ? out : malloc(span + 1);
             memmove(value, tmp, span);
             value[span] = 0;
             LOG_DEBUG("[keyval] '%s' = '%s'", key, value);
@@ -333,7 +328,7 @@ void buffer_resize(struct buffer* buf, long size)
 
 void buffer_free(struct buffer* buf)
 {
-    util_free(buf->data);
+    free(buf->data);
     memset(buf, 0, sizeof *buf);
     LOG_DEBUG("[buffer] %p free", buf);
 }
@@ -356,7 +351,7 @@ void stream_resize(struct stream* s, int frames, int channels)
 void stream_free(struct stream* s)
 {
     for (int i = 0; i < MAX_CHANNELS; i++)
-        util_free(s->buffer[i]);
+        free(s->buffer[i]);
     memset(s, 0, sizeof *s);
     LOG_DEBUG("[stream] %p free", s);
 }

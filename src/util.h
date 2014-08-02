@@ -96,8 +96,6 @@ struct decoder {
 // equivalent to stdlib functions, but memory is aligned to 32 byte boundry. 
 void*   util_malloc(size_t size);
 void*   util_realloc(void* ptr, size_t size);
-void    util_free(void* ptr);
-
 
 /*  misc functions
  *  util_strdup

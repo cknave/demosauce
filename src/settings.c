@@ -62,10 +62,9 @@ static void read_config(void)
     fseek(f, 0, SEEK_END);
     size_t bsize = ftell(f);
     rewind(f);
-    char* buf = malloc(bsize + 1);
+    char* buf = calloc(bsize + 1, 1);
     if (fread(buf, 1, bsize, f) != bsize)
         goto exit;
-    buf[bsize] = 0;
     strip_comments(buf);
     
     char tmpstr[8] = {0};

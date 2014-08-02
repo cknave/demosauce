@@ -26,8 +26,7 @@ struct rg_context* rg_new(int samplerate, int sampletype, int channels, int inte
     if (channels != 1 && channels != 2)
         return NULL;
 
-    struct rg_context* ctx = malloc(sizeof(struct rg_context));
-    memset(ctx, 0, sizeof(struct rg_context));
+    struct rg_context* ctx = calloc(sizeof *ctx, 1);
     
     int err = InitGainAnalysis(&ctx->state, samplerate);
     if (err == INIT_GAIN_ANALYSIS_ERROR) {

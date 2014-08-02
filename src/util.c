@@ -77,7 +77,7 @@ char* util_strdup(const char* str)
 {
     if (!str)
         return NULL;
-    char* s = malloc(strlen(str) + 1);
+    char* s = calloc(strlen(str) + 1, 1);
     strcpy(s, str);
     return s;
 }

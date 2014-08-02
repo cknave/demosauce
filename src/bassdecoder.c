@@ -111,10 +111,10 @@ static char* get_id3_tag(const TAG_ID3* tags, const char* key)
 {
     char* value = NULL;
     if (!strcmp(key, "artist")) {
-        value = calloc(1, 31);
+        value = calloc(31, 1);
         memmove(value, tags->artist, 30);
     } else if (!strcmp(key, "title")) {
-        value = calloc(1, 31);
+        value = calloc(31, 1);
         memmove(value, tags->title, 30);
     }
     return value;
@@ -245,7 +245,7 @@ bool bass_load(struct decoder* dec, const char* path, const char* options, int s
         return false;
     }
 
-    struct bassdecoder* d = calloc(1, sizeof *d);
+    struct bassdecoder* d = calloc(sizeof *d, 1);
     d->channel = channel;
 
     BASS_ChannelGetInfo(channel, &d->channel_info);
@@ -313,7 +313,7 @@ float bass_loopiness(const char* path)
     if (!BASS_ChannelSetPosition(channel, length - check_bytes, BASS_POS_BYTE)) 
         goto error;
 
-    buf = calloc(1, check_bytes);
+    buf = calloc(check_bytes, 1);
     for (int i = 0; i < check_bytes && BASS_ErrorGetCode() == BASS_OK;) {
         DWORD r = BASS_ChannelGetData(channel, (char*)buf + i, check_bytes - i);
         i += r;

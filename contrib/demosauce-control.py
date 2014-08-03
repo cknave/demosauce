@@ -8,7 +8,11 @@
 # this stuff is worth it, you can buy me a beer in return 
 # ----------------------------------------------------------------------------
 
-import socket, optparse
+from __future__ import unicode_literals
+from __future__ import print_function
+import socket, optparse, sys
+if sys.version_info[0] == 2:
+    input = raw_input
 
 help_short= 'enter h for help'
 help_msg = '''commands 
@@ -21,27 +25,27 @@ help_msg = '''commands
 
 def prompt(msg = None):
     if msg:
-        print msg
-    return raw_input('>>> ' if msg else '] ').strip()
+        print(msg)
+    return input('>>> ' if msg else '] ').strip()
 
 def sendorbust(fd, data):
     try:
-        fd.sendall(data)
-        print 'ok'
-    except:
-        print 'lost connection to demosacue'
+        fd.sendall(data.encode('utf-8'))
+        print('ok')
+    except Exception as e:
+        print(e)
         exit(1)
         
 
 def mainloop(fd):
-    print help_short
+    print(help_short)
     while True:
         cmd = prompt()
         if cmd == 'q':
             exit(0)
             
         elif cmd == 'h':
-            print help_msg
+            print(help_msg)
             
         elif cmd == 's':
             sendorbust(fd, 'SKIP')
@@ -55,7 +59,7 @@ def mainloop(fd):
             artist = prompt('enter artist (optional)')
             title = prompt('enter title')
             if not title:
-                print 'empty title, aborting'
+                print('empty title, aborting')
                 continue
             command = 'META\ntitle=%s' % title
             if (artist):
@@ -66,7 +70,7 @@ def mainloop(fd):
             url = prompt('enter url or path of next song to be played')
             gain = prompt('enter track gain in dB (optional)')
             if not url:
-                print 'empty url, aborting'
+                print('empty url, aborting')
                 continue
             command = 'PLAY\npath=%s' % url
             if gain:
@@ -74,7 +78,7 @@ def mainloop(fd):
             sendorbust(fd, command)
             
         else:
-            print 'unknown command,', help_short
+            print('unknown command,', help_short)
  
 if __name__ == '__main__':
     usage = 'syntax: %prog [options]'
@@ -83,9 +87,9 @@ if __name__ == '__main__':
     (options, args) = parser.parse_args()
 
     try:
-        fd = socket.create_connection(('localhost', options.port))
-    except:
-        print 'failed to connect to demosauce'
+        fd = socket.create_connection(('localhost', int(options.port)))
+    except Exception as e :
+        print(e)
         exit(1)
 
     mainloop(fd)

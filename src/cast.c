@@ -274,7 +274,9 @@ static void* load_next(void* data)
 static void cast_free(void)
 {
     shout_free(shout);
+    shout = NULL;
     lame_close(lame);
+    lame = 0;
     if (decoder.free)
         decoder.free(&decoder);
     stream_free(&stream0);
@@ -283,6 +285,7 @@ static void cast_free(void)
     buffer_free(&config_buf);
     buffer_free(&lame_buf);
     fx_resample_free(resampler);
+    resampler = NULL;
 }
 
 static void cast_init(void)
@@ -295,7 +298,7 @@ static void cast_init(void)
     lame_set_num_channels(lame, settings_encoder_channels);
     lame_set_in_samplerate(lame, settings_encoder_samplerate);
     lame_init_params(lame);
-    buffer_resize(&lame_buf, BUFFER_SIZE * settings_encoder_bitrate / CHAR_BIT * 4);
+    buffer_resize(&lame_buf, BUFFER_SIZE * settings_encoder_bitrate);
 }
 
 static struct stream* process(int frames)
@@ -371,6 +374,7 @@ static void main_loop(void)
                 pthread_detach(thread);
             }
         }
+        
         int siz = lame_encode_buffer_ieee_float(lame, s->buffer[0], s->buffer[1], s->frames, lame_buf.data, lame_buf.size);
         if (siz < 0) { 
            LOG_ERROR("[cast] lame error (%d)", siz);
@@ -387,7 +391,6 @@ static void main_loop(void)
 
 void cast_run(void)
 {
-    bool load_1st = true;
     if (settings_remote_enable) {
         pthread_t thread = {0};
         pthread_create(&thread, NULL, remote_control, NULL);
@@ -397,10 +400,8 @@ void cast_run(void)
     while (true) {
         cast_init();
         if (cast_connect()) {
-            if (load_1st) {
+            if (!decoder.handle)
                 load_next(NULL);
-                load_1st = false;
-            }
             main_loop();
         }
         cast_free();

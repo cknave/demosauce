@@ -8,6 +8,7 @@
 *   copyright MMXIII by maep
 */
 
+#include <stdlib.h>
 #include <math.h>
 #include <string.h>
 #include <limits.h>
@@ -39,7 +40,7 @@ void* fx_resample_init(int channels, int sr_from, int sr_to)
 {
     assert(channels >= 1 && channels <= MAX_CHANNELS);
     int err = 0;
-    struct fx_resampler* r = util_malloc(sizeof(struct fx_resampler));
+    struct fx_resampler* r = calloc(1, sizeof *r);
     r->channels = channels;
     r->ratio    = (double)sr_to / sr_from;
     if (!src_is_valid_ratio(r->ratio))
@@ -65,7 +66,7 @@ void fx_resample_free(void* handle)
     struct fx_resampler* r = handle;
     for (int ch = 0; ch < r->channels; ch++)
         src_delete(r->state[ch]);
-    util_free(r);
+    free(r);
 }
 
 void fx_resample(void* handle, struct stream* s1, struct stream* s2)

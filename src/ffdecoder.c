@@ -235,7 +235,8 @@ static void ff_free(struct decoder* dec)
 {
     struct ffdecoder* d = dec->handle;
     ff_free2(d);
-    util_free(d);
+    free(d);
+    memset(dec, 0, sizeof *dec);
 }
 
 bool ff_load(struct decoder* dec, const char* path)
@@ -312,8 +313,8 @@ bool ff_load(struct decoder* dec, const char* path)
     dec->info       = ff_info;
     dec->metadata   = ff_metadata;
     dec->decode     = ff_decode;
-    dec->handle     = util_malloc(sizeof(struct ffdecoder));
-    memmove(dec->handle, &d, sizeof(struct ffdecoder));
+    dec->handle     = calloc(sizeof *dec->handle, 1);
+    memmove(dec->handle, &d, sizeof *dec->handle);
     
     LOG_INFO("[ffdecoder] loaded %s", path);
     return true;

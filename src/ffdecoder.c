@@ -8,7 +8,7 @@
 *   copyright MMXIII by maep
 */
 
-// on a general not, ffmpeg is a pain in the ass to work with because they change
+// on a general note, ffmpeg is a pain in the ass to work with because they change
 // their api a couple of times a year, sometimes for no good reason. they just
 // change a define or function name so it looks more pretty. and then i have
 // to go try and figure out in which version that happend. this is why this file
@@ -174,6 +174,7 @@ static const char* codec_type(struct ffdecoder* d)
         case CODEC_ID_WMAV1:
         case CODEC_ID_WMAV2:    return "wma";
         case CODEC_ID_FLAC:     return "flac";
+        case CODEC_ID_ALAC:     return "alac";
         case CODEC_ID_WAVPACK:  return "wavpack";
         case CODEC_ID_APE:      return "monkey";
         case CODEC_ID_MUSEPACK7:

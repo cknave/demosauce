@@ -101,7 +101,7 @@ static void write_wav(FILE* f, struct stream* s)
             tmp[i * 2]     = CLAMP(INT16_MIN, left[i]  * INT16_MAX, INT16_MAX);
             tmp[i * 2 + 1] = CLAMP(INT16_MIN, right[i] * INT16_MAX, INT16_MAX);
         }
-        fwrite(tmp, sizeof(int16_t), process_frames * 2, f);
+        fwrite(tmp, sizeof (int16_t), process_frames * 2, f);
         frames += process_frames;
     }
 }

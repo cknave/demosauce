@@ -44,13 +44,13 @@ static void bass_decode(struct decoder* dec, struct stream* s, int frames)
     }
 
     frames = CLAMP(0, d->last_frame - d->current_frame, frames);
-    DWORD bytes_to_read = frames * ch * sizeof(float);
+    DWORD bytes_to_read = frames * ch * sizeof (float);
     buffer_resize(&d->read_buffer, bytes_to_read);
     DWORD bytes_read = BASS_ChannelGetData(d->channel, d->read_buffer.data, bytes_to_read);
     if (bytes_read == -1 && BASS_ErrorGetCode() != BASS_ERROR_ENDED) 
         LOG_ERROR("[bassdecoder] failed to read from channel (%d)", BASS_ErrorGetCode());
     
-    int frames_read = (bytes_read != -1) ? bytes_read / (sizeof(float) * ch) : 0;
+    int frames_read = (bytes_read != -1) ? bytes_read / (sizeof (float) * ch) : 0;
     d->current_frame += frames_read;
 
     s->frames = 0;
@@ -90,7 +90,7 @@ static const char* codec_type(struct bassdecoder* d)
 static void bass_info(struct decoder* dec, struct info* info)
 {
     struct bassdecoder* d = dec->handle;
-    memset(info, 0, sizeof(struct info)); 
+    memset(info, 0, sizeof *info); 
     info->channels      = d->channel_info.chans;
     info->samplerate    = d->channel_info.freq;
     info->frames        = d->last_frame;
@@ -250,7 +250,7 @@ bool bass_load(struct decoder* dec, const char* path, const char* options, int s
 
     BASS_ChannelGetInfo(channel, &d->channel_info);
     long len_bytes = (long)BASS_ChannelGetLength(channel, BASS_POS_BYTE);
-    d->last_frame = (len_bytes < 0) ? LONG_MAX : len_bytes / (sizeof(float) * d->channel_info.chans);
+    d->last_frame = (len_bytes < 0) ? LONG_MAX : len_bytes / (sizeof (float) * d->channel_info.chans);
 
     if (IS_MOD(d)) {
         // interpolation, values: auto, auto, off, linear, sinc (bass uses linear as default)
@@ -299,7 +299,7 @@ float bass_loopiness(const char* path)
     int flags           = BASS_MUSIC_DECODE | BASS_SAMPLE_MONO | BASS_MUSIC_NONINTER | BASS_MUSIC_PRESCAN;
     int samplerate      = 44100;
     int check_frames    = samplerate / 20;
-    int check_bytes     = check_frames * sizeof(int16_t);
+    int check_bytes     = check_frames * sizeof (int16_t);
     int16_t* buf        = NULL;
 
     HMUSIC channel = BASS_MusicLoad(FALSE, path, 0, 0 , flags, samplerate);

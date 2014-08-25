@@ -37,7 +37,7 @@ void log_set_file(const char* file_name, enum log_level level)
         return;
     file_level = level;
     time(&rawtime);
-    if (!strftime(buf, sizeof(buf) - 1, file_name, localtime(&rawtime))) {
+    if (!strftime(buf, sizeof buf - 1, file_name, localtime(&rawtime))) {
         puts("WARNING: malformed log file name");
         return;
     }

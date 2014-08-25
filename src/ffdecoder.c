@@ -89,7 +89,7 @@ static void decode_frame(struct ffdecoder* d, AVPacket* p)
         if (ret < 0)
             goto error;
         // TODO check format
-        int frames = data_size / (d->codec_context->channels * sizeof(int16_t));
+        int frames = data_size / (d->codec_context->channels * sizeof (int16_t));
         void* buffs[MAX_CHANNELS] = {buf, buf + frames};
         stream_append_convert(&d->stream, buffs, d->format, frames, d->codec_context->channels);
 #else
@@ -189,7 +189,7 @@ static const char* codec_type(struct ffdecoder* d)
 static void ff_info(struct decoder* dec, struct info* info)
 {
     struct ffdecoder* d = dec->handle;
-    memset(info, 0, sizeof(struct info));
+    memset(info, 0, sizeof *info);
     info->frames        = d->frames;
     info->codec         = codec_type(d);
     info->bitrate       = d->codec_context->bit_rate / 1000.0f;

@@ -71,7 +71,7 @@ static void read_config(void)
     #define GET_int(key, value) settings_##key = keyval_int(buf, #key, settings_##key);
     #define GET_str(key, value) settings_##key = keyval_str_dup(buf, #key, settings_##key);
     #define GET_log(key, value) settings_##key = value;                                 \
-                                keyval_str(tmpstr, sizeof(tmpstr), buf, #key, NULL);    \
+                                keyval_str(tmpstr, sizeof (tmpstr), buf, #key, NULL);   \
                                 log_string_to_level(tmpstr, &settings_##key);
     #define X(type, key, value) GET_##type(key, value)
     SETTINGS_LIST

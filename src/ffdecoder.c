@@ -314,8 +314,8 @@ bool ff_load(struct decoder* dec, const char* path)
     dec->info       = ff_info;
     dec->metadata   = ff_metadata;
     dec->decode     = ff_decode;
-    dec->handle     = calloc(sizeof *dec->handle, 1);
-    memmove(dec->handle, &d, sizeof *dec->handle);
+    dec->handle     = calloc(1, sizeof (struct ffdecoder));
+    memmove(dec->handle, &d, sizeof (struct ffdecoder));
     
     LOG_INFO("[ffdecoder] loaded %s", path);
     return true;
